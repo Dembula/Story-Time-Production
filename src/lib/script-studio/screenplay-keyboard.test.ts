@@ -11,6 +11,7 @@ import {
   wrapPlainText,
   applyHardWrapAtCursor,
   hardWrapDocument,
+  formatLineWhileTyping,
 } from "./screenplay-keyboard";
 import { SCREENPLAY_COL, SCREENPLAY_LINE_WIDTH } from "./elements";
 
@@ -143,5 +144,19 @@ describe("screenplay-keyboard", () => {
     assert.ok(healed.split("\n").every((l) => l.length <= SCREENPLAY_LINE_WIDTH));
     assert.ok(healed.includes("DURBAN UNIVERSITY"));
     assert.ok(healed.toLowerCase().includes("young women"));
+  });
+
+  it("escapes character mode when the line becomes prose", () => {
+    assert.equal(
+      resolveLineElement("THAT IS WHY MY FRIENDS HAD TO TAKE THE STATUE DOWN", undefined, "character"),
+      "action",
+    );
+    assert.equal(resolveLineElement("DALE", undefined, "character"), "character");
+  });
+
+  it("does not column-shift action while typing mid-line", () => {
+    const content = "Action stays on the left margin while editing.";
+    const result = formatLineWhileTyping(content, content.length, "action");
+    assert.equal(result, null);
   });
 });

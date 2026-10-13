@@ -201,13 +201,30 @@ export function resolveLineElement(
   if (activeElement === "character" || activeElement === "parenthetical" || activeElement === "dialogue") {
     const indent = leadingSpaces(line);
     if (activeElement === "character") {
+      // Celtx-like: character cues are short names — not full sentences.
+      // Escape to action/dialogue when the line clearly becomes prose.
+      const nameOnly = trimmed.replace(/\s*\((V\.O\.|O\.S\.|CONT'D|OFF|PRE-LAP)\)\s*$/i, "").trim();
+      const wordCount = nameOnly.split(/\s+/).filter(Boolean).length;
+      const looksLikeProse =
+        nameOnly.length > 42 ||
+        (wordCount >= 4 && !/^\(.*\)$/.test(trimmed));
+      if (looksLikeProse) {
+        return detected === "dialogue" || detected === "parenthetical" ? detected : "action";
+      }
       if (indent >= SCREENPLAY_COL.dialogue && indent < SCREENPLAY_COL.character - 2) {
         return detected;
       }
       return "character";
     }
     if (activeElement === "parenthetical" && trimmed.startsWith("(")) return "parenthetical";
-    if (activeElement === "dialogue" && indent >= SCREENPLAY_COL.dialogue - 2) return "dialogue";
+    // Dialogue stays dialogue while indented; plain left-margin prose leaves dialogue mode.
+    if (activeElement === "dialogue") {
+      if (indent >= SCREENPLAY_COL.dialogue - 2) return "dialogue";
+      if (indent < 2 && trimmed.length > 0 && !CHARACTER_LINE.test(trimmed.replace(/\s*\(.*\)$/, "").trim())) {
+        return "action";
+      }
+      return "dialogue";
+    }
   }
 
   if (activeElement === "scene_heading") {
@@ -631,7 +648,9 @@ export function formatLineWhileTyping(
   content: string,
   cursorPos: number,
   activeElement: ScreenplayElementType,
+  opts?: { allowFormat?: boolean },
 ): { content: string; selectionStart: number; selectionEnd: number; element?: ScreenplayElementType } | null {
+  const allowFormat = opts?.allowFormat !== false;
   const lineIdx = lineIndexAt(content, cursorPos);
   const lines = content.split("\n");
   const current = lines[lineIdx] ?? "";
@@ -656,12 +675,25 @@ export function formatLineWhileTyping(
   const needsWrap = bodyLen > maxWidth || hasPeeledTail;
   const formattedSingle = formatLineForElement(element, current);
   // Don't treat intentional trailing spaces as a format mismatch — that made Space appear broken.
+  // Also: never column-shift on pure action, and only re-indent when the element still matches.
   const needsFormat =
+    allowFormat &&
     element !== "action" &&
     (formattedSingle !== current || element !== activeElement) &&
     !(atEnd && current.endsWith(" ") && formattedSingle === current);
 
-  if (!needsWrap && !needsFormat) return null;
+  if (!needsWrap && !needsFormat) {
+    // Still report element escapes (character → action) so the toolbar stays in sync.
+    if (element !== activeElement) {
+      return {
+        content,
+        selectionStart: cursorPos,
+        selectionEnd: cursorPos,
+        element,
+      };
+    }
+    return null;
+  }
 
   if (needsWrap) {
     return applyHardWrapAtCursor(content, cursorPos, activeElement);

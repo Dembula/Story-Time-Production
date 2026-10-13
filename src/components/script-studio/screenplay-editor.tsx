@@ -12,7 +12,6 @@ import {
   handleScreenplayEnter,
   hardWrapDocument,
   lineIndexAt,
-  maxContentWidthForElement,
   needsScreenplayLayoutHeal,
   pageCountForContent,
   resolveLineElement,
@@ -245,6 +244,9 @@ export function ScreenplayEditor({
   valueRef.current = value;
   const activePageIdxRef = useRef(0);
   activePageIdxRef.current = activePageIdx;
+  /** True while Backspace/Delete is held — skip live format + heal so caret never jumps. */
+  const isDeletingRef = useRef(false);
+  const deleteIdleTimerRef = useRef<number | null>(null);
 
   /** Hold Tab → structure cycle near caret; Tab+Enter → transitions; release to apply. */
   const tabHeldRef = useRef(false);
@@ -276,22 +278,6 @@ export function ScreenplayEditor({
     if (healed !== value) onChange(healed);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per draft open
   }, [layoutHealKey, preserveStructure, readOnly]);
-
-  // Debounced safety net for paste / remote content without fighting live typing.
-  useEffect(() => {
-    if (preserveStructure || readOnly) return;
-    if (!needsScreenplayLayoutHeal(value)) return;
-    const timer = window.setTimeout(() => {
-      const cleaned = stripScreenplayPageFooters(valueRef.current);
-      if (!needsScreenplayLayoutHeal(cleaned)) {
-        if (cleaned !== valueRef.current) onChange(cleaned);
-        return;
-      }
-      const healed = hardWrapDocument(cleaned);
-      if (healed !== valueRef.current) onChange(healed);
-    }, 600);
-    return () => window.clearTimeout(timer);
-  }, [value, preserveStructure, readOnly, onChange]);
 
   // Fit US Letter pages to the visible desk width — never allow horizontal slide.
   const pagesStackRef = useRef<HTMLDivElement | null>(null);
@@ -391,6 +377,38 @@ export function ScreenplayEditor({
     },
     [queueCaret, applyPendingCaret],
   );
+
+  const markDeleting = useCallback(() => {
+    isDeletingRef.current = true;
+    if (deleteIdleTimerRef.current != null) window.clearTimeout(deleteIdleTimerRef.current);
+    deleteIdleTimerRef.current = window.setTimeout(() => {
+      isDeletingRef.current = false;
+      deleteIdleTimerRef.current = null;
+    }, 400);
+  }, []);
+
+  // Debounced safety net for paste / remote content without fighting live typing/deleting.
+  useEffect(() => {
+    if (preserveStructure || readOnly) return;
+    if (isDeletingRef.current) return;
+    if (!needsScreenplayLayoutHeal(value)) return;
+    const timer = window.setTimeout(() => {
+      if (isDeletingRef.current) return;
+      const before = valueRef.current;
+      const cleaned = stripScreenplayPageFooters(before);
+      const healed = needsScreenplayLayoutHeal(cleaned)
+        ? hardWrapDocument(cleaned)
+        : cleaned;
+      if (healed === before) return;
+      const el = pageRefs.current[activePageIdxRef.current];
+      const caret = el
+        ? pageStartOffset(before, activePageIdxRef.current) + el.selectionStart
+        : 0;
+      onChange(healed);
+      queueCaret(healed, Math.min(caret, healed.length));
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [value, preserveStructure, readOnly, onChange, queueCaret]);
 
   // Expose global caret get/set for undo/redo in the parent studio.
   useEffect(() => {
@@ -532,17 +550,32 @@ export function ScreenplayEditor({
     (pageIdx: number, pageText: string, localCursor: number) => {
       const previous = valueRef.current;
       const provisional = mergePageIntoContent(previous, pageIdx, pageText);
-      const globalCursor = pageStartOffset(previous, pageIdx) + localCursor;
+      // Caret is always relative to this page's text — keep it through re-pagination.
+      const globalCursor = Math.min(
+        Math.max(0, pageStartOffset(previous, pageIdx) + localCursor),
+        provisional.length,
+      );
+
+      const commitWithCaret = (
+        next: string,
+        caret: number,
+        element: ScreenplayElementType = editingElement,
+      ) => {
+        const safeCaret = Math.min(Math.max(0, caret), next.length);
+        queueCaret(next, safeCaret);
+        onChange(next);
+        refreshSuggestions(next, safeCaret, element);
+      };
+
       if (preserveStructure) {
-        onChange(provisional);
-        refreshSuggestions(provisional, globalCursor, editingElement);
+        commitWithCaret(provisional, globalCursor);
         return;
       }
 
-      // While deleting, skip live reformatting unless the line is still over width —
-      // constant format-on-backspace was stacking/overlapping text under the caret.
+      // Deleting must never reformat or drop the caret — that was jumping to page end
+      // and then eating the following pages (unlike Celtx / Final Draft).
       const shrinking = provisional.length < previous.length;
-      if (shrinking) {
+      if (isDeletingRef.current || shrinking) {
         const lineIdx = lineIndexAt(provisional, globalCursor);
         const lines = provisional.split("\n");
         const current = lines[lineIdx] ?? "";
@@ -551,35 +584,30 @@ export function ScreenplayEditor({
           next: lineIdx < lines.length - 1 ? lines[lineIdx + 1] : undefined,
         };
         const element = resolveLineElement(current, neighbors, editingElement);
-        const overMax =
-          current.trim().length > maxContentWidthForElement(element);
-        if (!overMax) {
-          onChange(provisional);
-          refreshSuggestions(provisional, globalCursor, element);
-          return;
+        commitWithCaret(provisional, globalCursor, element);
+        if (element !== editingElement) {
+          setEditingElement(element);
+          onElementChange?.(element);
         }
+        return;
       }
 
       const formatted = formatLineWhileTyping(provisional, globalCursor, editingElement);
 
       if (formatted) {
-        queueCaret(formatted.content, formatted.selectionStart, formatted.selectionEnd);
-        onChange(formatted.content);
-        if (formatted.element) {
-          setEditingElement(formatted.element);
-          onElementChange?.(formatted.element);
-        }
-        refreshSuggestions(
+        commitWithCaret(
           formatted.content,
           formatted.selectionStart,
           formatted.element ?? editingElement,
         );
+        if (formatted.element && formatted.element !== editingElement) {
+          setEditingElement(formatted.element);
+          onElementChange?.(formatted.element);
+        }
         return;
       }
 
-      // Native caret is correct for plain inserts/deletes — do not fight it with focusAt.
-      onChange(provisional);
-      refreshSuggestions(provisional, globalCursor, editingElement);
+      commitWithCaret(provisional, globalCursor);
     },
     [editingElement, onChange, onElementChange, queueCaret, refreshSuggestions, preserveStructure],
   );
@@ -762,8 +790,13 @@ export function ScreenplayEditor({
           return;
         }
         if (e.key === "Backspace" || e.key === "Delete") {
+          markDeleting();
           bumpSuggestionIdle();
         }
+      }
+
+      if (e.key === "Backspace" || e.key === "Delete") {
+        markDeleting();
       }
 
       if (e.key === "Escape" && cyclePickerRef.current) {
@@ -849,20 +882,31 @@ export function ScreenplayEditor({
       if (
         editingElement === "character" &&
         e.key.length === 1 &&
-        /[a-z]/.test(e.key) &&
+        /[a-z]/i.test(e.key) &&
         !e.ctrlKey &&
         !e.metaKey &&
         !e.altKey
       ) {
         e.preventDefault();
         onBeforeChange?.();
-        const next = content.slice(0, globalStart) + e.key.toUpperCase() + content.slice(globalEnd);
+        const lineIdx = lineIndexAt(content, globalStart);
+        const currentLine = content.split("\n")[lineIdx] ?? "";
+        const nameOnly = currentLine
+          .trim()
+          .replace(/\s*\((V\.O\.|O\.S\.|CONT'D|OFF|PRE-LAP)\)\s*$/i, "")
+          .trim();
+        // Short ALL-CAPS cues stay character; longer/sentence-like input becomes action (Celtx-like).
+        const stayCharacter =
+          nameOnly.length < 36 && nameOnly.split(/\s+/).filter(Boolean).length < 4;
+        const inserted = stayCharacter ? e.key.toUpperCase() : e.key;
+        const nextElement = stayCharacter ? "character" : "action";
+        const next = content.slice(0, globalStart) + inserted + content.slice(globalEnd);
         applyEdit(
-          formatLineWhileTyping(next, globalStart + 1, "character") ?? {
+          formatLineWhileTyping(next, globalStart + inserted.length, nextElement) ?? {
             content: next,
-            selectionStart: globalStart + 1,
-            selectionEnd: globalStart + 1,
-            element: "character",
+            selectionStart: globalStart + inserted.length,
+            selectionEnd: globalStart + inserted.length,
+            element: nextElement,
           },
         );
         return;
@@ -895,6 +939,7 @@ export function ScreenplayEditor({
       // Soft page boundary: backspace at start of page N must delete the joining newline.
       if (e.key === "Backspace" && el.selectionStart === 0 && el.selectionEnd === 0 && pageIdx > 0) {
         e.preventDefault();
+        markDeleting();
         onBeforeChange?.();
         const joinAt = pageStartOffset(content, pageIdx);
         if (joinAt <= 0) {
@@ -907,6 +952,29 @@ export function ScreenplayEditor({
           content: newContent,
           selectionStart: joinAt - 1,
           selectionEnd: joinAt - 1,
+          element: editingElement,
+        });
+        return;
+      }
+
+      // Delete at end of page removes the first character of the next page (continuous doc).
+      if (
+        e.key === "Delete" &&
+        el.selectionStart === el.value.length &&
+        el.selectionEnd === el.value.length &&
+        pageIdx < pageCount - 1
+      ) {
+        e.preventDefault();
+        markDeleting();
+        onBeforeChange?.();
+        const at = pageStartOffset(content, pageIdx) + el.value.length;
+        if (at >= content.length) return;
+        const newContent = content.slice(0, at) + content.slice(at + 1);
+        dismissSuggestions();
+        applyEdit({
+          content: newContent,
+          selectionStart: at,
+          selectionEnd: at,
           element: editingElement,
         });
         return;
@@ -953,6 +1021,7 @@ export function ScreenplayEditor({
       closeCyclePicker,
       cyclePickerStep,
       applyCycleSelection,
+      markDeleting,
     ],
   );
 
