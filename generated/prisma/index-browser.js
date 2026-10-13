@@ -1590,6 +1590,68 @@ exports.Prisma.ProjectVisualAssetScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.StoryboardBoardScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  createdById: 'createdById',
+  title: 'title',
+  scriptKey: 'scriptKey',
+  scriptLabel: 'scriptLabel',
+  stylePreset: 'stylePreset',
+  aspectRatio: 'aspectRatio',
+  status: 'status',
+  globalNotes: 'globalNotes',
+  sortOrder: 'sortOrder',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.StoryboardFrameScalarFieldEnum = {
+  id: 'id',
+  boardId: 'boardId',
+  projectId: 'projectId',
+  sceneId: 'sceneId',
+  sceneNumber: 'sceneNumber',
+  sceneHeading: 'sceneHeading',
+  shotLabel: 'shotLabel',
+  sortOrder: 'sortOrder',
+  prompt: 'prompt',
+  directorNotes: 'directorNotes',
+  imageUrl: 'imageUrl',
+  imageStorageRef: 'imageStorageRef',
+  generationStatus: 'generationStatus',
+  generationError: 'generationError',
+  lastEditPrompt: 'lastEditPrompt',
+  styleOverride: 'styleOverride',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.StoryboardGuestInviteScalarFieldEnum = {
+  id: 'id',
+  boardId: 'boardId',
+  projectId: 'projectId',
+  createdById: 'createdById',
+  token: 'token',
+  email: 'email',
+  durationKey: 'durationKey',
+  expiresAt: 'expiresAt',
+  revokedAt: 'revokedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.StoryboardGuestSessionScalarFieldEnum = {
+  id: 'id',
+  inviteId: 'inviteId',
+  token: 'token',
+  guestName: 'guestName',
+  guestEmail: 'guestEmail',
+  expiresAt: 'expiresAt',
+  createdAt: 'createdAt',
+  lastSeenAt: 'lastSeenAt'
+};
+
 exports.Prisma.ProjectIdeaScalarFieldEnum = {
   id: 'id',
   projectId: 'projectId',
@@ -3405,6 +3467,10 @@ exports.Prisma.ModelName = {
   NetworkConversationParticipant: 'NetworkConversationParticipant',
   NetworkMessage: 'NetworkMessage',
   ProjectVisualAsset: 'ProjectVisualAsset',
+  StoryboardBoard: 'StoryboardBoard',
+  StoryboardFrame: 'StoryboardFrame',
+  StoryboardGuestInvite: 'StoryboardGuestInvite',
+  StoryboardGuestSession: 'StoryboardGuestSession',
   ProjectIdea: 'ProjectIdea',
   ProjectScript: 'ProjectScript',
   ProjectScriptVersion: 'ProjectScriptVersion',

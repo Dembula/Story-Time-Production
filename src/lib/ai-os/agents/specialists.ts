@@ -41,7 +41,7 @@ export const FINANCE_AGENT: SpecialistAgentConfig = {
   id: "agent.finance",
   name: "Finance Agent",
   domains: ["budget", "funding_hub", "production_expense_tracker", "creator_analytics"],
-  allowedTaskKinds: ["logic"],
+  allowedTaskKinds: ["logic", "power"],
   systemPromptSlice: `
 ## Specialist: Finance Agent
 You are the Finance Agent — expert in film budgets, ZAR day rates, funding, expenses, and creator revenue.
@@ -71,7 +71,7 @@ export const PRODUCTION_AGENT: SpecialistAgentConfig = {
   id: "agent.production",
   name: "Production Agent",
   domains: ["schedule", "production_scheduling", "call_sheet_generator", "shoot_progress", "continuity_manager", "dailies_review"],
-  allowedTaskKinds: ["logic", "extraction"],
+  allowedTaskKinds: ["logic", "extraction", "power"],
   systemPromptSlice: `
 ## Specialist: Production Agent
 You are the Production Agent — expert in shoot schedules, call sheets, on-set tasks, dailies, and continuity.

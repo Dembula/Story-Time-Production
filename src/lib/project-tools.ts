@@ -7,6 +7,7 @@ export type ProjectToolId =
   | "script-writing"
   | "script-review"
   | "script-breakdown"
+  | "storyboard"
   | "budget-builder"
   | "production-scheduling"
   | "casting-portal"
@@ -57,6 +58,7 @@ export interface ProjectToolMeta {
     | "TREATMENT"
     | "SCRIPT"
     | "BREAKDOWN"
+    | "STORYBOARD"
     | "BUDGET"
     | "SCHEDULING"
     | "CASTING"
@@ -122,6 +124,15 @@ export const PRE_PRODUCTION_TOOLS: ProjectToolMeta[] = [
     description: "AI-powered production breakdown hub — scenes, catalog, scheduling, and budget prep.",
     toolSlug: "script-breakdown",
     pipelineStep: "BREAKDOWN",
+  },
+  {
+    id: "storyboard",
+    phase: "PRE_PRODUCTION",
+    label: "Storyboard Studio",
+    description:
+      "AI storyboards from your script — shot-by-shot frames, per-scene edits, and timed guest review.",
+    toolSlug: "storyboard",
+    pipelineStep: "STORYBOARD",
   },
   {
     id: "budget-builder",

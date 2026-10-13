@@ -64,7 +64,7 @@ export const TOOL_WORKFLOW: Record<string, ToolWorkflowStep> = {
     action: "breakdown_full",
     prompt: "run script breakdown after review notes",
   }),
-  "script-breakdown": step("script-breakdown", "budget-builder", [
+  "script-breakdown": step("script-breakdown", "storyboard", [
     "breakdown_full",
     "auto_populate_breakdown",
     "incorporate_breakdown_items",
@@ -72,7 +72,11 @@ export const TOOL_WORKFLOW: Record<string, ToolWorkflowStep> = {
     "add_breakdown_location",
   ], {
     action: "generate_smart_budget",
-    prompt: "build a smart budget from the breakdown",
+    prompt: "create storyboards from the breakdown scenes",
+  }),
+  "storyboard": step("storyboard", "budget-builder", [], {
+    action: "generate_smart_budget",
+    prompt: "build a smart budget after locking storyboard coverage",
   }),
   "budget-builder": step("budget-builder", "production-scheduling", [
     "create_budget",

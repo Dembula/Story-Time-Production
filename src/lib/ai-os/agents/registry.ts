@@ -7,7 +7,7 @@ export type AiAgentDefinition = {
   /** Milestone 1: only modoc.* agents are active. Others are registered for future routing. */
   active: boolean;
   domains: string[];
-  preferredTaskKinds: Array<"creative" | "extraction" | "logic" | "chat" | "default">;
+  preferredTaskKinds: Array<"creative" | "extraction" | "logic" | "chat" | "power" | "default">;
 };
 
 /** Central registry of specialist agents. MODOC orchestrator selects from this list. */

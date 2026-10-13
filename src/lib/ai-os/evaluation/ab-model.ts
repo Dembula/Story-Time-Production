@@ -27,6 +27,7 @@ export function abModelOverride(
     extraction: process.env.OPENROUTER_AB_EXTRACTION_MODEL,
     logic: process.env.OPENROUTER_AB_LOGIC_MODEL,
     chat: process.env.OPENROUTER_AB_CHAT_MODEL,
+    power: process.env.OPENROUTER_AB_POWER_MODEL,
     default: process.env.OPENROUTER_AB_DEFAULT_MODEL,
   };
 

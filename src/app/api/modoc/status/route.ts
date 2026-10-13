@@ -6,13 +6,14 @@ export async function GET() {
   return NextResponse.json({
     available: configured,
     provider: "openrouter",
-    defaultModel: process.env.OPENROUTER_MODOC_MODEL ?? "openai/gpt-4o-mini",
+    defaultModel: process.env.OPENROUTER_MODOC_MODEL ?? "openai/gpt-6-astra",
     routing: configured
       ? {
           creative: modelsForTask("creative"),
           extraction: modelsForTask("extraction"),
           logic: modelsForTask("logic"),
           chat: modelsForTask("chat"),
+          power: modelsForTask("power"),
         }
       : null,
     envOverrides: {
@@ -27,6 +28,9 @@ export async function GET() {
         : null,
       chat: process.env.OPENROUTER_MODOC_CHAT_MODEL
         ? normalizeOpenRouterModelId(process.env.OPENROUTER_MODOC_CHAT_MODEL)
+        : null,
+      power: process.env.OPENROUTER_MODOC_POWER_MODEL
+        ? normalizeOpenRouterModelId(process.env.OPENROUTER_MODOC_POWER_MODEL)
         : null,
     },
   });

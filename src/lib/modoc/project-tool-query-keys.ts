@@ -13,6 +13,12 @@ const PRE_PRODUCTION_TOOL_QUERY_KEYS: Record<string, string[]> = {
     "creator-scripts-breakdown",
     "script-review-note-breakdown",
   ],
+  storyboard: [
+    "project-storyboards",
+    "project-scenes",
+    "project-script",
+    "creator-scripts-storyboard",
+  ],
   "budget-builder": ["project-budget", "project-breakdown", "project-scenes"],
   "production-scheduling": ["project-schedule", "project-breakdown", "project-scenes", "command-center-calendar"],
   "casting-portal": ["project-casting", "project-breakdown"],

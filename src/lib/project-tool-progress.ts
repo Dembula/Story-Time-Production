@@ -36,6 +36,7 @@ export type ProjectUsageSignals = {
   footageAssetCount: number;
   editReviewCount: number;
   musicSelectionCount: number;
+  storyboardFrameCount: number;
   contentLinked: boolean;
 };
 
@@ -82,6 +83,12 @@ function inferFromSignals(toolId: string, signals: ProjectUsageSignals): Resolve
           ? "COMPLETE"
           : "IN_PROGRESS"
         : "NOT_STARTED";
+    case "storyboard":
+      return signals.storyboardFrameCount > 0
+        ? "COMPLETE"
+        : signals.sceneCount > 0
+          ? "IN_PROGRESS"
+          : "NOT_STARTED";
     case "budget-builder":
       return signals.budgetLineCount > 0 ? "COMPLETE" : "NOT_STARTED";
     case "production-scheduling":

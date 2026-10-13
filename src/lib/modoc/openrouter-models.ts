@@ -1,43 +1,83 @@
 /**
  * OpenRouter model ID normalization.
- * Env vars must use slugs from https://openrouter.ai/models (e.g. google/gemini-2.5-flash).
+ * Env vars must use slugs from https://openrouter.ai/models (e.g. openai/gpt-6-astra).
  */
 
-/** Retired or mistyped IDs → current OpenRouter slugs (June 2026). */
+/** Retired or short aliases → current OpenRouter slugs. */
 const MODEL_ALIASES: Record<string, string> = {
+  // Astra (GPT-6)
+  astra: "openai/gpt-6-astra",
+  "astra-6": "openai/gpt-6-astra",
+  "gpt-6-astra": "openai/gpt-6-astra",
+  "openai/astra": "openai/gpt-6-astra",
+  "astra-pro": "openai/gpt-6-astra-pro",
+  "gpt-6-astra-pro": "openai/gpt-6-astra-pro",
+  // Gemini
   "google/gemini-2.5-flash-preview-05-20": "google/gemini-2.5-flash",
   "google/gemini-2.5-flash-preview": "google/gemini-2.5-flash",
   "gemini-2.5-flash-preview-05-20": "google/gemini-2.5-flash",
   "gemini-2.5-flash": "google/gemini-2.5-flash",
+  // OpenAI shorthand
   "gpt-4o-mini": "openai/gpt-4o-mini",
   "gpt-4o": "openai/gpt-4o",
-  "claude-3.5-sonnet": "anthropic/claude-sonnet-4.5",
-  "anthropic/claude-3.5-sonnet": "anthropic/claude-sonnet-4.5",
-  "anthropic/claude-3.5-sonnet-20240620": "anthropic/claude-sonnet-4.5",
-  "anthropic/claude-sonnet-4": "anthropic/claude-sonnet-4.5",
-  "claude-sonnet-4": "anthropic/claude-sonnet-4.5",
-  "claude-3.7-sonnet": "anthropic/claude-sonnet-4.5",
-  "anthropic/claude-3.7-sonnet": "anthropic/claude-sonnet-4.5",
+  // Anthropic — map older Sonnet IDs forward; Opus flagship is 5.5
+  "claude-3.5-sonnet": "anthropic/claude-sonnet-5.5",
+  "anthropic/claude-3.5-sonnet": "anthropic/claude-sonnet-5.5",
+  "anthropic/claude-3.5-sonnet-20240620": "anthropic/claude-sonnet-5.5",
+  "anthropic/claude-sonnet-4": "anthropic/claude-sonnet-5.5",
+  "claude-sonnet-4": "anthropic/claude-sonnet-5.5",
+  "anthropic/claude-sonnet-4.5": "anthropic/claude-sonnet-5.5",
+  "claude-sonnet-4.5": "anthropic/claude-sonnet-5.5",
+  "claude-3.7-sonnet": "anthropic/claude-sonnet-5.5",
+  "anthropic/claude-3.7-sonnet": "anthropic/claude-sonnet-5.5",
+  "claude-sonnet-5.5": "anthropic/claude-sonnet-5.5",
+  "claude-opus-5.5": "anthropic/claude-opus-5.5",
+  "claude-opus-5": "anthropic/claude-opus-5.5",
+  "anthropic/claude-opus-5": "anthropic/claude-opus-5.5",
+  "claude-opus-4.6": "anthropic/claude-opus-5.5",
+  "anthropic/claude-opus-4.6": "anthropic/claude-opus-5.5",
 };
 
 /**
- * Built-in fallbacks — widely available OpenRouter slugs.
- * Avoid retired claude-3.5-sonnet; prefer gemini + gpt-4o-mini for reliability.
+ * Strong default chains (OpenRouter).
+ * Probe + fallback keeps MODOC up if a flagship model is temporarily unavailable.
+ *
+ * - creative / chat: Astra primary, Opus / Sonnet depth
+ * - extraction: Astra + fast multimodal fallbacks
+ * - logic / power: Astra Pro + Opus for hard reasoning
  */
 export const OPENROUTER_DEFAULT_MODELS = {
   creative: [
-    "google/gemini-2.5-flash",
-    "anthropic/claude-sonnet-4.5",
-    "openai/gpt-4o-mini",
+    "openai/gpt-6-astra",
+    "anthropic/claude-opus-5.5",
+    "anthropic/claude-sonnet-5.5",
   ],
   extraction: [
-    "openai/gpt-4o-mini",
+    "openai/gpt-6-astra",
     "google/gemini-2.5-flash",
-    "google/gemini-2.0-flash-001",
+    "openai/gpt-4o-mini",
   ],
-  logic: ["openai/gpt-4o-mini", "google/gemini-2.5-flash", "anthropic/claude-sonnet-4.5"],
-  chat: ["openai/gpt-4o-mini", "google/gemini-2.5-flash", "anthropic/claude-sonnet-4.5"],
-  default: ["openai/gpt-4o-mini", "google/gemini-2.5-flash"],
+  logic: [
+    "openai/gpt-6-astra-pro",
+    "anthropic/claude-opus-5.5",
+    "openai/gpt-6-astra",
+  ],
+  chat: [
+    "openai/gpt-6-astra",
+    "anthropic/claude-sonnet-5.5",
+    "google/gemini-2.5-flash",
+  ],
+  /** Reserved for heavyweight tools (long-horizon planning, deep analysis). */
+  power: [
+    "openai/gpt-6-astra-pro",
+    "anthropic/claude-opus-5.5",
+    "openai/gpt-6-astra",
+  ],
+  default: [
+    "openai/gpt-6-astra",
+    "anthropic/claude-sonnet-5.5",
+    "openai/gpt-4o-mini",
+  ],
 } as const;
 
 export function normalizeOpenRouterModelId(id: string): string {

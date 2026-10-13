@@ -3,6 +3,7 @@ export type ModocTaskKind =
   | "extraction"
   | "logic"
   | "chat"
+  | "power"
   | "default";
 
 const EXTRACTION_TASKS = new Set([
@@ -32,6 +33,15 @@ const LOGIC_TASKS = new Set([
   "call_sheet_generator",
 ]);
 
+/** Heavy tools that should use the power model chain (Astra Pro / Opus). */
+const POWER_TASKS = new Set([
+  "power_tool",
+  "deep_analysis",
+  "production_strategy",
+  "campaign_planner",
+  "storyboard",
+]);
+
 /** Strip platform name so "story time platform" does not route to creative. */
 function textForTaskKindInference(raw: string): string {
   return raw.replace(/\bstory\s*time\b/gi, "storytime_platform");
@@ -45,6 +55,14 @@ export function resolveModocTaskKind(params: {
   const task = params.task ?? "";
   const tool = params.tool ?? "";
 
+  if (
+    POWER_TASKS.has(task) ||
+    tool.includes("storyboard") ||
+    tool.includes("power") ||
+    tool.includes("deep-analysis")
+  ) {
+    return "power";
+  }
   if (EXTRACTION_TASKS.has(task) || tool.includes("breakdown") || tool.includes("legal")) {
     return "extraction";
   }
@@ -56,6 +74,7 @@ export function resolveModocTaskKind(params: {
   }
 
   const t = textForTaskKindInference((params.lastUserText ?? "").toLowerCase());
+  if (/\b(deep analysis|long[- ]horizon|strategy plan|power mode)\b/.test(t)) return "power";
   if (/\b(breakdown|extract|parse|analyze contract)\b/.test(t)) return "extraction";
   if (/\b(budget|schedule|calculate|assign scenes)\b/.test(t)) return "logic";
   if (/\b(write|dialogue|logline|rewrite|screenplay|script draft)\b/.test(t)) return "creative";

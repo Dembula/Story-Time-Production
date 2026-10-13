@@ -25,6 +25,7 @@ function chainFor(kind: ModocTaskKind, userId?: string | null): string[] {
     kind === "extraction" ? process.env.OPENROUTER_MODOC_EXTRACTION_MODEL : undefined,
     kind === "logic" ? process.env.OPENROUTER_MODOC_LOGIC_MODEL : undefined,
     kind === "chat" ? process.env.OPENROUTER_MODOC_CHAT_MODEL : undefined,
+    kind === "power" ? process.env.OPENROUTER_MODOC_POWER_MODEL : undefined,
     process.env.OPENROUTER_MODOC_MODEL,
   ];
   const fallbacks =
@@ -47,7 +48,7 @@ export function modelsForTask(kind: ModocTaskKind, userId?: string | null): stri
 
 /** Primary model id for a task kind (non-streaming calls e.g. breakdown extraction). */
 export function primaryModocModel(kind: ModocTaskKind = "extraction"): string {
-  return modelsForTask(kind)[0] ?? "openai/gpt-4o-mini";
+  return modelsForTask(kind)[0] ?? "openai/gpt-6-astra";
 }
 
 export type StreamModocParams = {
@@ -69,10 +70,19 @@ export async function streamModocWithFallback(params: StreamModocParams) {
     extraction: 0.2,
     logic: 0.15,
     chat: 0.65,
+    power: 0.35,
     default: 0.7,
   };
+  const defaultMaxTokens: Record<ModocTaskKind, number> = {
+    creative: 8192,
+    extraction: 6144,
+    logic: 6144,
+    chat: 4096,
+    power: 12288,
+    default: 4096,
+  };
 
-  // Probe chain so retired env models (e.g. claude-3.5-sonnet) auto-fall through.
+  // Probe chain so retired env models auto-fall through.
   const workingModel = await resolveWorkingModel(modelChain);
   const models = workingModel
     ? [workingModel, ...modelChain.filter((m) => normalizeOpenRouterModelId(m) !== workingModel)]
@@ -85,7 +95,7 @@ export async function streamModocWithFallback(params: StreamModocParams) {
         model: openRouter.chat(normalizeOpenRouterModelId(modelId)),
         system: params.system,
         messages: params.messages,
-        maxOutputTokens: params.maxOutputTokens ?? 4096,
+        maxOutputTokens: params.maxOutputTokens ?? defaultMaxTokens[params.taskKind],
         temperature: params.temperature ?? temperatures[params.taskKind],
         onFinish: async ({ text }) => {
           await params.onFinish?.({ text, modelUsed: modelId, experimentVariant });

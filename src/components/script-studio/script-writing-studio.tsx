@@ -16,7 +16,6 @@ import {
   FilePlus2,
   FileUp,
   Focus,
-  LayoutTemplate,
   Loader2,
   Moon,
   PanelLeft,
@@ -61,7 +60,6 @@ import {
   lineStartAt,
   PAGE_GAP_PX,
 } from "@/lib/script-studio/screenplay-keyboard";
-import { SCRIPT_TEMPLATES } from "@/lib/script-studio/templates";
 import type { ScreenplayElementType, StudioTheme } from "@/lib/script-studio/types";
 import { ScreenplayReader } from "./screenplay-reader";
 import { ScreenplayEditor, type ScreenplayCaretBridge } from "./screenplay-editor";
@@ -1011,21 +1009,6 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
 
   const jumpToScene = (lineIndex: number) => jumpToLineIndex(lineIndex);
 
-  const applyTemplate = (templateId: string) => {
-    const tpl = SCRIPT_TEMPLATES.find((t) => t.id === templateId);
-    if (!tpl || !draft) return;
-    if (
-      draft.content.trim() &&
-      !window.confirm("Replace current screenplay with this template?")
-    ) {
-      return;
-    }
-    pushHistoryBeforeChange({ immediate: true });
-    setPreserveImportLayout(false);
-    setDraft({ ...draft, type: tpl.type, content: tpl.content });
-    setDirty(true);
-  };
-
   const handleImportFile = useCallback(
     async (file: File) => {
       if (!draft) return;
@@ -1632,39 +1615,6 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     {importing ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileUp className="h-3 w-3 mr-1" />}
                     Import
                   </Button>
-                  <div className="relative">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className={studioToolbarOutlineClass(studioTheme)}
-                      disabled={!draft}
-                      onClick={() => {
-                        const menu = document.getElementById("tpl-menu");
-                        menu?.classList.toggle("hidden");
-                      }}
-                    >
-                      <LayoutTemplate className="h-3 w-3 mr-1" />
-                      Template
-                    </Button>
-                    <div
-                      id="tpl-menu"
-                      className="hidden absolute right-0 top-full z-20 mt-1 w-48 rounded-lg border border-slate-700 bg-slate-900 p-1 shadow-xl"
-                    >
-                      {SCRIPT_TEMPLATES.map((t) => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          className="block w-full text-left px-2 py-1.5 text-[10px] text-slate-200 hover:bg-slate-800 rounded"
-                          onClick={() => {
-                            applyTemplate(t.id);
-                            document.getElementById("tpl-menu")?.classList.add("hidden");
-                          }}
-                        >
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                   <Button
                     size="sm"
                     variant="outline"

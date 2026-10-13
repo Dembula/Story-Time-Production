@@ -254,6 +254,8 @@ model User {
   reviewNotes           ReviewNote[]
   editReviewGuestInvites EditReviewGuestInvite[]
   scriptReviewGuestInvites ScriptReviewGuestInvite[]
+  storyboardBoardsCreated StoryboardBoard[] @relation("StoryboardBoardCreator")
+  storyboardGuestInvites StoryboardGuestInvite[]
 
   // Creator-owned script and notes
   creatorScripts        CreatorScript[]
@@ -1215,6 +1217,7 @@ model OriginalProject {
   tableReadSessions TableReadSession[]
   equipmentPlanItems EquipmentPlanItem[]
   visualAssets  ProjectVisualAsset[]
+  storyboardBoards StoryboardBoard[]
   riskPlan      RiskPlan?
   continuityNotes ContinuityNote[]
   dailiesBatches DailiesBatch[]
@@ -2484,6 +2487,104 @@ model ProjectVisualAsset {
   @@index([projectId])
   @@index([projectId, category])
   @@index([sceneId])
+}
+
+/// AI storyboard boards — shot frames generated from script scenes (post-breakdown).
+model StoryboardBoard {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdById   String
+  createdBy     User     @relation("StoryboardBoardCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  title         String
+  /// Dual-source key: project-version:{id} | creator-script:{id}
+  scriptKey     String?
+  scriptLabel   String?
+  /// cinematic | noir | anime | sketch | realistic | custom
+  stylePreset   String   @default("cinematic")
+  /// 16:9 | 2.39:1 | 4:3 | 1:1 | 9:16
+  aspectRatio   String   @default("16:9")
+  /// DRAFT | GENERATING | READY | ARCHIVED
+  status        String   @default("DRAFT")
+  globalNotes   String?
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  frames        StoryboardFrame[]
+  guestInvites  StoryboardGuestInvite[]
+
+  @@index([projectId])
+  @@index([createdById])
+  @@index([projectId, sortOrder])
+}
+
+model StoryboardFrame {
+  id               String   @id @default(cuid())
+  boardId          String
+  board            StoryboardBoard @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  projectId        String
+  sceneId          String?
+  sceneNumber      String?
+  sceneHeading     String?
+  shotLabel        String?
+  sortOrder        Int      @default(0)
+  /// Image prompt used for generation / edits
+  prompt           String   @db.Text
+  directorNotes    String?
+  imageUrl         String?
+  imageStorageRef  String?
+  /// PENDING | GENERATING | READY | FAILED
+  generationStatus String   @default("PENDING")
+  generationError  String?
+  lastEditPrompt   String?
+  /// Optional per-frame style override
+  styleOverride    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([boardId])
+  @@index([projectId])
+  @@index([boardId, sortOrder])
+  @@index([sceneId])
+}
+
+model StoryboardGuestInvite {
+  id          String   @id @default(cuid())
+  boardId     String
+  board       StoryboardBoard @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  projectId   String
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  token       String   @unique
+  email       String?
+  /// 1h | 12h | 1d | 7d | 30d | 90d | indefinite
+  durationKey String
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  sessions    StoryboardGuestSession[]
+
+  @@index([boardId])
+  @@index([projectId])
+  @@index([token])
+  @@index([createdById])
+}
+
+model StoryboardGuestSession {
+  id         String   @id @default(cuid())
+  inviteId   String
+  invite     StoryboardGuestInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  token      String   @unique
+  guestName  String
+  guestEmail String?
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([inviteId])
+  @@index([token])
 }
 
 model ProjectIdea {

@@ -105,7 +105,7 @@ export async function buildBreakdownIntelligence(projectId: string): Promise<Bre
   const sceneIntelEnriched = sceneIntel.map((s) => ({
     ...s,
     visualAssetCount: visualCountByScene.get(s.sceneId) ?? 0,
-    storyboardHref: `${basePath}/visual-planning?category=edit&scene=${s.sceneNumber}`,
+    storyboardHref: `${basePath}/storyboard?scene=${s.sceneNumber}`,
   }));
   const budgetLineCount = budgetRecord?._count.lines ?? 0;
 
@@ -193,10 +193,16 @@ export async function buildBreakdownIntelligence(projectId: string): Promise<Bre
         status: sceneIntelEnriched.some((s) => s.productionRisk === "high") ? "partial" : breakdownStatus,
       },
       {
+        label: "Storyboard Studio",
+        href: `${basePath}/storyboard`,
+        description: "AI shot frames from script scenes (Astra + image models)",
+        status: hasStoryboards ? "ready" : breakdownStatus,
+      },
+      {
         label: "Visual Planning",
         href: `${basePath}/visual-planning`,
-        description: "Storyboards, shot frames, and scene visuals",
-        status: hasStoryboards ? "ready" : breakdownStatus,
+        description: "Moodboards and visual references",
+        status: hasStoryboards ? "partial" : breakdownStatus,
       },
       {
         label: "Production Readiness",

@@ -23,6 +23,7 @@ const EMPTY_SIGNALS: ProjectUsageSignals = {
   footageAssetCount: 0,
   editReviewCount: 0,
   musicSelectionCount: 0,
+  storyboardFrameCount: 0,
   contentLinked: false,
 };
 
@@ -50,6 +51,7 @@ function bump(map: Map<string, ProjectUsageSignals>, projectId: string, patch: P
     footageAssetCount: cur.footageAssetCount + (patch.footageAssetCount ?? 0),
     editReviewCount: cur.editReviewCount + (patch.editReviewCount ?? 0),
     musicSelectionCount: cur.musicSelectionCount + (patch.musicSelectionCount ?? 0),
+    storyboardFrameCount: cur.storyboardFrameCount + (patch.storyboardFrameCount ?? 0),
     contentLinked: cur.contentLinked || Boolean(patch.contentLinked),
   });
 }
@@ -89,6 +91,7 @@ export async function loadProjectUsageSignals(
     footage,
     editReviews,
     musicSelections,
+    storyboardFrames,
     linkedContent,
   ] = await Promise.all([
     prisma.creatorTreatment.groupBy({ by: ["projectId"], where: whereIn, _count: { _all: true } }),
@@ -114,6 +117,9 @@ export async function loadProjectUsageSignals(
     prisma.footageAsset.groupBy({ by: ["projectId"], where: whereIn, _count: { _all: true } }),
     prisma.postProductionReview.groupBy({ by: ["projectId"], where: whereIn, _count: { _all: true } }),
     prisma.musicSelection.groupBy({ by: ["projectId"], where: whereIn, _count: { _all: true } }),
+    (prisma as any).storyboardFrame
+      .groupBy({ by: ["projectId"], where: whereIn, _count: { _all: true } })
+      .catch(() => [] as Array<{ projectId: string; _count: { _all: number } }>),
     prisma.content.findMany({
       where: { linkedProjectId: { in: projectIds } },
       select: { linkedProjectId: true },
@@ -142,6 +148,9 @@ export async function loadProjectUsageSignals(
   for (const row of footage) bump(map, row.projectId, { footageAssetCount: row._count._all });
   for (const row of editReviews) bump(map, row.projectId, { editReviewCount: row._count._all });
   for (const row of musicSelections) bump(map, row.projectId, { musicSelectionCount: row._count._all });
+  for (const row of storyboardFrames as Array<{ projectId: string; _count: { _all: number } }>) {
+    bump(map, row.projectId, { storyboardFrameCount: row._count._all });
+  }
   for (const row of linkedContent) {
     if (row.linkedProjectId) bump(map, row.linkedProjectId, { contentLinked: true });
   }

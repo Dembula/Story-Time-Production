@@ -31,6 +31,7 @@ import { getActiveBudgetId, setActiveBudgetId } from "@/lib/active-budget";
 import { parseScenesFromScreenplay } from "@/lib/scene-parser";
 import { parseSluglineMeta } from "@/lib/slugline-meta";
 import { VisualPlanningCatalogue } from "@/components/creator/visual-planning-catalogue";
+import { StoryboardStudio } from "@/components/storyboard/storyboard-studio";
 import { LegalContractsWorkspace } from "@/components/project-tools/pre/LegalContractsWorkspace";
 import { formatZar } from "@/lib/format-currency-zar";
 import { mergeBudgetTemplateWithSaved } from "@/lib/budget-merge";
@@ -119,6 +120,7 @@ const LABELS: Record<string, string> = {
   "script-writing": "Script Writing",
   "script-review": "Script Review",
   "script-breakdown": "Script Breakdown",
+  storyboard: "Storyboard Studio",
   "budget-builder": "Budget Builder",
   "production-scheduling": "Production Scheduling",
   "casting-portal": "Casting Portal",
@@ -203,6 +205,15 @@ export default function PreProductionToolPage({ params }: PreProductionToolPageP
       <>
         {!hasProject && <UnlinkedBanner />}
         <ScriptBreakdownWorkspace projectId={projectId} title={title} />
+      </>
+    );
+  }
+
+  if (tool === "storyboard") {
+    return (
+      <>
+        {!hasProject && <UnlinkedBanner />}
+        <StoryboardStudio projectId={projectId} title={title} />
       </>
     );
   }
