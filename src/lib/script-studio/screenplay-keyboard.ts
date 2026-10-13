@@ -272,21 +272,44 @@ export function formatLineForElement(element: ScreenplayElementType, rawLine: st
 
 /** Max printable characters for the element body (excluding leading indent spaces). */
 export function maxContentWidthForElement(element: ScreenplayElementType): number {
+  const indent = indentForElement(element);
+  const room = Math.max(8, SCREENPLAY_LINE_WIDTH - indent);
+  let base: number;
   switch (element) {
     case "dialogue":
-      return SCREENPLAY_COL.dialogueWidth;
+      base = SCREENPLAY_COL.dialogueWidth;
+      break;
     case "parenthetical":
-      return 25;
+      base = 25;
+      break;
     case "character":
-      return 35;
+      base = 35;
+      break;
     case "transition":
-      return 40;
+      base = 40;
+      break;
     case "centered":
     case "lyrics":
-      return 40;
+      base = 40;
+      break;
     default:
-      return SCREENPLAY_LINE_WIDTH;
+      base = SCREENPLAY_LINE_WIDTH;
   }
+  return Math.min(base, room);
+}
+
+/** True when any stored line would paint past the US Letter content width. */
+export function needsScreenplayLayoutHeal(content: string): boolean {
+  for (const line of content.split("\n")) {
+    if (!line.trim()) continue;
+    if (line.length > SCREENPLAY_LINE_WIDTH) return true;
+    const element = detectLineElement(line);
+    const body = line.trimEnd().replace(/^\s+/, "");
+    // Count visible body against element budget (indent spaces are separate).
+    const maxBody = maxContentWidthForElement(element);
+    if (body.length > maxBody) return true;
+  }
+  return false;
 }
 
 export function indentForElement(element: ScreenplayElementType): number {
@@ -335,7 +358,13 @@ export function wrapPlainText(text: string, maxWidth: number): string[] {
  */
 export function hardWrapLineForElement(element: ScreenplayElementType, rawLine: string): string[] {
   if (element === "transition") {
-    return [formatLineForElement(element, rawLine)];
+    const formatted = formatLineForElement(element, rawLine);
+    if (formatted.length <= SCREENPLAY_LINE_WIDTH) return [formatted];
+    // Rare long transition labels: keep right-aligned feel but stay on-page.
+    const trimmed = rawLine.trim().toUpperCase();
+    return wrapPlainText(trimmed, SCREENPLAY_LINE_WIDTH).map((chunk) =>
+      rightAlign(chunk, SCREENPLAY_LINE_WIDTH),
+    );
   }
 
   let body = rawLine.trim();
@@ -354,11 +383,26 @@ export function hardWrapLineForElement(element: ScreenplayElementType, rawLine: 
   return chunks.map((chunk, index) => {
     if (element === "parenthetical") {
       const text =
-        chunks.length === 1 ? `(${chunk})` : index === 0 ? `(${chunk}` : index === chunks.length - 1 ? `${chunk})` : chunk;
-      return padColumn(text, indent);
+        chunks.length === 1
+          ? `(${chunk})`
+          : index === 0
+            ? `(${chunk}`
+            : index === chunks.length - 1
+              ? `${chunk})`
+              : chunk;
+      // Keep parenthetical rows inside the page even if parentheses add a char.
+      const padded = padColumn(text, indent);
+      return padded.length > SCREENPLAY_LINE_WIDTH
+        ? padded.slice(0, SCREENPLAY_LINE_WIDTH)
+        : padded;
     }
     if (element === "centered" || element === "lyrics") return centerText(chunk);
-    if (indent > 0) return padColumn(chunk, indent);
+    if (indent > 0) {
+      const padded = padColumn(chunk, indent);
+      return padded.length > SCREENPLAY_LINE_WIDTH
+        ? padded.slice(0, SCREENPLAY_LINE_WIDTH)
+        : padded;
+    }
     if (element === "scene_heading" || element === "shot" || element === "character") return chunk.toUpperCase();
     return chunk;
   });
@@ -915,7 +959,19 @@ export function hardWrapDocument(content: string): string {
             maxWidth,
           )
         : line;
-    out.push(...hardWrapLineForElement(element, joined));
+    for (const wrapped of hardWrapLineForElement(element, joined)) {
+      if (wrapped.length <= SCREENPLAY_LINE_WIDTH) {
+        out.push(wrapped);
+        continue;
+      }
+      // Final guard: never leave a line that can paint past the right margin.
+      const overflowBody = wrapped.trimStart();
+      const overflowIndent = wrapped.length - overflowBody.length;
+      const room = Math.max(8, SCREENPLAY_LINE_WIDTH - overflowIndent);
+      for (const piece of wrapPlainText(overflowBody, room)) {
+        out.push(overflowIndent > 0 ? padColumn(piece, overflowIndent) : piece);
+      }
+    }
     i = end + 1;
   }
   return out.join("\n");

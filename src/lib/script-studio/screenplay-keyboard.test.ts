@@ -12,7 +12,7 @@ import {
   applyHardWrapAtCursor,
   hardWrapDocument,
 } from "./screenplay-keyboard";
-import { SCREENPLAY_COL } from "./elements";
+import { SCREENPLAY_COL, SCREENPLAY_LINE_WIDTH } from "./elements";
 
 describe("screenplay-keyboard", () => {
   it("formats character lines in uppercase at character column (~3.7\")", () => {
@@ -94,16 +94,16 @@ describe("screenplay-keyboard", () => {
     assert.ok(line.startsWith(" "));
   });
 
-  it("hard-wraps long action lines within 60 characters", () => {
+  it("hard-wraps long action lines within the page character budget", () => {
     const long = "a".repeat(70);
     const wrapped = hardWrapLineForElement("action", long);
     assert.ok(wrapped.length >= 2);
-    assert.ok(wrapped.every((l) => l.length <= 60));
+    assert.ok(wrapped.every((l) => l.length <= SCREENPLAY_LINE_WIDTH));
     assert.deepEqual(wrapPlainText("one two three four", 8), ["one two", "three", "four"]);
   });
 
   it("does not peel one character per keystroke when typing past the wrap width", () => {
-    let content = "a".repeat(60);
+    let content = "a".repeat(SCREENPLAY_LINE_WIDTH);
     let cursor = content.length;
     for (let i = 0; i < 5; i++) {
       content = content.slice(0, cursor) + "x" + content.slice(cursor);
@@ -118,15 +118,30 @@ describe("screenplay-keyboard", () => {
       !lines.some((l) => l.length === 1) || lines.length === 1,
       `should not accumulate single-char lines: ${JSON.stringify(lines)}`,
     );
-    assert.equal(content.replace(/\n/g, "").length, 65);
+    assert.equal(content.replace(/\n/g, "").length, SCREENPLAY_LINE_WIDTH + 5);
   });
 
   it("heals already peeled single-character remainder lines", () => {
-    const broken = ["a".repeat(60), "d", "l", "u", "b"].join("\n");
+    const broken = ["a".repeat(SCREENPLAY_LINE_WIDTH), "d", "l", "u", "b"].join("\n");
     const healed = hardWrapDocument(broken);
     const lines = healed.split("\n");
     assert.ok(lines.length <= 2, `expected healed wrap, got ${lines.length}: ${JSON.stringify(lines)}`);
-    assert.equal(healed.replace(/\n/g, "").replace(/ /g, ""), "a".repeat(60) + "dlub");
-    assert.ok(!/\bd\b/.test(healed) || healed.includes("dlub") || healed.replace(/\n/g, "").includes("adl"));
+    assert.equal(
+      healed.replace(/\n/g, "").replace(/ /g, ""),
+      "a".repeat(SCREENPLAY_LINE_WIDTH) + "dlub",
+    );
+    assert.ok(healed.split("\n").every((l) => l.length <= SCREENPLAY_LINE_WIDTH));
+  });
+
+  it("heals free-form action that overflows the page width", () => {
+    const broken = [
+      "EXT. DURBAN UNIVERSITY - DAY",
+      "",
+      "Three young women walking between the lines. Behind them is a man in a suit who is fair skinned and looks at the camera where they walk.",
+    ].join("\n");
+    const healed = hardWrapDocument(broken);
+    assert.ok(healed.split("\n").every((l) => l.length <= SCREENPLAY_LINE_WIDTH));
+    assert.ok(healed.includes("DURBAN UNIVERSITY"));
+    assert.ok(healed.toLowerCase().includes("young women"));
   });
 });

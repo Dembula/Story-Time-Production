@@ -47,8 +47,13 @@ function extractJsonArray(text: string): unknown[] {
   return parsed;
 }
 
-function fallbackShots(scenes: SceneInput[], stylePreset: string): PlannedShot[] {
+function fallbackShots(
+  scenes: SceneInput[],
+  stylePreset: string,
+  creatorBrief?: string | null,
+): PlannedShot[] {
   const style = stylePromptHint(stylePreset);
+  const brief = creatorBrief?.trim();
   return scenes.map((scene, index) => ({
     sceneId: scene.id,
     sceneNumber: scene.number,
@@ -57,6 +62,7 @@ function fallbackShots(scenes: SceneInput[], stylePreset: string): PlannedShot[]
     prompt: [
       `Storyboard frame for scene ${scene.number}: ${scene.heading ?? "Untitled"}.`,
       scene.summary ? `Action: ${scene.summary}` : null,
+      brief ? `Creator brief: ${brief}` : null,
       style,
       "single clear storyboard panel, no text overlays, no watermarks",
     ]
@@ -119,6 +125,7 @@ export async function planStoryboardShots(args: {
 
   const shotsPerScene = Math.min(4, Math.max(1, args.shotsPerScene ?? 1));
   const style = stylePromptHint(args.stylePreset);
+  const creatorBrief = args.globalNotes?.trim() || null;
   const system = `You are a film storyboard director assisting Story Time creators.
 Return ONLY a JSON array. Each item:
 {
@@ -135,12 +142,17 @@ Rules:
 - Include framing, camera angle, lighting, and production design cues.
 - Style base: ${style}
 - Aspect ratio target: ${args.aspectRatio}
-- Keep prompts self-contained so an image model can draw the frame without extra context.`;
+- Keep prompts self-contained so an image model can draw the frame without extra context.
+${
+  creatorBrief
+    ? `- CRITICAL: Honor the creatorBrief exactly — preferred shot types, camera angles, lenses, pacing, mood, subjects to emphasize or avoid. Prefer the brief over default coverage choices when they conflict.`
+    : ""
+}`;
 
   const user = JSON.stringify(
     {
       projectTitle: args.title,
-      globalNotes: args.globalNotes ?? null,
+      creatorBrief,
       scriptExcerpt: (args.scriptExcerpt ?? "").slice(0, 12000) || null,
       scenes: args.scenes.map((s) => ({
         id: s.id,
@@ -191,7 +203,7 @@ Rules:
 
   console.warn("[storyboard] using deterministic shot fallback", lastError);
   return {
-    shots: fallbackShots(args.scenes, args.stylePreset),
+    shots: fallbackShots(args.scenes, args.stylePreset, args.globalNotes),
     modelUsed: "fallback-local",
   };
 }

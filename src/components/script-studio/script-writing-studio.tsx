@@ -1822,6 +1822,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   activeElement={selectedElement}
                   zoomPercent={zoom}
                   theme={studioTheme}
+                  layoutHealKey={draft.id}
                   preserveStructure={preserveImportLayout}
                   onPreserveStructureEnd={() => setPreserveImportLayout(false)}
                   onScriptTitleChange={(title) => {

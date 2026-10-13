@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -80,6 +80,8 @@ export function StoryboardStudio({
   const [newStyle, setNewStyle] = useState("cinematic");
   const [newAspect, setNewAspect] = useState("16:9");
   const [newScriptKey, setNewScriptKey] = useState("");
+  const [newBrief, setNewBrief] = useState("");
+  const [boardBrief, setBoardBrief] = useState("");
   const [shotsPerScene, setShotsPerScene] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [presenting, setPresenting] = useState(false);
@@ -139,6 +141,10 @@ export function StoryboardStudio({
   const selectedFrame =
     frames.find((f) => f.id === selectedFrameId) ?? frames[0] ?? null;
 
+  useEffect(() => {
+    setBoardBrief(selectedBoard?.globalNotes ?? "");
+  }, [selectedBoard?.id, selectedBoard?.globalNotes]);
+
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: ["project-storyboards", projectId] });
     await queryClient.invalidateQueries({ queryKey: ["creator-projects"] });
@@ -156,22 +162,38 @@ export function StoryboardStudio({
           aspectRatio: newAspect,
           scriptKey: script?.key,
           scriptLabel: script?.label,
+          globalNotes: newBrief.trim() || null,
         }),
       });
       return readJsonOrThrow(res) as Promise<{ board: Board }>;
     },
     onSuccess: async (data) => {
       setCreateOpen(false);
+      setNewBrief("");
       setSelectedBoardId(data.board.id);
+      setBoardBrief(data.board.globalNotes ?? "");
       setError(null);
       await invalidate();
     },
     onError: (e) => setError(e instanceof Error ? e.message : "Could not create board"),
   });
 
+  const saveBriefIfNeeded = async (boardId: string) => {
+    const next = boardBrief.trim();
+    const current = (selectedBoard?.globalNotes ?? "").trim();
+    if (next === current) return;
+    const res = await fetch(`/api/creator/projects/${projectId}/storyboard/${boardId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ globalNotes: next || null }),
+    });
+    await readJsonOrThrow(res);
+  };
+
   const generateMutation = useMutation({
     mutationFn: async (opts: { regenerateExisting?: boolean }) => {
       if (!selectedBoard) throw new Error("Select a board first");
+      await saveBriefIfNeeded(selectedBoard.id);
       const res = await fetch(
         `/api/creator/projects/${projectId}/storyboard/${selectedBoard.id}/generate`,
         {
@@ -427,13 +449,24 @@ export function StoryboardStudio({
                 </div>
               </div>
 
+              <label className="mb-4 block space-y-1.5">
+                <span className="text-xs font-medium text-slate-300">Generation brief</span>
+                <textarea
+                  value={boardBrief}
+                  onChange={(e) => setBoardBrief(e.target.value)}
+                  rows={3}
+                  placeholder="Shot types, angles, lenses, mood — saved before Generate / Regenerate."
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white placeholder:text-slate-600"
+                />
+              </label>
+
               {frames.length === 0 ? (
-                <div className="flex min-h-[360px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-700 bg-slate-950/40 p-8 text-center">
+                <div className="flex min-h-[280px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-700 bg-slate-950/40 p-8 text-center">
                   <Wand2 className="mb-3 h-8 w-8 text-orange-400/70" />
                   <p className="text-sm text-slate-300">Ready to draw your film.</p>
                   <p className="mt-1 max-w-md text-xs text-slate-500">
-                    Generate pulls scenes from Breakdown, plans shots, and renders each panel. Sync
-                    scenes first if this project has none.
+                    Add a brief above, then Generate. Scenes come from Breakdown — sync them first if
+                    this project has none.
                   </p>
                 </div>
               ) : (
@@ -608,14 +641,14 @@ export function StoryboardStudio({
 
       {createOpen ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center">
-          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#121214] shadow-2xl">
+          <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#121214] shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <p className="text-sm font-semibold text-white">New storyboard</p>
               <button type="button" onClick={() => setCreateOpen(false)} className="p-1 text-slate-500">
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="space-y-3 px-5 py-4">
+            <div className="space-y-3 overflow-y-auto px-5 py-4">
               <label className="block space-y-1 text-xs text-slate-300">
                 Title
                 <input
@@ -669,6 +702,19 @@ export function StoryboardStudio({
                     </option>
                   ))}
                 </select>
+              </label>
+              <label className="block space-y-1 text-xs text-slate-300">
+                Generation brief
+                <span className="mt-0.5 block font-normal text-slate-500">
+                  Guide the first pass — shot types, angles, lenses, pacing, what to emphasize.
+                </span>
+                <textarea
+                  value={newBrief}
+                  onChange={(e) => setNewBrief(e.target.value)}
+                  rows={4}
+                  placeholder="e.g. Mostly wide establishing + over-shoulder dialogue; handheld in chase scenes; low-angle hero shots for antagonist; cool teal night lighting…"
+                  className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-slate-600"
+                />
               </label>
               <button
                 type="button"

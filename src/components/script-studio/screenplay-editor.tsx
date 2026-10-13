@@ -13,6 +13,7 @@ import {
   hardWrapDocument,
   lineIndexAt,
   maxContentWidthForElement,
+  needsScreenplayLayoutHeal,
   pageCountForContent,
   resolveLineElement,
   formatLineForElement,
@@ -62,6 +63,8 @@ type ScreenplayEditorProps = {
   /** Skip mount-time hard wrap (use after import). */
   preserveStructure?: boolean;
   onPreserveStructureEnd?: () => void;
+  /** Change when opening another draft so page layout re-heals. */
+  layoutHealKey?: string;
   /** Title page (always first sheet). */
   scriptTitle?: string;
   scriptType?: string;
@@ -214,6 +217,7 @@ export function ScreenplayEditor({
   zoomPercent = 100,
   preserveStructure = false,
   onPreserveStructureEnd,
+  layoutHealKey,
   scriptTitle = "Untitled Screenplay",
   scriptType = "FEATURE",
   authorName,
@@ -255,16 +259,39 @@ export function ScreenplayEditor({
     setEditingElement(activeElementProp);
   }, [activeElementProp]);
 
-  // One-time heal: strip leftover PDF footers and re-wrap peeled lines.
-  const didHealRef = useRef(false);
+  // Re-heal whenever a different draft/script is opened (fixes already-broken pages).
+  const lastHealKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (preserveStructure || didHealRef.current) return;
-    didHealRef.current = true;
+    // Leaving import-preserve mode must re-allow a layout heal pass.
+    if (!preserveStructure) return;
+    lastHealKeyRef.current = null;
+  }, [preserveStructure]);
+  useEffect(() => {
+    if (preserveStructure || readOnly) return;
+    const key = layoutHealKey ?? "__default__";
+    if (lastHealKeyRef.current === key) return;
+    lastHealKeyRef.current = key;
     const cleaned = stripScreenplayPageFooters(value);
     const healed = hardWrapDocument(cleaned);
     if (healed !== value) onChange(healed);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only heal
-  }, [preserveStructure]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per draft open
+  }, [layoutHealKey, preserveStructure, readOnly]);
+
+  // Debounced safety net for paste / remote content without fighting live typing.
+  useEffect(() => {
+    if (preserveStructure || readOnly) return;
+    if (!needsScreenplayLayoutHeal(value)) return;
+    const timer = window.setTimeout(() => {
+      const cleaned = stripScreenplayPageFooters(valueRef.current);
+      if (!needsScreenplayLayoutHeal(cleaned)) {
+        if (cleaned !== valueRef.current) onChange(cleaned);
+        return;
+      }
+      const healed = hardWrapDocument(cleaned);
+      if (healed !== valueRef.current) onChange(healed);
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [value, preserveStructure, readOnly, onChange]);
 
   // Fit US Letter pages to the visible desk width — never allow horizontal slide.
   const pagesStackRef = useRef<HTMLDivElement | null>(null);
@@ -961,6 +988,27 @@ export function ScreenplayEditor({
   const zoomScale =
     fitScale * (Math.min(150, Math.max(50, zoomPercent)) / 100);
   const lineHeightCss = `calc((11in - ${MARGIN_TOP} - ${MARGIN_BOTTOM}) / ${LINES_PER_PAGE})`;
+  // transform:scale (not CSS zoom) so glyphs and the white page stay locked together.
+  const sheetCount = 1 + pageCount; // title page + script pages
+  const stackHeightIn = sheetCount * 11 + ((sheetCount - 1) * PAGE_GAP_PX) / 96;
+  const scaledStackWidth = `calc(${PAGE_WIDTH} * ${zoomScale})`;
+  const scaledStackHeight = `calc(${stackHeightIn}in * ${zoomScale})`;
+
+  const healPastedText = useCallback(
+    (pageIdx: number, rawPageText: string, localCursor: number) => {
+      const previous = valueRef.current;
+      const provisional = mergePageIntoContent(previous, pageIdx, rawPageText);
+      const cleaned = stripScreenplayPageFooters(provisional);
+      const healed = hardWrapDocument(cleaned);
+      const globalCursor = Math.min(
+        pageStartOffset(previous, pageIdx) + localCursor,
+        healed.length,
+      );
+      onChange(healed);
+      focusAt(globalCursor, globalCursor, healed);
+    },
+    [onChange, focusAt],
+  );
 
   return (
     <div className="script-writer-editor-root w-full" data-studio-theme={theme}>
@@ -1114,10 +1162,23 @@ export function ScreenplayEditor({
 
       <div className="script-writer-editor-scroll" data-screenplay-scroll>
         <div
-          ref={pagesStackRef}
-          className="script-writer-pages-stack"
-          style={{ zoom: zoomScale }}
+          className="script-writer-pages-scale-frame"
+          style={{
+            width: scaledStackWidth,
+            height: scaledStackHeight,
+            marginLeft: "auto",
+            marginRight: "auto",
+          }}
         >
+          <div
+            ref={pagesStackRef}
+            className="script-writer-pages-stack"
+            style={{
+              width: PAGE_WIDTH,
+              transform: `scale(${zoomScale})`,
+              transformOrigin: "top center",
+            }}
+          >
           <ScreenplayTitlePage
             title={scriptTitle}
             authorName={resolvedAuthor}
@@ -1142,9 +1203,11 @@ export function ScreenplayEditor({
               style={{
                 width: PAGE_WIDTH,
                 maxWidth: PAGE_WIDTH,
+                minWidth: PAGE_WIDTH,
                 height: PAGE_HEIGHT,
                 marginBottom: pageIdx < pageCount - 1 ? PAGE_GAP_PX : 0,
                 boxSizing: "border-box",
+                overflow: "hidden",
               }}
             >
               <span
@@ -1162,6 +1225,18 @@ export function ScreenplayEditor({
                 }}
                 value={pageText}
                 onChange={(e) => handlePageChange(pageIdx, e)}
+                onPaste={(e) => {
+                  if (readOnly || preserveStructure) return;
+                  e.preventDefault();
+                  const pasted = e.clipboardData.getData("text/plain");
+                  const el = e.currentTarget;
+                  const start = el.selectionStart;
+                  const end = el.selectionEnd;
+                  const nextPage =
+                    el.value.slice(0, start) + pasted + el.value.slice(end);
+                  onBeforeChange?.();
+                  healPastedText(pageIdx, nextPage, start + pasted.length);
+                }}
                 onKeyDown={(e) => handlePageKeyDown(pageIdx, e)}
                 onSelect={(e) => {
                   setActivePageIdx(pageIdx);
@@ -1241,6 +1316,7 @@ export function ScreenplayEditor({
             </div>
           ))}
 
+          </div>
         </div>
       </div>
 
