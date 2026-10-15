@@ -384,7 +384,7 @@ export async function POST(req: Request) {
         email: user.email,
         customerName: user.name,
         amount: finalPrice,
-        purpose: "viewer_subscription",
+        purpose: "viewer_subscription_reactivate",
         referenceType: "ViewerSubscription",
         referenceId: subscription.id,
         returnUrl: buildPaymentReturnUrl(postTrialReturnPath, "viewer_subscription_reactivate"),

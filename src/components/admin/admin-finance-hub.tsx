@@ -351,6 +351,19 @@ export function AdminFinanceHub() {
             </div>
           ) : null}
 
+          {bundle.totals.viewerIneligibleHeld > 0 || bundle.totals.platformServiceRevenue === 0 ? (
+            <div className="rounded-xl border border-sky-400/25 bg-sky-500/10 px-4 py-3 text-sm text-sky-50">
+              <p className="font-medium text-sky-200">Ledger note</p>
+              <p className="mt-1 text-xs text-sky-100/85">
+                Platform service revenue is only uploads / company subs / licences that have cleared.
+                Viewer subscription cash that is cleared but excluded from the creator 60/40 (pre-go-live
+                first charges) shows under <span className="font-medium">Viewer held (not in 60/40)</span>
+                — it is not upload or listing fees. Treasury PLATFORM_REVENUE is an all-time wallet stock,
+                not this period&apos;s PaymentRecords.
+              </p>
+            </div>
+          ) : null}
+
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Kpi
               label="Gross cleared inflow"
@@ -367,7 +380,7 @@ export function AdminFinanceHub() {
             <Kpi
               label="Platform total retained"
               value={money.format(bundle.totals.platformTotalRetained)}
-              hint="Viewer split + service + marketplace fees"
+              hint="Viewer 40% + service + viewer-held + marketplace"
             />
             <Kpi
               label="Viewer pool → creators"
@@ -382,7 +395,12 @@ export function AdminFinanceHub() {
             <Kpi
               label="Platform service revenue"
               value={money.format(bundle.totals.platformServiceRevenue)}
-              hint="Licences, company subs, uploads, reviews"
+              hint="Uploads, company subs, licences only (cleared)"
+            />
+            <Kpi
+              label="Viewer held (not in 60/40)"
+              value={money.format(bundle.totals.viewerIneligibleHeld)}
+              hint="Cleared viewer cash excluded from creator pool (e.g. pre-go-live first charge)"
             />
             <Kpi
               label="Marketplace fees"
@@ -975,7 +993,16 @@ export function AdminFinanceHub() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Kpi label="Total platform retained" value={money.format(bundle.retention.platformTotalRetained)} />
             <Kpi label="From viewer pool" value={money.format(bundle.retention.viewerPlatformRetained)} />
-            <Kpi label="Service revenue (net)" value={money.format(bundle.retention.serviceRevenueNet)} />
+            <Kpi
+              label="Service revenue (net)"
+              value={money.format(bundle.retention.serviceRevenueNet)}
+              hint="Uploads / company / licences only"
+            />
+            <Kpi
+              label="Viewer held (not in 60/40)"
+              value={money.format(bundle.retention.viewerIneligibleHeld)}
+              hint="Cleared viewer cash excluded from creator pool"
+            />
             <Kpi label="Marketplace fee take" value={money.format(bundle.retention.marketplaceFees)} />
             <Kpi
               label="Escrow held"
@@ -986,7 +1013,7 @@ export function AdminFinanceHub() {
             <Kpi
               label="Treasury PLATFORM_REVENUE"
               value={money.format(bundle.retention.treasury.platformRevenueBalance)}
-              hint="Live wallet balances"
+              hint="All-time stock (not period cash) — do not confuse with service revenue"
             />
             <Kpi
               label="Treasury CREATOR_REVENUE"

@@ -91,6 +91,8 @@ export type FinanceOverviewBundle = {
     creatorPool: number;
     platformRetained: number;
     platformServiceRevenue: number;
+    /** Cleared viewer cash excluded from 60/40 (e.g. pre-go-live first charge). Not uploads/company. */
+    viewerIneligibleHeld: number;
     platformTotalRetained: number;
     marketplaceFees: number;
     marketplaceVolume: number;
@@ -300,6 +302,7 @@ export async function fetchFinanceOverviewBundle(options: {
   let net = 0;
   let viewerPoolNet = 0;
   let serviceRevenueNet = 0;
+  let viewerIneligibleHeld = 0;
   let pendingClearNet = 0;
   let pendingClearCount = 0;
   let payfastItnFees = 0;
@@ -367,7 +370,11 @@ export async function fetchFinanceOverviewBundle(options: {
 
       if (isViewerPool && poolEligible) {
         viewerPoolNet = roundMoney(viewerPoolNet + settlement);
+      } else if (isViewerPool) {
+        // Viewer cash that did not enter the creator pool (grandfathered first charge, etc.)
+        viewerIneligibleHeld = roundMoney(viewerIneligibleHeld + settlement);
       } else {
+        // True platform service: uploads, company subs, licences, reviews — not viewer.
         serviceRevenueNet = roundMoney(serviceRevenueNet + settlement);
       }
 
@@ -595,7 +602,7 @@ export async function fetchFinanceOverviewBundle(options: {
 
   const viewerSplit = splitViewerRevenueWithRates(viewerPoolNet, feeSettings);
   const platformTotalRetained = roundMoney(
-    viewerSplit.platform + serviceRevenueNet + marketplaceFees,
+    viewerSplit.platform + serviceRevenueNet + viewerIneligibleHeld + marketplaceFees,
   );
 
   const previousMonth = getPreviousCalendarMonthRange();
@@ -658,6 +665,7 @@ export async function fetchFinanceOverviewBundle(options: {
     viewerPlatformRetained: viewerSplit.platform,
     marketplaceFees,
     serviceRevenueNet,
+    viewerIneligibleHeld,
     platformTotalRetained,
     byPurpose: [...byPurposeMap.values()].sort((a, b) => b.net - a.net),
     escrow: escrowTreasury.escrow,
@@ -685,6 +693,7 @@ export async function fetchFinanceOverviewBundle(options: {
       creatorPool: viewerSplit.creator,
       platformRetained: viewerSplit.platform,
       platformServiceRevenue: serviceRevenueNet,
+      viewerIneligibleHeld,
       platformTotalRetained,
       marketplaceFees,
       marketplaceVolume,

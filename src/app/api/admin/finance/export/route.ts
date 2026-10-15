@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
         ["creatorPool", bundle.totals.creatorPool],
         ["platformRetainedViewer", bundle.totals.platformRetained],
         ["platformServiceRevenue", bundle.totals.platformServiceRevenue],
+        ["viewerIneligibleHeld", bundle.totals.viewerIneligibleHeld],
         ["platformTotalRetained", bundle.totals.platformTotalRetained],
         ["marketplaceFees", bundle.totals.marketplaceFees],
         ["marketplaceVolume", bundle.totals.marketplaceVolume],

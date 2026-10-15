@@ -58,10 +58,10 @@ export async function POST() {
       email: user.email,
       customerName: user.name,
       amount: planConfig.price,
-      purpose: "viewer_subscription",
+      purpose: "viewer_subscription_reactivate",
       referenceType: "ViewerSubscription",
       referenceId: subscription.id,
-      returnUrl: buildPaymentReturnUrl("/profiles", "viewer_subscription"),
+      returnUrl: buildPaymentReturnUrl("/profiles", "viewer_subscription_reactivate"),
       metadata: { planType: subscription.plan, resume: true, reactivation: true },
     });
 

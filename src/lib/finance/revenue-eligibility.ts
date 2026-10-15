@@ -94,8 +94,19 @@ export async function isClearedCreatorPoolEligiblePayment(
     });
     if (sub && sub.createdAt.getTime() < startedAt.getTime()) {
       const purpose = String(payment.purpose ?? "").toLowerCase();
-      // Existing active subscribers: only their next renewal (repay) counts.
-      return purpose.includes("renewal");
+      const meta =
+        payment.metadata && typeof payment.metadata === "object"
+          ? (payment.metadata as Record<string, unknown>)
+          : null;
+      // Pre-go-live subscribers: first historical charge is excluded; later renewals /
+      // reactivations (new cash after tracking start) enter the creator pool.
+      return (
+        purpose.includes("renewal") ||
+        purpose.includes("reactivate") ||
+        meta?.reactivation === true ||
+        meta?.resume === true ||
+        meta?.source === "auto_renewal"
+      );
     }
   }
 

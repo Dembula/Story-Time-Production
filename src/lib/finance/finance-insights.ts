@@ -83,6 +83,8 @@ export type RetentionBreakdownBundle = {
   viewerPlatformRetained: number;
   marketplaceFees: number;
   serviceRevenueNet: number;
+  /** Cleared viewer net that did not enter the 60/40 pool (not upload/company fees). */
+  viewerIneligibleHeld: number;
   platformTotalRetained: number;
   byPurpose: Array<{
     purpose: string;
