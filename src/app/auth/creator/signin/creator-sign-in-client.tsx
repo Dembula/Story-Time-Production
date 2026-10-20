@@ -149,7 +149,9 @@ export function CreatorSignInClient({
                 id="accountType"
                 value={selectedRole}
                 onChange={(e) => {
-                  setSelectedRole(e.target.value);
+                  const next = e.target.value;
+                  if (!isCreatorSignInRole(next)) return;
+                  setSelectedRole(next);
                   if (mfaRequired) setMfaRequired(false);
                 }}
                 disabled={mfaRequired}
