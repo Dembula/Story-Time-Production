@@ -3,7 +3,36 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-export default function FestivalPayoutsPage() {
+type Receipt = {
+  receiptId: string;
+  submissionId: string;
+  filmTitle: string;
+  categoryName: string;
+  filmmakerName: string;
+  filmmakerEmail: string;
+  submissionFeeZar: number;
+  yourEarningsZar: number;
+  paidAt: string | null;
+  remittanceStatus: string;
+};
+
+function formatZar(n: number) {
+  return `R${Number(n).toFixed(2)}`;
+}
+
+function formatWhen(iso: string | null) {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  } catch {
+    return "—";
+  }
+}
+
+export default function FestivalRevenuePage() {
   const [festivalId, setFestivalId] = useState("");
 
   const { data: list } = useQuery({
@@ -14,17 +43,20 @@ export default function FestivalPayoutsPage() {
   const activeId = festivalId || festivals[0]?.id || "";
 
   const { data, isLoading } = useQuery({
-    queryKey: ["festival-payouts", activeId],
+    queryKey: ["festival-revenue", activeId],
     queryFn: () => fetch(`/api/festival/${activeId}/payouts`).then((r) => r.json()),
     enabled: Boolean(activeId),
   });
 
+  const receipts: Receipt[] = data?.receipts ?? [];
+  const sharePct = data?.summary?.curatorSharePercent ?? 85;
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-semibold text-white">Payouts</h1>
+        <h1 className="font-display text-2xl font-semibold text-white">Revenue</h1>
         <p className="mt-1 text-sm text-slate-400">
-          Submission fees collected by Story Time via PayFast and held for remittance to your festival.
+          Your share of paid submission fees ({sharePct}%), with a receipt for each filmmaker who submitted.
         </p>
       </div>
 
@@ -39,47 +71,77 @@ export default function FestivalPayoutsPage() {
       </select>
 
       {data?.summary ? (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-slate-800 p-4">
-            <p className="text-[11px] uppercase text-slate-500">Paid submissions</p>
-            <p className="text-2xl font-semibold text-white">{data.summary.paidSubmissionCount}</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-slate-800 bg-gradient-to-br from-slate-900/80 to-slate-950 p-5">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Your revenue</p>
+            <p className="mt-1 font-display text-3xl font-semibold text-amber-200">
+              {formatZar(data.summary.yourRevenueZar)}
+            </p>
+            <p className="mt-2 text-xs text-slate-500">
+              {sharePct}% of paid submissions · held for remittance
+            </p>
           </div>
-          <div className="rounded-xl border border-slate-800 p-4">
-            <p className="text-[11px] uppercase text-slate-500">Gross fees</p>
-            <p className="text-2xl font-semibold text-white">R{Number(data.summary.grossFeesZar).toFixed(2)}</p>
-          </div>
-          <div className="rounded-xl border border-slate-800 p-4">
-            <p className="text-[11px] uppercase text-slate-500">Held for festival</p>
-            <p className="text-2xl font-semibold text-amber-200">R{Number(data.summary.netOwedToFestivalZar).toFixed(2)}</p>
+          <div className="rounded-xl border border-slate-800 p-5">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Paid submissions</p>
+            <p className="mt-1 text-3xl font-semibold text-white">{data.summary.paidSubmissionCount}</p>
+            <p className="mt-2 text-xs text-slate-500">
+              {data.festival?.name ? `Festival: ${data.festival.name}` : "Receipts below"}
+            </p>
           </div>
         </div>
       ) : null}
+
       {data?.summary?.note ? <p className="text-xs text-slate-500">{data.summary.note}</p> : null}
 
-      {isLoading ? (
-        <p className="text-sm text-slate-500">Loading…</p>
-      ) : (
-        <ul className="space-y-2">
-          {(data?.rows ?? []).map((r: {
-            submissionId: string;
-            title: string;
-            feeAmountZar: number;
-            remittanceStatus: string;
-            creatorName?: string | null;
-          }) => (
-            <li key={r.submissionId} className="flex justify-between rounded-lg border border-slate-800 px-3 py-2 text-sm">
-              <div>
-                <p className="text-white">{r.title}</p>
-                <p className="text-xs text-slate-500">{r.creatorName}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-white">R{Number(r.feeAmountZar).toFixed(2)}</p>
-                <p className="text-[11px] text-amber-200/80">{r.remittanceStatus.replace(/_/g, " ")}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+          Submission receipts
+        </h2>
+        {isLoading ? (
+          <p className="mt-3 text-sm text-slate-500">Loading…</p>
+        ) : receipts.length === 0 ? (
+          <p className="mt-3 text-sm text-slate-500">
+            No paid submissions yet. When filmmakers pay to enter, receipts appear here.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-3">
+            {receipts.map((r) => (
+              <li
+                key={r.receiptId}
+                className="rounded-xl border border-slate-800 bg-slate-950/50 px-4 py-3"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 space-y-1">
+                    <p className="font-medium text-white">{r.filmTitle}</p>
+                    <p className="text-sm text-slate-300">
+                      {r.filmmakerName}
+                      <span className="text-slate-500"> · {r.filmmakerEmail}</span>
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {r.categoryName} · Paid {formatWhen(r.paidAt)}
+                    </p>
+                    <p className="text-[11px] text-slate-600">
+                      Receipt {r.receiptId.slice(0, 12)}…
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-semibold text-amber-200">
+                      {formatZar(r.yourEarningsZar)}
+                    </p>
+                    <p className="text-[11px] text-slate-500">Your earnings</p>
+                    <p className="mt-1 text-[11px] text-slate-600">
+                      Submission fee {formatZar(r.submissionFeeZar)}
+                    </p>
+                    <p className="mt-1 text-[11px] uppercase tracking-wide text-amber-200/70">
+                      {r.remittanceStatus.replace(/_/g, " ")}
+                    </p>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

@@ -298,6 +298,12 @@ function CreatorSignUpPageInner() {
                   <option value="funder">Funder / Investor</option>
                   <option value="festival">Film Festival / Curator</option>
                 </select>
+                {creatorType === "festival" ? (
+                  <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                    Festival curator accounts are free. You earn from filmmaker submission fees — not from a
+                    curator signup charge.
+                  </p>
+                ) : null}
               </div>
               {(creatorType === "content" || creatorType === "music") && (
                 <div className="space-y-3 rounded-xl border border-amber-200/70 bg-gradient-to-br from-amber-50 to-white p-4">

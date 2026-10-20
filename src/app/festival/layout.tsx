@@ -22,7 +22,7 @@ const festivalNavSections = [
       { href: "/festival/review", label: "Review hub" },
       { href: "/festival/screening", label: "Screening" },
       { href: "/festival/team", label: "Team" },
-      { href: "/festival/payouts", label: "Payouts" },
+      { href: "/festival/payouts", label: "Revenue" },
     ],
   },
 ];

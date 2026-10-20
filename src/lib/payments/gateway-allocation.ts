@@ -312,18 +312,20 @@ export async function allocateGatewayPaymentLedger(payment: {
     return;
   }
 
-  // Festival submission fees: Story Time collects via PayFast, holds for remittance to the festival (not ST service revenue).
+  // Festival submission fees: curator signup is free; ST takes festival platform share of settlement.
   if (
     purpose === FESTIVAL_SUBMISSION_FEE_PURPOSE &&
     payment.relatedEntityType === "FestivalSubmission" &&
     payment.relatedEntityId
   ) {
     const { prisma } = await import("@/lib/prisma");
+    const { splitFestivalSubmissionSettlement } = await import("@/lib/festival/fee-split");
     const submission = await prisma.festivalSubmission.findUnique({
       where: { id: payment.relatedEntityId },
       select: { festival: { select: { ownerUserId: true, name: true } } },
     });
     if (submission?.festival?.ownerUserId) {
+      const { platformFeeZar, festivalNetZar } = splitFestivalSubmissionSettlement(settlementAmount);
       await allocatePayeeGatewayLedger({
         idempotencyKey,
         paymentId: payment.id,
@@ -334,8 +336,8 @@ export async function allocateGatewayPaymentLedger(payment: {
         settlementAmount,
         providerFeeAmount,
         sellerUserId: submission.festival.ownerUserId,
-        baseAmount: settlementAmount,
-        feeAmount: 0,
+        baseAmount: festivalNetZar,
+        feeAmount: platformFeeZar,
         incomingDescription: "Festival submission fee received (net after PayFast fees)",
         pendingDescription: `Held for festival remittance — ${submission.festival.name}`,
       });

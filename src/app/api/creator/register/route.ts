@@ -279,59 +279,33 @@ export async function POST(request: NextRequest) {
       persistStudioProfiles: boolean,
     ) => {
       await prisma.$transaction(async (tx) => {
-        const user = existing
-          ? await tx.user.update({
-              where: { id: existing.id },
-              data: {
-                name: name?.trim() || null,
-                role,
-                passwordHash: existing.passwordHash ? undefined : passwordHash,
-                bio: bio?.trim() || null,
-                socialLinks: socialLinks?.trim() || null,
-                education: cleanEducation,
-                goals: isStudioCreator
-                  ? embedMeta(goals?.trim() || null, goalsMeta)
-                  : embedMeta(null, goalsMeta),
-                previousWork: isStudioCreator ? previousWork?.trim() || null : null,
-                showCreatorAboutOnTitles,
-                isAfdaStudent: isStudioCreator && Boolean(isAfda),
-                institutionName:
-                  isStudioCreator && isAfda ? institutionName?.trim() || null : null,
-                studentId: isStudioCreator && isAfda ? studentId?.trim() || null : null,
-                ...(persistStudioColumns
-                  ? {
-                      creatorAccountStructure: studioAccountStructure,
-                      creatorTeamSeatCap: studioAccountStructure === "COMPANY" ? studioTeamSeatCap : null,
-                    }
-                  : {}),
-              },
-            })
-          : await tx.user.create({
-              data: {
-                email: normalizedEmail,
-                name: name?.trim() || null,
-                role,
-                passwordHash,
-                bio: bio?.trim() || null,
-                socialLinks: socialLinks?.trim() || null,
-                education: cleanEducation,
-                goals: isStudioCreator
-                  ? embedMeta(goals?.trim() || null, goalsMeta)
-                  : embedMeta(null, goalsMeta),
-                previousWork: isStudioCreator ? previousWork?.trim() || null : null,
-                showCreatorAboutOnTitles,
-                isAfdaStudent: isStudioCreator && Boolean(isAfda),
-                institutionName:
-                  isStudioCreator && isAfda ? institutionName?.trim() || null : null,
-                studentId: isStudioCreator && isAfda ? studentId?.trim() || null : null,
-                ...(persistStudioColumns
-                  ? {
-                      creatorAccountStructure: studioAccountStructure,
-                      creatorTeamSeatCap: studioAccountStructure === "COMPANY" ? studioTeamSeatCap : null,
-                    }
-                  : {}),
-              },
-            });
+        // Existing emails already returned above (add-role path). New signups only create here.
+        const user = await tx.user.create({
+          data: {
+            email: normalizedEmail,
+            name: name?.trim() || null,
+            role,
+            passwordHash,
+            bio: bio?.trim() || null,
+            socialLinks: socialLinks?.trim() || null,
+            education: cleanEducation,
+            goals: isStudioCreator
+              ? embedMeta(goals?.trim() || null, goalsMeta)
+              : embedMeta(null, goalsMeta),
+            previousWork: isStudioCreator ? previousWork?.trim() || null : null,
+            showCreatorAboutOnTitles,
+            isAfdaStudent: isStudioCreator && Boolean(isAfda),
+            institutionName:
+              isStudioCreator && isAfda ? institutionName?.trim() || null : null,
+            studentId: isStudioCreator && isAfda ? studentId?.trim() || null : null,
+            ...(persistStudioColumns
+              ? {
+                  creatorAccountStructure: studioAccountStructure,
+                  creatorTeamSeatCap: studioAccountStructure === "COMPANY" ? studioTeamSeatCap : null,
+                }
+              : {}),
+          },
+        });
 
         if (
           persistStudioProfiles &&
