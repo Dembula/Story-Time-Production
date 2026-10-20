@@ -1,28 +1,45 @@
 "use client";
 
 import { signOut } from "next-auth/react";
-import { LogOut } from "lucide-react";
+import {
+  Clapperboard,
+  Film,
+  LayoutDashboard,
+  LogOut,
+  Receipt,
+  ShieldCheck,
+  Users,
+  Wallet,
+} from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { DashboardSidebarShell } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { PayoutKycBanner } from "@/components/payout-kyc/payout-kyc-banner";
 
 const festivalNavSections = [
   {
     title: "Overview",
     items: [
-      { href: "/festival", label: "Dashboard" },
-      { href: "/festival/festivals", label: "My festivals" },
+      { href: "/festival", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/festival/festivals", label: "My festivals", icon: Film },
     ],
   },
   {
     title: "Operations",
     items: [
-      { href: "/festival/submissions", label: "Submissions" },
-      { href: "/festival/review", label: "Review hub" },
-      { href: "/festival/screening", label: "Screening" },
-      { href: "/festival/team", label: "Team" },
-      { href: "/festival/payouts", label: "Revenue" },
+      { href: "/festival/submissions", label: "Submissions", icon: Clapperboard },
+      { href: "/festival/review", label: "Review hub", icon: ShieldCheck },
+      { href: "/festival/screening", label: "Screening", icon: Film },
+      { href: "/festival/team", label: "Team", icon: Users },
+    ],
+  },
+  {
+    title: "Finance",
+    items: [
+      { href: "/festival/payouts", label: "Revenue", icon: Receipt },
+      { href: "/festival/wallet", label: "Wallet", icon: Wallet },
+      { href: "/payout-verification", label: "KYB / Banking", icon: ShieldCheck },
     ],
   },
 ];
@@ -47,6 +64,7 @@ export default function FestivalLayout({ children }: { children: React.ReactNode
     <DashboardSidebarShell
       brandHref="/festival"
       brandLabel="Festivals"
+      className="text-slate-100 adaptive-tv-surface"
       headerEnd={
         <>
           <NotificationBell />
@@ -68,7 +86,10 @@ export default function FestivalLayout({ children }: { children: React.ReactNode
         </button>
       }
     >
-      {children}
+      <div className="space-y-4">
+        <PayoutKycBanner />
+        {children}
+      </div>
     </DashboardSidebarShell>
   );
 }

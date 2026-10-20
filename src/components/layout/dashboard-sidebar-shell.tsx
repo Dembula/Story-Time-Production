@@ -159,8 +159,11 @@ export function DashboardSidebarShell({
   const paddedContent = deviceClass === "mobile" ? "px-3 py-4" : "px-4 py-6 md:px-6 lg:px-8";
   const headerHeightClass = deviceClass === "mobile" ? "top-[3.75rem]" : "top-[4.25rem]";
   const stickySidebarTop = deviceClass === "mobile" ? "top-[3.75rem]" : "top-[4.25rem]";
-  const stickySidebarMaxH =
-    deviceClass === "mobile" ? "max-h-[calc(100dvh-3.75rem)]" : "max-h-[calc(100dvh-4.25rem)]";
+  /** min-h matches max-h so flex-1 nav grows and sidebarFooter pins to the bottom of the column. */
+  const stickySidebarH =
+    deviceClass === "mobile"
+      ? "min-h-[calc(100dvh-3.75rem)] max-h-[calc(100dvh-3.75rem)]"
+      : "min-h-[calc(100dvh-4.25rem)] max-h-[calc(100dvh-4.25rem)]";
 
   const showDockedSidebar = !overlayMode && sidebarOpen;
 
@@ -229,10 +232,8 @@ export function DashboardSidebarShell({
 
       <div className="flex w-full min-h-[calc(100dvh-4.25rem)]">
         {showDockedSidebar ? (
-          <aside className="hidden w-56 shrink-0 flex-col border-r border-white/10 bg-black md:flex xl:w-64">
-            <div
-              className={`sticky ${stickySidebarTop} flex ${stickySidebarMaxH} flex-col`}
-            >
+          <aside className="hidden w-56 shrink-0 self-stretch flex-col border-r border-white/10 bg-black md:flex xl:w-64">
+            <div className={`sticky ${stickySidebarTop} flex ${stickySidebarH} flex-col`}>
               <div data-tour="dashboard-sidebar" className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
                 {sidebarBody}
               </div>

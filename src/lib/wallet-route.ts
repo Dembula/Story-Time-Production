@@ -6,6 +6,7 @@ export type AppRole =
   | "CREW_TEAM"
   | "CASTING_AGENCY"
   | "CATERING_COMPANY"
+  | "FESTIVAL_CURATOR"
   | "FUNDER"
   | "ADMIN"
   | "SUBSCRIBER";
@@ -71,6 +72,8 @@ export function getWalletRouteForRole(role?: string | null) {
       return "/catering-company/wallet";
     case "FUNDER":
       return "/funders/wallet";
+    case "FESTIVAL_CURATOR":
+      return "/festival/wallet";
     case "ADMIN":
       return "/admin/payments";
     default:

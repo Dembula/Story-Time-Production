@@ -9,6 +9,7 @@ export const PAYOUT_KYC_ROLES = new Set([
   "CREW_TEAM",
   "CASTING_AGENCY",
   "CATERING_COMPANY",
+  "FESTIVAL_CURATOR",
 ]);
 
 export function requiresPayoutKyc(role?: string | null): boolean {

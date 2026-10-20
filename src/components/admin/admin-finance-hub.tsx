@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminPayoutRequestsPanel } from "@/components/admin/admin-payout-requests-panel";
+import { AdminFestivalRemittancesPanel } from "@/components/admin/admin-festival-remittances-panel";
 import { AdminTransactionDetailModal } from "@/components/admin/admin-transaction-detail-modal";
 import {
   FINANCE_PERIOD_OPTIONS,
@@ -27,6 +28,7 @@ type TabId =
   | "retention"
   | "gateways"
   | "payouts"
+  | "festivals"
   | "settings"
   | "exports";
 
@@ -38,6 +40,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "retention", label: "Retention & treasury" },
   { id: "gateways", label: "Gateways & fees" },
   { id: "payouts", label: "Payouts" },
+  { id: "festivals", label: "Festivals" },
   { id: "settings", label: "Fee settings" },
   { id: "exports", label: "Exports" },
 ];
@@ -46,6 +49,7 @@ function readInitialTab(): TabId {
   if (typeof window === "undefined") return "overview";
   const q = new URLSearchParams(window.location.search).get("tab");
   if (q === "sheets") return "sheets";
+  if (q === "festival-remittances" || q === "festivals") return "festivals";
   if (q && TABS.some((t) => t.id === q)) return q as TabId;
   return "overview";
 }
@@ -1131,6 +1135,8 @@ export function AdminFinanceHub() {
           <AdminPayoutRequestsPanel />
         </section>
       ) : null}
+
+      {tab === "festivals" ? <AdminFestivalRemittancesPanel /> : null}
 
       {tab === "settings" ? (
         <section className="storytime-plan-card space-y-4 p-4 md:p-6">
