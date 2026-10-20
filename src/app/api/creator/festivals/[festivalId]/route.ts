@@ -7,6 +7,7 @@ import {
   festivalAcceptsSubmissions,
   resolveDeadlineTier,
 } from "@/lib/festival/constants";
+import { packFestivalImageUrl, packFestivalMediaAssetUrl } from "@/lib/festival/media-urls";
 
 type Ctx = { params: Promise<{ festivalId: string }> };
 
@@ -39,6 +40,12 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   return NextResponse.json({
     festival: {
       ...festival,
+      logoUrl: packFestivalImageUrl(festival.logoUrl) ?? festival.logoUrl,
+      headerImageUrl: packFestivalImageUrl(festival.headerImageUrl) ?? festival.headerImageUrl,
+      mediaAssets: festival.mediaAssets.map((m) => ({
+        ...m,
+        url: packFestivalMediaAssetUrl(m.url),
+      })),
       categories,
       acceptingSubmissions: festivalAcceptsSubmissions(festival),
       currentTier: tier,

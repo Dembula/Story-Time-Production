@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { canManageFestival, requireFestivalAccess, requireFestivalSession } from "@/lib/festival/access";
+import { packFestivalMediaAssetUrl } from "@/lib/festival/media-urls";
 
 type Ctx = { params: Promise<{ festivalId: string }> };
 
@@ -15,8 +16,9 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const url = typeof body.url === "string" ? body.url.trim() : "";
-  if (!url) return NextResponse.json({ error: "Media URL required." }, { status: 400 });
+  const rawUrl = typeof body.url === "string" ? body.url.trim() : "";
+  if (!rawUrl) return NextResponse.json({ error: "Media URL required." }, { status: 400 });
+  const url = packFestivalMediaAssetUrl(rawUrl);
   const kind = body.kind === "VIDEO" ? "VIDEO" : "IMAGE";
 
   const maxSort = await prisma.festivalMediaAsset.aggregate({

@@ -30,6 +30,45 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ festival });
   }
 
+  if (action === "unpublish") {
+    if (access.festival.status === FESTIVAL_STATUS.ENDED) {
+      return NextResponse.json({ error: "Ended festivals cannot be unpublished. Start a new listing instead." }, { status: 400 });
+    }
+    if (access.festival.status === FESTIVAL_STATUS.DRAFT) {
+      return NextResponse.json({ error: "Already a draft (not listed for creators)." }, { status: 400 });
+    }
+    const festival = await prisma.festival.update({
+      where: { id: festivalId },
+      data: {
+        status: FESTIVAL_STATUS.DRAFT,
+        acceptingSubmissions: false,
+      },
+    });
+    return NextResponse.json({ festival });
+  }
+
+  if (action === "delete") {
+    if (access.festival.status === FESTIVAL_STATUS.ENDED) {
+      return NextResponse.json(
+        { error: "Ended festivals cannot be deleted (financial history). Unpublish drafts only, or leave ended listings archived." },
+        { status: 400 },
+      );
+    }
+    const paidCount = await prisma.festivalSubmission.count({
+      where: { festivalId, paymentStatus: "PAID" },
+    });
+    if (paidCount > 0) {
+      return NextResponse.json(
+        {
+          error: `This festival has ${paidCount} paid submission(s). Unpublish it to hide from creators instead of deleting.`,
+        },
+        { status: 400 },
+      );
+    }
+    await prisma.festival.delete({ where: { id: festivalId } });
+    return NextResponse.json({ ok: true, deleted: true });
+  }
+
   if (action === "set_accepting_submissions") {
     if (access.festival.status === FESTIVAL_STATUS.ENDED) {
       return NextResponse.json({ error: "Festival has ended." }, { status: 400 });

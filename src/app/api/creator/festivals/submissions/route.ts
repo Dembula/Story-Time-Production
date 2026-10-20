@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { packFestivalImageUrl } from "@/lib/festival/media-urls";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -15,10 +16,23 @@ export async function GET() {
     where: { creatorUserId: userId },
     orderBy: { createdAt: "desc" },
     include: {
-      festival: { select: { id: true, name: true, status: true, slug: true } },
+      festival: {
+        select: { id: true, name: true, status: true, slug: true, headerImageUrl: true },
+      },
       category: { select: { id: true, name: true } },
     },
   });
 
-  return NextResponse.json({ submissions });
+  return NextResponse.json({
+    submissions: submissions.map((s) => ({
+      ...s,
+      festival: s.festival
+        ? {
+            ...s.festival,
+            headerImageUrl:
+              packFestivalImageUrl(s.festival.headerImageUrl) ?? s.festival.headerImageUrl,
+          }
+        : s.festival,
+    })),
+  });
 }

@@ -5,12 +5,19 @@ import {
   requireFestivalSession,
 } from "@/lib/festival/access";
 import { FESTIVAL_MEMBER_ROLE, FESTIVAL_STATUS, slugifyFestivalName } from "@/lib/festival/constants";
+import { packFestivalImageUrl } from "@/lib/festival/media-urls";
 
 export async function GET() {
   const auth = await requireFestivalSession();
   if (!auth) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const festivals = await listAccessibleFestivals(auth.userId);
-  return NextResponse.json({ festivals });
+  return NextResponse.json({
+    festivals: festivals.map((f) => ({
+      ...f,
+      logoUrl: packFestivalImageUrl(f.logoUrl) ?? f.logoUrl,
+      headerImageUrl: packFestivalImageUrl(f.headerImageUrl) ?? f.headerImageUrl,
+    })),
+  });
 }
 
 export async function POST(req: NextRequest) {

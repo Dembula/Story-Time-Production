@@ -5,7 +5,11 @@ import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { OpsPageHeader, OpsSection } from "@/components/ecosystem/ops-shell";
-import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
+import {
+  preferredStorageReference,
+  uploadContentMediaViaApiFull,
+} from "@/lib/upload-content-media-client";
+import { packBrowserMediaUrl } from "@/lib/pack-storage-media-url";
 
 export default function FestivalSetupPage() {
   const params = useParams();
@@ -89,13 +93,21 @@ export default function FestivalSetupPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Action failed");
-      return json;
+      return { ...json, action };
     },
     onSuccess: (json) => {
+      if (json.deleted) {
+        setMessage("Festival removed.");
+        qc.invalidateQueries({ queryKey: ["festival-list"] });
+        window.location.href = "/festival/festivals";
+        return;
+      }
       setMessage(
         json.universeHoldsReleased != null
           ? `Festival ended. Released ${json.universeHoldsReleased} Universe hold(s).`
-          : "Updated.",
+          : json.action === "unpublish"
+            ? "Unpublished — hidden from creators (draft)."
+            : "Updated.",
       );
       qc.invalidateQueries({ queryKey: ["festival", festivalId] });
       qc.invalidateQueries({ queryKey: ["festival-list"] });
@@ -146,20 +158,44 @@ export default function FestivalSetupPage() {
     setUploading(kind);
     setMessage("");
     try {
-      const url = await uploadContentMediaViaApi(file);
+      const payload = await uploadContentMediaViaApiFull(file);
+      const url = preferredStorageReference(payload, { preferPublicUrl: true });
+      if (!url || url.startsWith("s3://")) {
+        throw new Error("Upload finished but no public image URL was returned. Check storage public base URL.");
+      }
       if (kind === "gallery") {
         await addMedia.mutateAsync(url);
-      } else {
-        const key = kind === "logo" ? "logoUrl" : "headerImageUrl";
-        setForm((s) => ({ ...s, [key]: url }));
-        setMessage(`${kind === "logo" ? "Logo" : "Poster"} uploaded — save setup to keep it.`);
+        setMessage("Gallery image added.");
+        return;
       }
+      const key = kind === "logo" ? "logoUrl" : "headerImageUrl";
+      const nextForm = { ...form, [key]: url };
+      setForm(nextForm);
+      const res = await fetch(`/api/festival/${festivalId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...nextForm,
+          yearsRunning: Number(nextForm.yearsRunning) || 1,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Uploaded but save failed");
+      setMessage(`${kind === "logo" ? "Logo" : "Poster"} uploaded and saved.`);
+      qc.invalidateQueries({ queryKey: ["festival", festivalId] });
+      qc.invalidateQueries({ queryKey: ["festival-list"] });
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setUploading(null);
     }
   }
+
+  const previewHeader =
+    packBrowserMediaUrl(form.headerImageUrl) ??
+    (form.headerImageUrl?.startsWith("http") ? form.headerImageUrl : "");
+  const previewLogo =
+    packBrowserMediaUrl(form.logoUrl) ?? (form.logoUrl?.startsWith("http") ? form.logoUrl : "");
 
   if (isLoading || !data?.festival) {
     return <p className="text-sm text-slate-500">Loading festival…</p>;
@@ -213,23 +249,59 @@ export default function FestivalSetupPage() {
                 Publish
               </button>
             ) : null}
+            {f.status === "LIVE" || f.status === "SUBMISSIONS_CLOSED" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (
+                    confirm(
+                      "Unpublish this festival? It will become a draft and disappear from the creator browse list.",
+                    )
+                  ) {
+                    settings.mutate("unpublish");
+                  }
+                }}
+                className="rounded-lg border border-amber-500/40 px-3 py-2 text-sm text-amber-100"
+              >
+                Unpublish
+              </button>
+            ) : null}
             {f.status !== "ENDED" ? (
               <>
-                <button
-                  type="button"
-                  onClick={() => settings.mutate("set_accepting_submissions")}
-                  className="rounded-lg border border-white/15 px-3 py-2 text-sm text-slate-200"
-                >
-                  {f.acceptingSubmissions ? "Close submissions" : "Reopen submissions"}
-                </button>
+                {f.status !== "DRAFT" ? (
+                  <button
+                    type="button"
+                    onClick={() => settings.mutate("set_accepting_submissions")}
+                    className="rounded-lg border border-white/15 px-3 py-2 text-sm text-slate-200"
+                  >
+                    {f.acceptingSubmissions ? "Close submissions" : "Reopen submissions"}
+                  </button>
+                ) : null}
+                {f.status !== "DRAFT" ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm("End this festival for the year?")) settings.mutate("end_festival");
+                    }}
+                    className="rounded-lg border border-red-500/40 px-3 py-2 text-sm text-red-300"
+                  >
+                    End year
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => {
-                    if (confirm("End this festival for the year?")) settings.mutate("end_festival");
+                    if (
+                      confirm(
+                        "Permanently remove this festival? Only allowed if there are no paid submissions. This cannot be undone.",
+                      )
+                    ) {
+                      settings.mutate("delete");
+                    }
                   }}
-                  className="rounded-lg border border-red-500/40 px-3 py-2 text-sm text-red-300"
+                  className="rounded-lg border border-red-500/50 px-3 py-2 text-sm text-red-300"
                 >
-                  End year
+                  Remove listing
                 </button>
               </>
             ) : null}
@@ -237,23 +309,30 @@ export default function FestivalSetupPage() {
         }
       />
       {message ? <p className="text-sm text-amber-200">{message}</p> : null}
+      {f.status === "DRAFT" ? (
+        <p className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100/90">
+          Draft — not visible to creators. Publish when ready, or remove the listing if it was a mistake.
+        </p>
+      ) : null}
 
       <OpsSection title="Poster & logo">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)]">
           <div className="overflow-hidden rounded-2xl border border-white/8 bg-slate-950">
             <div className="relative aspect-[21/7] bg-slate-900">
-              {form.headerImageUrl ? (
+              {previewHeader ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={form.headerImageUrl} alt="" className="h-full w-full object-cover" />
+                <img src={previewHeader} alt="" className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full items-center justify-center text-sm text-slate-500">
-                  Festival poster / header
+                  {form.headerImageUrl?.startsWith("s3://")
+                    ? "Poster saved — re-upload once if preview is blank"
+                    : "Festival poster / header"}
                 </div>
               )}
-              {form.logoUrl ? (
+              {previewLogo ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={form.logoUrl}
+                  src={previewLogo}
                   alt=""
                   className="absolute bottom-3 left-3 h-16 w-16 rounded-xl border border-white/20 object-cover shadow-lg"
                 />

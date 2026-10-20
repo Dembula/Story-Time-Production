@@ -33,6 +33,24 @@ export default function FestivalFestivalsPage() {
     onError: (e: Error) => setError(e.message),
   });
 
+  const listingAction = useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: "unpublish" | "delete" }) => {
+      const res = await fetch(`/api/festival/${id}/settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Action failed");
+      return json;
+    },
+    onSuccess: () => {
+      setError("");
+      qc.invalidateQueries({ queryKey: ["festival-list"] });
+    },
+    onError: (e: Error) => setError(e.message),
+  });
+
   return (
     <div className="mx-auto max-w-6xl space-y-8">
       <OpsPageHeader title="My festivals" subtitle="Listings creators browse and submit to." />
@@ -125,12 +143,50 @@ export default function FestivalFestivalsPage() {
                     <td className="px-4 py-3 text-slate-300">{f._count?.submissions ?? 0}</td>
                     <td className="px-4 py-3 text-slate-300">{f._count?.memberships ?? 0}</td>
                     <td className="px-4 py-3 text-right">
-                      <Link
-                        href={`/festival/festivals/${f.id}`}
-                        className="text-orange-300 hover:text-orange-200"
-                      >
-                        Edit
-                      </Link>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <Link
+                          href={`/festival/festivals/${f.id}`}
+                          className="text-orange-300 hover:text-orange-200"
+                        >
+                          Edit
+                        </Link>
+                        {f.status === "LIVE" || f.status === "SUBMISSIONS_CLOSED" ? (
+                          <button
+                            type="button"
+                            disabled={listingAction.isPending}
+                            onClick={() => {
+                              if (
+                                confirm(
+                                  `Unpublish “${f.name}”? Creators will no longer see it until you publish again.`,
+                                )
+                              ) {
+                                listingAction.mutate({ id: f.id, action: "unpublish" });
+                              }
+                            }}
+                            className="text-amber-200/90 hover:text-amber-100"
+                          >
+                            Unpublish
+                          </button>
+                        ) : null}
+                        {f.status !== "ENDED" ? (
+                          <button
+                            type="button"
+                            disabled={listingAction.isPending}
+                            onClick={() => {
+                              if (
+                                confirm(
+                                  `Remove “${f.name}”? Only works with no paid submissions.`,
+                                )
+                              ) {
+                                listingAction.mutate({ id: f.id, action: "delete" });
+                              }
+                            }}
+                            className="text-red-300/90 hover:text-red-200"
+                          >
+                            Remove
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -1,8 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { canManageFestival, requireFestivalAccess, requireFestivalSession } from "@/lib/festival/access";
+import { packFestivalImageUrl, packFestivalMediaAssetUrl } from "@/lib/festival/media-urls";
 
 type Ctx = { params: Promise<{ festivalId: string }> };
+
+function packFestivalForClient<T extends {
+  logoUrl?: string | null;
+  headerImageUrl?: string | null;
+  mediaAssets?: Array<{ url: string } & Record<string, unknown>>;
+}>(festival: T) {
+  return {
+    ...festival,
+    logoUrl: packFestivalImageUrl(festival.logoUrl) ?? festival.logoUrl ?? null,
+    headerImageUrl: packFestivalImageUrl(festival.headerImageUrl) ?? festival.headerImageUrl ?? null,
+    mediaAssets: (festival.mediaAssets ?? []).map((m) => ({
+      ...m,
+      url: packFestivalMediaAssetUrl(m.url),
+    })),
+  };
+}
 
 export async function GET(_req: NextRequest, ctx: Ctx) {
   const auth = await requireFestivalSession();
@@ -18,7 +35,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   });
 
   return NextResponse.json({
-    festival: access.festival,
+    festival: packFestivalForClient(access.festival),
     membershipRole: access.membershipRole,
     canManage: canManageFestival(access.membershipRole, auth.role === "ADMIN"),
     counts,
@@ -47,6 +64,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     return Number.isNaN(d.getTime()) ? undefined : d;
   };
 
+  const logoRaw = str("logoUrl");
+  const headerRaw = str("headerImageUrl");
+
   const festival = await prisma.festival.update({
     where: { id: festivalId },
     data: {
@@ -56,8 +76,18 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       awardsText: str("awardsText"),
       rulesText: str("rulesText"),
       organizers: str("organizers"),
-      logoUrl: str("logoUrl"),
-      headerImageUrl: str("headerImageUrl"),
+      logoUrl:
+        logoRaw === undefined
+          ? undefined
+          : logoRaw === null
+            ? null
+            : packFestivalImageUrl(logoRaw) ?? logoRaw,
+      headerImageUrl:
+        headerRaw === undefined
+          ? undefined
+          : headerRaw === null
+            ? null
+            : packFestivalImageUrl(headerRaw) ?? headerRaw,
       contactEmail: str("contactEmail"),
       contactPhone: str("contactPhone"),
       websiteUrl: str("websiteUrl"),
@@ -84,5 +114,5 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     },
   });
 
-  return NextResponse.json({ festival });
+  return NextResponse.json({ festival: packFestivalForClient(festival) });
 }

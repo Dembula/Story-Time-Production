@@ -7,6 +7,7 @@ import {
   festivalAcceptsSubmissions,
   resolveDeadlineTier,
 } from "@/lib/festival/constants";
+import { packFestivalImageUrl, packFestivalMediaAssetUrl } from "@/lib/festival/media-urls";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -38,8 +39,8 @@ export async function GET() {
       tagline: f.tagline,
       about: f.about,
       yearsRunning: f.yearsRunning,
-      logoUrl: f.logoUrl,
-      headerImageUrl: f.headerImageUrl,
+      logoUrl: packFestivalImageUrl(f.logoUrl) ?? f.logoUrl,
+      headerImageUrl: packFestivalImageUrl(f.headerImageUrl) ?? f.headerImageUrl,
       status: f.status,
       acceptingSubmissions: festivalAcceptsSubmissions(f),
       openingAt: f.openingAt,
@@ -50,7 +51,7 @@ export async function GET() {
       categoryCount: f._count.categories,
       currentTier: tier,
       fromFeeZar: minFee,
-      previewMedia: f.mediaAssets,
+      previewMedia: f.mediaAssets.map((m) => ({ ...m, url: packFestivalMediaAssetUrl(m.url) })),
     };
   });
 

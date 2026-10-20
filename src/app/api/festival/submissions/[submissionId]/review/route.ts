@@ -7,6 +7,7 @@ import {
   requireFestivalSession,
 } from "@/lib/festival/access";
 import { FESTIVAL_SELECTION, FESTIVAL_STATUS } from "@/lib/festival/constants";
+import { packFestivalVideoUrl } from "@/lib/festival/media-urls";
 
 type Ctx = { params: Promise<{ submissionId: string }> };
 
@@ -33,7 +34,11 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   }
 
   return NextResponse.json({
-    submission,
+    submission: {
+      ...submission,
+      screenerUrl: packFestivalVideoUrl(submission.screenerUrl) ?? submission.screenerUrl,
+      trailerUrl: packFestivalVideoUrl(submission.trailerUrl) ?? submission.trailerUrl,
+    },
     membershipRole: access.membershipRole,
     canStage2: canStage2Review(access.membershipRole, auth.role === "ADMIN"),
   });
