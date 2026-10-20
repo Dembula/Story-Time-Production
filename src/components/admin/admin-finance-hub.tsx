@@ -355,19 +355,6 @@ export function AdminFinanceHub() {
             </div>
           ) : null}
 
-          {bundle.totals.viewerIneligibleHeld > 0 || bundle.totals.platformServiceRevenue === 0 ? (
-            <div className="rounded-xl border border-sky-400/25 bg-sky-500/10 px-4 py-3 text-sm text-sky-50">
-              <p className="font-medium text-sky-200">Ledger note</p>
-              <p className="mt-1 text-xs text-sky-100/85">
-                Platform service revenue is only uploads / company subs / licences that have cleared.
-                Viewer subscription cash that is cleared but excluded from the creator 60/40 (pre-go-live
-                first charges) shows under <span className="font-medium">Viewer held (not in 60/40)</span>
-                — it is not upload or listing fees. Treasury PLATFORM_REVENUE is an all-time wallet stock,
-                not this period&apos;s PaymentRecords.
-              </p>
-            </div>
-          ) : null}
-
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Kpi
               label="Gross cleared inflow"
@@ -490,22 +477,6 @@ export function AdminFinanceHub() {
           ) : null}
 
           <div className="space-y-3 border-t border-white/10 pt-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Notes &amp; detail</p>
-
-            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-100/90">
-              <p className="font-medium text-emerald-200">Cleared revenue only</p>
-              <p className="mt-1 text-xs text-emerald-100/70">
-                KPIs and creator pool use funds that have cleared — PayFast after{" "}
-                {bundle.revenueTracking.clearRules.payfastDays} days, Apple after{" "}
-                {bundle.revenueTracking.clearRules.appleDays} days (or earlier via Cleared). Recording
-                started{" "}
-                {bundle.revenueTracking.trackingStartedAt
-                  ? new Date(bundle.revenueTracking.trackingStartedAt).toLocaleDateString()
-                  : "—"}
-                . Existing subscribers count on their next renewal; new subscribers count after clear.
-              </p>
-            </div>
-
             <div className="rounded-xl border border-violet-400/25 bg-violet-500/10 px-4 py-3 sm:flex sm:items-center sm:justify-between sm:gap-4">
               <div>
                 <p className="text-xs uppercase tracking-wide text-violet-200">Free trial pipeline</p>
