@@ -15,6 +15,10 @@ export function isProjectInviteJoinCallback(path: string | null | undefined): bo
   return Boolean(path?.includes("/creator/join/project/"));
 }
 
+export function isFestivalTeamJoinCallback(path: string | null | undefined): boolean {
+  return Boolean(path?.includes("/festival/join/"));
+}
+
 export function isCreatorInviteJoinCallback(path: string | null | undefined): boolean {
-  return isStudioTeamJoinCallback(path) || isProjectInviteJoinCallback(path);
+  return isStudioTeamJoinCallback(path) || isProjectInviteJoinCallback(path) || isFestivalTeamJoinCallback(path);
 }

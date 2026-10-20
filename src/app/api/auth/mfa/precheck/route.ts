@@ -55,15 +55,14 @@ export async function POST(request: NextRequest) {
   } else if (portal === "admin") {
     portalOk = roles.has("ADMIN");
   } else {
+    // Require an explicit account type — same rule as credentials-creator authorize.
     const selectedRole =
       typeof body.selectedRole === "string" && body.selectedRole.trim()
         ? body.selectedRole.trim().toUpperCase()
         : null;
-    if (selectedRole) {
-      portalOk = CREATOR_ROLES.has(selectedRole) && roles.has(selectedRole);
-    } else {
-      portalOk = [...roles].some((r) => CREATOR_ROLES.has(r));
-    }
+    portalOk = Boolean(
+      selectedRole && CREATOR_ROLES.has(selectedRole) && roles.has(selectedRole),
+    );
   }
 
   if (!portalOk) {

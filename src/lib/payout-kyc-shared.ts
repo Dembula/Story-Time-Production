@@ -29,6 +29,10 @@ export function payoutKycHomePath(role?: string | null): string {
       return "/casting-agency/dashboard";
     case "CATERING_COMPANY":
       return "/company/onboarding/subscription";
+    case "FESTIVAL_CURATOR":
+      return "/festival";
+    case "FUNDER":
+      return "/funders";
     case "CONTENT_CREATOR":
     default:
       return "/creator/command-center";

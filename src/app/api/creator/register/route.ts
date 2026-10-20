@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { enforceSignupRateLimit, rateLimitedResponse } from "@/lib/auth-rate-limit";
 import { prisma } from "@/lib/prisma";
-import { hash } from "bcryptjs";
+import { compare, hash } from "bcryptjs";
+import { CREATOR_SIGNUP_TYPE_TO_ROLE } from "@/lib/creator-account-types";
 import { embedMeta } from "@/lib/marketplace-profile-meta";
 import {
   sanitizeCreatorEducation,
@@ -16,21 +17,13 @@ import {
   isMissingUserCreatorRegistrationColumns,
   MISSING_PRISMA_STUDIO_DELEGATES,
 } from "@/lib/prisma-missing-table";
-import { ensureUserRole } from "@/lib/user-roles";
+import { ensureUserRole, getUserRoles } from "@/lib/user-roles";
 import { linkPendingStudioInvitesToUser } from "@/lib/creator-studio-company";
 import { linkPendingProjectInvitesToUser } from "@/lib/project-collaborator-invites";
+import { linkPendingFestivalInvitesToUser } from "@/lib/festival/invites";
 
-const CREATOR_TYPES = ["content", "music", "equipment", "location", "crew", "casting", "catering", "funder"] as const;
-const ROLE_MAP: Record<string, string> = {
-  music: "MUSIC_CREATOR",
-  equipment: "EQUIPMENT_COMPANY",
-  location: "LOCATION_OWNER",
-  content: "CONTENT_CREATOR",
-  crew: "CREW_TEAM",
-  casting: "CASTING_AGENCY",
-  catering: "CATERING_COMPANY",
-  funder: "FUNDER",
-};
+const CREATOR_TYPES = ["content", "music", "equipment", "location", "crew", "casting", "catering", "funder", "festival"] as const;
+const ROLE_MAP: Record<string, string> = { ...CREATOR_SIGNUP_TYPE_TO_ROLE };
 
 export async function POST(request: NextRequest) {
   const rate = await enforceSignupRateLimit(request);
@@ -173,8 +166,56 @@ export async function POST(request: NextRequest) {
       select: { id: true, passwordHash: true, role: true },
     });
 
+    const role = ROLE_MAP[type ?? ""] ?? "CONTENT_CREATOR";
+    if (!type || !(type in ROLE_MAP)) {
+      return NextResponse.json({ error: "Select a valid account type." }, { status: 400 });
+    }
+
+    // Existing account: verify password, add role only (do not wipe profile / other portals).
+    if (existing) {
+      const existingRoles = await getUserRoles(existing.id, existing.role);
+      if (existingRoles.has(role)) {
+        return NextResponse.json(
+          {
+            error:
+              "This email already has that account type. Sign in and choose it under Account type.",
+          },
+          { status: 409 },
+        );
+      }
+      if (!existing.passwordHash) {
+        return NextResponse.json(
+          {
+            error:
+              "An account with this email already exists (social sign-in). Sign in first, then contact support to add another account type.",
+          },
+          { status: 409 },
+        );
+      }
+      const passwordMatches = await compare(password, existing.passwordHash);
+      if (!passwordMatches) {
+        return NextResponse.json(
+          {
+            error:
+              "An account with this email already exists. Enter the correct password to add this account type, or sign in.",
+          },
+          { status: 401 },
+        );
+      }
+
+      await ensureUserRole(existing.id, role);
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: { role },
+      });
+      await linkPendingStudioInvitesToUser(existing.id, normalizedEmail);
+      await linkPendingProjectInvitesToUser(existing.id, normalizedEmail);
+      await linkPendingFestivalInvitesToUser(existing.id, normalizedEmail);
+
+      return NextResponse.json({ ok: true, addedRole: role });
+    }
+
     const passwordHash = await hash(password, 10);
-    const role = ROLE_MAP[type] ?? "CONTENT_CREATOR";
     const isStudioCreator = type === "content" || type === "music";
 
     let studioAccountStructure: "INDIVIDUAL" | "COMPANY" | null = null;
@@ -607,6 +648,7 @@ export async function POST(request: NextRequest) {
     await ensureUserRole(userForRole.id, role);
     await linkPendingStudioInvitesToUser(userForRole.id, normalizedEmail);
     await linkPendingProjectInvitesToUser(userForRole.id, normalizedEmail);
+    await linkPendingFestivalInvitesToUser(userForRole.id, normalizedEmail);
 
     const { linkUserToCreditProfiles } = await import("@/lib/credit-person");
     void linkUserToCreditProfiles(userForRole.id).catch((err) => {

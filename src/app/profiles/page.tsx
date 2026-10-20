@@ -9,6 +9,7 @@ import { hasPendingGatewayPayment } from "@/lib/payments/pending-gateway-payment
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import { isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
 import { isViewerProfilePinUnlocked } from "@/lib/viewer-profile-access";
+import { defaultHomeForRole } from "@/lib/auth-sign-in-path";
 
 export default async function ProfilesPage({
   searchParams,
@@ -19,10 +20,10 @@ export default async function ProfilesPage({
   if (!session?.user?.id) redirect("/auth/signin");
 
   const role = (session.user as { role?: string }).role;
-  if (role === "ADMIN") redirect("/admin");
-  if (role === "CONTENT_CREATOR") redirect("/creator/command-center");
-  if (role === "MUSIC_CREATOR") redirect("/music-creator/dashboard");
-  if (role && role !== "SUBSCRIBER") redirect("/browse");
+  // Creator / festival / marketplace sessions must never stay on the viewer profiles picker.
+  if (role && role !== "SUBSCRIBER") {
+    redirect(defaultHomeForRole(role, session.user.email));
+  }
 
   const userRecord = await prisma.user.findUnique({
     where: { id: session.user.id },

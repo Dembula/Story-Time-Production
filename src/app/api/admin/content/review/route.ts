@@ -95,10 +95,24 @@ export async function PATCH(req: NextRequest) {
         published: true,
         creatorId: true,
         linkedProjectId: true,
+        festivalHoldFestivalId: true,
       },
     });
     if (!before) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    if (
+      action === "APPROVE" &&
+      (before.reviewStatus === "FESTIVAL_HOLD" || before.festivalHoldFestivalId)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "This title is held for a live film festival (Story Time Universe opt-in). Approval unlocks when the festival is marked ended.",
+        },
+        { status: 409 },
+      );
     }
 
     const now = new Date();

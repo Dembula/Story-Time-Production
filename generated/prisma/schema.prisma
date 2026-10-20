@@ -298,6 +298,14 @@ model User {
   capTableEntries                 CapTableEntry[]
   projectRevenueEventsLogged      ProjectRevenueEvent[]       @relation("ProjectRevenueEventRecordedBy")
   stakeholderPayouts              StakeholderPayout[]
+
+  festivalsOwned              Festival[]             @relation("FestivalOwner")
+  festivalMemberships         FestivalMembership[]
+  festivalTeamInvitesSent     FestivalTeamInvite[]   @relation("FestivalInviteSender")
+  festivalTeamInvitesReceived FestivalTeamInvite[]   @relation("FestivalInviteRecipientUser")
+  festivalSubmissionsCreated  FestivalSubmission[]   @relation("FestivalSubmissionCreator")
+  festivalStage1Reviews       FestivalStage1Review[]
+  festivalStage2Reviews       FestivalStage2Review[]
 }
 
 model UserRole {
@@ -506,6 +514,12 @@ model Content {
   linkedProjectId String?
   linkedProject   OriginalProject? @relation(fields: [linkedProjectId], references: [id], onDelete: SetNull)
 
+  /// When set, catalogue approval is blocked until this festival reaches ENDED (Universe opt-in hold).
+  festivalHoldFestivalId String?
+  festivalHoldFestival   Festival?           @relation("ContentFestivalHold", fields: [festivalHoldFestivalId], references: [id], onDelete: SetNull)
+  festivalSubmissionId   String?             @unique
+  festivalSubmission     FestivalSubmission? @relation("ContentFestivalSubmission", fields: [festivalSubmissionId], references: [id], onDelete: SetNull)
+
   btsVideos             BtsVideo[]
   watchSessions         WatchSession[]
   watchProgress         WatchProgress[]
@@ -523,6 +537,7 @@ model Content {
   seasons               ContentSeason[]
 
   @@index([linkedProjectId])
+  @@index([festivalHoldFestivalId])
 }
 
 model ContentSeason {
@@ -5215,4 +5230,221 @@ model StakeholderSyncEvent {
 
   @@index([projectId])
   @@index([createdAt])
+}
+
+/// Film festival listing owned by a FESTIVAL_CURATOR master account.
+model Festival {
+  id                   String    @id @default(cuid())
+  ownerUserId          String
+  owner                User      @relation("FestivalOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  slug                 String    @unique
+  name                 String
+  tagline              String?
+  about                String?
+  awardsText           String?
+  rulesText            String?
+  yearsRunning         Int       @default(1)
+  logoUrl              String?
+  headerImageUrl       String?
+  /// DRAFT | LIVE | SUBMISSIONS_CLOSED | ENDED
+  status               String    @default("DRAFT")
+  acceptingSubmissions Boolean   @default(true)
+  contactEmail         String?
+  contactPhone         String?
+  websiteUrl           String?
+  facebookUrl          String?
+  twitterUrl           String?
+  instagramUrl         String?
+  /// JSON array of { name, city, country?, address? }
+  venues               Json?
+  organizers           String?
+  openingAt            DateTime?
+  earlybirdAt          DateTime?
+  regularAt            DateTime?
+  lateAt               DateTime?
+  notificationAt       DateTime?
+  eventStartsAt        DateTime?
+  eventEndsAt          DateTime?
+  endedAt              DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  categories   FestivalCategory[]
+  mediaAssets  FestivalMediaAsset[]
+  memberships  FestivalMembership[]
+  teamInvites  FestivalTeamInvite[]
+  submissions  FestivalSubmission[]
+  flagDefs     FestivalFlagDef[]
+  heldContents Content[]            @relation("ContentFestivalHold")
+
+  @@index([ownerUserId])
+  @@index([status])
+}
+
+model FestivalCategory {
+  id              String   @id @default(cuid())
+  festivalId      String
+  festival        Festival @relation(fields: [festivalId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  sortOrder       Int      @default(0)
+  earlybirdFeeZar Float    @default(0)
+  regularFeeZar   Float    @default(0)
+  lateFeeZar      Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  submissions FestivalSubmission[]
+
+  @@index([festivalId])
+}
+
+model FestivalMediaAsset {
+  id         String   @id @default(cuid())
+  festivalId String
+  festival   Festival @relation(fields: [festivalId], references: [id], onDelete: Cascade)
+  /// IMAGE | VIDEO
+  kind       String   @default("IMAGE")
+  url        String
+  caption    String?
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([festivalId])
+}
+
+model FestivalMembership {
+  id         String   @id @default(cuid())
+  festivalId String
+  festival   Festival @relation(fields: [festivalId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// OWNER | ADMIN | STAGE1_REVIEWER | STAGE2_REVIEWER
+  role       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([festivalId, userId])
+  @@index([userId])
+}
+
+model FestivalTeamInvite {
+  id              String   @id @default(cuid())
+  festivalId      String
+  festival        Festival @relation(fields: [festivalId], references: [id], onDelete: Cascade)
+  invitedByUserId String
+  invitedBy       User     @relation("FestivalInviteSender", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  emailNorm       String
+  invitedUserId   String?
+  invitedUser     User?    @relation("FestivalInviteRecipientUser", fields: [invitedUserId], references: [id], onDelete: SetNull)
+  /// STAGE1_REVIEWER | STAGE2_REVIEWER | ADMIN
+  role            String   @default("STAGE1_REVIEWER")
+  personalMessage String?
+  token           String   @unique
+  /// PENDING | ACCEPTED | DECLINED | EXPIRED
+  status          String   @default("PENDING")
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([festivalId])
+  @@index([emailNorm])
+  @@index([status])
+}
+
+model FestivalFlagDef {
+  id         String   @id @default(cuid())
+  festivalId String
+  festival   Festival @relation(fields: [festivalId], references: [id], onDelete: Cascade)
+  label      String
+  color      String   @default("GRAY")
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([festivalId])
+}
+
+model FestivalSubmission {
+  id              String           @id @default(cuid())
+  festivalId      String
+  festival        Festival         @relation(fields: [festivalId], references: [id], onDelete: Cascade)
+  categoryId      String
+  category        FestivalCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  creatorUserId   String
+  creator         User             @relation("FestivalSubmissionCreator", fields: [creatorUserId], references: [id], onDelete: Cascade)
+  title           String
+  logline         String?
+  synopsis        String?
+  /// Full FilmFreeway-style form payload (credits, specs, contact, etc.)
+  formPayload     Json?
+  screenerUrl     String?
+  trailerUrl      String?
+  stillUrls       Json?
+  feeAmountZar    Float            @default(0)
+  paymentRecordId String?
+  /// AWAITING_PAYMENT | PAID | IN_REVIEW
+  paymentStatus   String           @default("AWAITING_PAYMENT")
+  /// STAGE1 | STAGE2
+  reviewStage     String           @default("STAGE1")
+  /// A | B | C | null
+  stage1Group     String?
+  escalateFlag    Boolean          @default(false)
+  /// JSON string[] tags
+  tags            Json?
+  customFlagIds   Json?
+  /// PENDING_APPROVAL | OFFICIAL_SELECTION | NOT_SELECTED
+  selectionStatus String           @default("PENDING_APPROVAL")
+  universeOptIn   Boolean          @default(false)
+  screeningOrder  Int?
+  submittedAt     DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  stage1Reviews FestivalStage1Review[]
+  stage2Reviews FestivalStage2Review[]
+  linkedContent Content?               @relation("ContentFestivalSubmission")
+
+  @@index([festivalId])
+  @@index([creatorUserId])
+  @@index([categoryId])
+  @@index([paymentStatus])
+  @@index([reviewStage])
+  @@index([selectionStatus])
+}
+
+model FestivalStage1Review {
+  id             String             @id @default(cuid())
+  submissionId   String
+  submission     FestivalSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reviewerUserId String
+  reviewer       User               @relation(fields: [reviewerUserId], references: [id], onDelete: Cascade)
+  /// A | B | C
+  group          String
+  escalateFlag   Boolean            @default(false)
+  tags           Json?
+  note           String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@unique([submissionId, reviewerUserId])
+  @@index([reviewerUserId])
+}
+
+model FestivalStage2Review {
+  id              String             @id @default(cuid())
+  submissionId    String
+  submission      FestivalSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reviewerUserId  String
+  reviewer        User               @relation(fields: [reviewerUserId], references: [id], onDelete: Cascade)
+  overallThoughts String?
+  acceptReason    String?
+  declineReason   String?
+  craftNotes      String?
+  /// PENDING_APPROVAL | OFFICIAL_SELECTION | NOT_SELECTED
+  recommendation  String             @default("PENDING_APPROVAL")
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@unique([submissionId, reviewerUserId])
+  @@index([reviewerUserId])
 }

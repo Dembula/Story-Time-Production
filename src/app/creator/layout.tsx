@@ -146,6 +146,24 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
           })}
 
           <div className="mt-3 border-t border-slate-800 pt-2 space-y-1">
+            <p className="px-3 text-[11px] uppercase tracking-wide text-slate-500">Festivals</p>
+            <Link
+              href="/creator/festivals"
+              onClick={closeSidebar}
+              className={navLinkClass(pathname.startsWith("/creator/festivals") && !pathname.includes("/submissions"))}
+            >
+              Browse festivals
+            </Link>
+            <Link
+              href="/creator/festivals/submissions"
+              onClick={closeSidebar}
+              className={navLinkClass(pathname.startsWith("/creator/festivals/submissions"))}
+            >
+              My submissions
+            </Link>
+          </div>
+
+          <div className="mt-3 border-t border-slate-800 pt-2 space-y-1">
             <p className="px-3 text-[11px] uppercase tracking-wide text-slate-500">Monetization</p>
             {monetizationNavFiltered.map((item) => {
               const isActive =

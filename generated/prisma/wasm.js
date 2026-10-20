@@ -331,7 +331,9 @@ exports.Prisma.ContentScalarFieldEnum = {
   createdAt: 'createdAt',
   updatedAt: 'updatedAt',
   creatorId: 'creatorId',
-  linkedProjectId: 'linkedProjectId'
+  linkedProjectId: 'linkedProjectId',
+  festivalHoldFestivalId: 'festivalHoldFestivalId',
+  festivalSubmissionId: 'festivalSubmissionId'
 };
 
 exports.Prisma.ContentSeasonScalarFieldEnum = {
@@ -3328,6 +3330,149 @@ exports.Prisma.StakeholderSyncEventScalarFieldEnum = {
   createdAt: 'createdAt'
 };
 
+exports.Prisma.FestivalScalarFieldEnum = {
+  id: 'id',
+  ownerUserId: 'ownerUserId',
+  slug: 'slug',
+  name: 'name',
+  tagline: 'tagline',
+  about: 'about',
+  awardsText: 'awardsText',
+  rulesText: 'rulesText',
+  yearsRunning: 'yearsRunning',
+  logoUrl: 'logoUrl',
+  headerImageUrl: 'headerImageUrl',
+  status: 'status',
+  acceptingSubmissions: 'acceptingSubmissions',
+  contactEmail: 'contactEmail',
+  contactPhone: 'contactPhone',
+  websiteUrl: 'websiteUrl',
+  facebookUrl: 'facebookUrl',
+  twitterUrl: 'twitterUrl',
+  instagramUrl: 'instagramUrl',
+  venues: 'venues',
+  organizers: 'organizers',
+  openingAt: 'openingAt',
+  earlybirdAt: 'earlybirdAt',
+  regularAt: 'regularAt',
+  lateAt: 'lateAt',
+  notificationAt: 'notificationAt',
+  eventStartsAt: 'eventStartsAt',
+  eventEndsAt: 'eventEndsAt',
+  endedAt: 'endedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.FestivalCategoryScalarFieldEnum = {
+  id: 'id',
+  festivalId: 'festivalId',
+  name: 'name',
+  description: 'description',
+  sortOrder: 'sortOrder',
+  earlybirdFeeZar: 'earlybirdFeeZar',
+  regularFeeZar: 'regularFeeZar',
+  lateFeeZar: 'lateFeeZar',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.FestivalMediaAssetScalarFieldEnum = {
+  id: 'id',
+  festivalId: 'festivalId',
+  kind: 'kind',
+  url: 'url',
+  caption: 'caption',
+  sortOrder: 'sortOrder',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.FestivalMembershipScalarFieldEnum = {
+  id: 'id',
+  festivalId: 'festivalId',
+  userId: 'userId',
+  role: 'role',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.FestivalTeamInviteScalarFieldEnum = {
+  id: 'id',
+  festivalId: 'festivalId',
+  invitedByUserId: 'invitedByUserId',
+  emailNorm: 'emailNorm',
+  invitedUserId: 'invitedUserId',
+  role: 'role',
+  personalMessage: 'personalMessage',
+  token: 'token',
+  status: 'status',
+  expiresAt: 'expiresAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.FestivalFlagDefScalarFieldEnum = {
+  id: 'id',
+  festivalId: 'festivalId',
+  label: 'label',
+  color: 'color',
+  sortOrder: 'sortOrder',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.FestivalSubmissionScalarFieldEnum = {
+  id: 'id',
+  festivalId: 'festivalId',
+  categoryId: 'categoryId',
+  creatorUserId: 'creatorUserId',
+  title: 'title',
+  logline: 'logline',
+  synopsis: 'synopsis',
+  formPayload: 'formPayload',
+  screenerUrl: 'screenerUrl',
+  trailerUrl: 'trailerUrl',
+  stillUrls: 'stillUrls',
+  feeAmountZar: 'feeAmountZar',
+  paymentRecordId: 'paymentRecordId',
+  paymentStatus: 'paymentStatus',
+  reviewStage: 'reviewStage',
+  stage1Group: 'stage1Group',
+  escalateFlag: 'escalateFlag',
+  tags: 'tags',
+  customFlagIds: 'customFlagIds',
+  selectionStatus: 'selectionStatus',
+  universeOptIn: 'universeOptIn',
+  screeningOrder: 'screeningOrder',
+  submittedAt: 'submittedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.FestivalStage1ReviewScalarFieldEnum = {
+  id: 'id',
+  submissionId: 'submissionId',
+  reviewerUserId: 'reviewerUserId',
+  group: 'group',
+  escalateFlag: 'escalateFlag',
+  tags: 'tags',
+  note: 'note',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.FestivalStage2ReviewScalarFieldEnum = {
+  id: 'id',
+  submissionId: 'submissionId',
+  reviewerUserId: 'reviewerUserId',
+  overallThoughts: 'overallThoughts',
+  acceptReason: 'acceptReason',
+  declineReason: 'declineReason',
+  craftNotes: 'craftNotes',
+  recommendation: 'recommendation',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -3597,7 +3742,16 @@ exports.Prisma.ModelName = {
   LocationListingManager: 'LocationListingManager',
   EquipmentInventoryTag: 'EquipmentInventoryTag',
   CateringMealForecast: 'CateringMealForecast',
-  StakeholderSyncEvent: 'StakeholderSyncEvent'
+  StakeholderSyncEvent: 'StakeholderSyncEvent',
+  Festival: 'Festival',
+  FestivalCategory: 'FestivalCategory',
+  FestivalMediaAsset: 'FestivalMediaAsset',
+  FestivalMembership: 'FestivalMembership',
+  FestivalTeamInvite: 'FestivalTeamInvite',
+  FestivalFlagDef: 'FestivalFlagDef',
+  FestivalSubmission: 'FestivalSubmission',
+  FestivalStage1Review: 'FestivalStage1Review',
+  FestivalStage2Review: 'FestivalStage2Review'
 };
 
 /**

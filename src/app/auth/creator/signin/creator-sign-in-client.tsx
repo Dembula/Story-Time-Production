@@ -8,6 +8,10 @@ import { StoryTimeMark } from "@/components/brand/story-time-mark";
 import { resolvePostSignInRedirect } from "@/lib/auth-sign-in-path";
 import { OAuthSignInButtons } from "@/components/auth/oauth-sign-in-buttons";
 import { precheckMfaRequirement } from "@/lib/mfa/client-precheck";
+import {
+  CREATOR_SIGNIN_ROLE_OPTIONS,
+  isCreatorSignInRole,
+} from "@/lib/creator-account-types";
 
 export function CreatorSignInClient({
   callbackPath,
@@ -22,13 +26,27 @@ export function CreatorSignInClient({
   const [mfaRequired, setMfaRequired] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [selectedRole, setSelectedRole] = useState(defaultRole);
+  const [selectedRole, setSelectedRole] = useState(
+    isCreatorSignInRole(defaultRole) ? defaultRole : "CONTENT_CREATOR",
+  );
 
   async function finishAfterOk() {
+    // Trust the JWT session role (authoritative), not only the dropdown selection.
+    const session = await getSession();
+    const sessionRole =
+      typeof session?.user?.role === "string" ? session.user.role : null;
+    if (!sessionRole) {
+      setError("Signed in, but your session did not load. Please try again.");
+      return;
+    }
+    if (sessionRole !== selectedRole) {
+      // Should be rare (authorize requires the selected type). Prefer the real session home.
+      window.location.replace(resolvePostSignInRedirect(sessionRole, callbackPath));
+      return;
+    }
     const destination = callbackPath
-      ? resolvePostSignInRedirect(selectedRole, callbackPath)
+      ? resolvePostSignInRedirect(sessionRole, callbackPath)
       : null;
-    await getSession();
     if (destination) {
       window.location.replace(destination);
       return;
@@ -41,7 +59,7 @@ export function CreatorSignInClient({
         return;
       }
     }
-    window.location.replace(resolvePostSignInRedirect(selectedRole, null));
+    window.location.replace(resolvePostSignInRedirect(sessionRole, null));
   }
 
   async function completeSignIn(code?: string) {
@@ -138,14 +156,11 @@ export function CreatorSignInClient({
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
                 suppressHydrationWarning
               >
-                <option value="CONTENT_CREATOR">Content Creator</option>
-                <option value="MUSIC_CREATOR">Music Creator</option>
-                <option value="EQUIPMENT_COMPANY">Equipment Company</option>
-                <option value="LOCATION_OWNER">Location Owner</option>
-                <option value="CREW_TEAM">Crew Team</option>
-                <option value="CASTING_AGENCY">Casting Agency</option>
-                <option value="CATERING_COMPANY">Catering Company</option>
-                <option value="FUNDER">Funder / Investor</option>
+                {CREATOR_SIGNIN_ROLE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div>

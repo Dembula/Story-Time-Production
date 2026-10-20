@@ -7,12 +7,13 @@ import { ArrowLeft, Check, GraduationCap, Shield } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { isCreatorInviteJoinCallback, safeCallbackPath } from "@/lib/auth-callback-path";
 import { isStudioCreatorSignupType, signupBioPlaceholder } from "@/lib/creator-signup-fields";
+import { CREATOR_SIGNUP_TYPE_TO_ROLE } from "@/lib/creator-account-types";
 import { StoryTimeMark } from "@/components/brand/story-time-mark";
 
 function CreatorSignUpPageInner() {
   const [consentReady, setConsentReady] = useState(false);
   const [email, setEmail] = useState("");
-  const [creatorType, setCreatorType] = useState<"content" | "music" | "equipment" | "location" | "crew" | "casting" | "catering" | "funder" | "">("");
+  const [creatorType, setCreatorType] = useState<"content" | "music" | "equipment" | "location" | "crew" | "casting" | "catering" | "funder" | "festival" | "">("");
   const [accountStructure, setAccountStructure] = useState<"INDIVIDUAL" | "COMPANY" | "">("COMPANY");
   /** Total seats including the registering admin (1–5). Only used for film/music company accounts. */
   const [teamSeatCap, setTeamSeatCap] = useState(2);
@@ -80,7 +81,7 @@ function CreatorSignUpPageInner() {
     if (next === "content" || next === "music") {
       setAccountStructure("");
       setTeamSeatCap(2);
-    } else if (["equipment", "location", "crew", "casting", "catering", "funder"].includes(next)) {
+    } else if (["equipment", "location", "crew", "casting", "catering", "funder", "festival"].includes(next)) {
       setAccountStructure("COMPANY");
       setTeamSeatCap(2);
     } else {
@@ -192,20 +193,11 @@ function CreatorSignUpPageInner() {
         setError((regData?.error as string) || "Registration failed. Please try again.");
         return;
       }
-      const signupRoleByType: Record<string, string> = {
-        content: "CONTENT_CREATOR",
-        music: "MUSIC_CREATOR",
-        equipment: "EQUIPMENT_COMPANY",
-        location: "LOCATION_OWNER",
-        crew: "CREW_TEAM",
-        casting: "CASTING_AGENCY",
-        catering: "CATERING_COMPANY",
-        funder: "FUNDER",
-      };
+      const selectedRole = CREATOR_SIGNUP_TYPE_TO_ROLE[type] ?? "CONTENT_CREATOR";
       const res = await signIn("credentials-creator", {
         email: trimmedEmail,
         password,
-        selectedRole: signupRoleByType[type] ?? "CONTENT_CREATOR",
+        selectedRole,
         redirect: false,
       });
       setLoading(false);
@@ -224,10 +216,13 @@ function CreatorSignUpPageInner() {
           casting: "/company/onboarding/subscription",
           catering: "/company/onboarding/subscription",
           funder: "/funders",
+          festival: "/festival",
         };
         window.location.href = redirects[type] ?? "/creator/command-center";
       } else {
-        setError("Account created but we couldn't sign you in. Please try signing in with your email and password.");
+        setError(
+          "Account was created but sign-in failed for that account type. Go to Creator Sign In, choose the same Account type, and try again.",
+        );
       }
     } catch {
       setLoading(false);
@@ -301,6 +296,7 @@ function CreatorSignUpPageInner() {
                   <option value="casting">Casting Agency</option>
                   <option value="catering">Catering</option>
                   <option value="funder">Funder / Investor</option>
+                  <option value="festival">Film Festival / Curator</option>
                 </select>
               </div>
               {(creatorType === "content" || creatorType === "music") && (

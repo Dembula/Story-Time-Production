@@ -45,7 +45,7 @@ export async function middleware(req: NextRequest) {
     });
   }
 
-  if (path.startsWith("/creator/join/")) {
+  if (path.startsWith("/creator/join/") || path.startsWith("/festival/join/")) {
     return NextResponse.next();
   }
 
@@ -60,6 +60,7 @@ export async function middleware(req: NextRequest) {
   const requiredRole = requiredRoleForProtectedPath(path);
   const email = typeof token.email === "string" ? token.email : undefined;
 
+  // Multi-role users: auto-switch into the portal their JWT already entitles them to.
   if (requiredRole && role !== requiredRole && userHasPlatformRole(tokenRoles, requiredRole)) {
     const switchUrl = new URL("/auth/switch-role", req.url);
     switchUrl.searchParams.set("role", requiredRole);
@@ -93,12 +94,18 @@ export async function middleware(req: NextRequest) {
       path.startsWith("/catering-company") ||
       path.startsWith("/company") ||
       path.startsWith("/funders") ||
+      path.startsWith("/festival") ||
       path.startsWith("/wallet"))
   ) {
     return NextResponse.redirect(new URL("/profiles", req.url));
   }
   if (portalScope === "CREATOR" && path.startsWith("/admin")) {
-    const fallback = role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/command-center";
+    const fallback =
+      role === "MUSIC_CREATOR"
+        ? "/music-creator/dashboard"
+        : role === "FESTIVAL_CURATOR"
+          ? "/festival"
+          : "/creator/command-center";
     return NextResponse.redirect(new URL(fallback, req.url));
   }
 
@@ -147,6 +154,9 @@ export async function middleware(req: NextRequest) {
   if (path.startsWith("/funders") && role !== "FUNDER") {
     return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
   }
+  if (path.startsWith("/festival") && role !== "FESTIVAL_CURATOR" && !path.startsWith("/festival/join/")) {
+    return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
+  }
   if (
     path.startsWith("/company/onboarding") &&
     !["CREW_TEAM", "CASTING_AGENCY", "LOCATION_OWNER", "EQUIPMENT_COMPANY", "CATERING_COMPANY"].includes(role ?? "")
@@ -181,6 +191,7 @@ export const config = {
     "/catering-company/:path*",
     "/company/:path*",
     "/funders/:path*",
+    "/festival/:path*",
     "/wallet/:path*",
     "/payout-verification/:path*",
   ],

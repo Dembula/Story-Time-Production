@@ -69,6 +69,11 @@ const ROLE_META: Record<
     description: "Deals, verification, and portfolio",
     group: "creator",
   },
+  FESTIVAL_CURATOR: {
+    label: "Festival Curator",
+    description: "Festival listings, submissions, and review",
+    group: "creator",
+  },
   ADMIN: {
     label: "Administrator",
     description: "Platform operations and review",
@@ -80,6 +85,7 @@ const ROLE_SORT_ORDER: PlatformRole[] = [
   "SUBSCRIBER",
   "CONTENT_CREATOR",
   "MUSIC_CREATOR",
+  "FESTIVAL_CURATOR",
   "FUNDER",
   "CASTING_AGENCY",
   "CREW_TEAM",
@@ -138,5 +144,7 @@ export function requiredRoleForProtectedPath(pathname: string): PlatformRole | n
   if (pathname.startsWith("/casting-agency")) return "CASTING_AGENCY";
   if (pathname.startsWith("/catering-company")) return "CATERING_COMPANY";
   if (pathname.startsWith("/funders")) return "FUNDER";
+  if (pathname.startsWith("/festival/join/")) return null;
+  if (pathname.startsWith("/festival")) return "FESTIVAL_CURATOR";
   return null;
 }

@@ -10,6 +10,7 @@ const CREATOR_PORTAL_PREFIXES = [
   "/catering-company",
   "/company",
   "/funders",
+  "/festival",
   "/wallet",
   "/payout-verification",
 ] as const;
@@ -79,6 +80,7 @@ export function defaultHomeForRole(role: string | null | undefined, _email?: str
     CASTING_AGENCY: "/casting-agency/dashboard",
     CATERING_COMPANY: "/catering-company/dashboard",
     FUNDER: "/funders",
+    FESTIVAL_CURATOR: "/festival",
     ADMIN: "/admin",
     SUBSCRIBER: "/profiles",
   };
@@ -94,9 +96,10 @@ const ROLE_PATH_ACCESS: Array<{ prefix: string; roles: string[] }> = [
   { prefix: "/casting-agency", roles: ["CASTING_AGENCY", "ADMIN"] },
   { prefix: "/catering-company", roles: ["CATERING_COMPANY", "ADMIN"] },
   { prefix: "/funders", roles: ["FUNDER", "ADMIN"] },
+  { prefix: "/festival", roles: ["FESTIVAL_CURATOR", "ADMIN"] },
   { prefix: "/company", roles: ["CREW_TEAM", "CASTING_AGENCY", "LOCATION_OWNER", "EQUIPMENT_COMPANY", "CATERING_COMPANY", "ADMIN"] },
   { prefix: "/wallet", roles: ["CONTENT_CREATOR", "MUSIC_CREATOR", "FUNDER", "ADMIN"] },
-  { prefix: "/payout-verification", roles: ["CONTENT_CREATOR", "MUSIC_CREATOR", "EQUIPMENT_COMPANY", "LOCATION_OWNER", "CREW_TEAM", "CASTING_AGENCY", "CATERING_COMPANY", "FUNDER", "ADMIN"] },
+  { prefix: "/payout-verification", roles: ["CONTENT_CREATOR", "MUSIC_CREATOR", "EQUIPMENT_COMPANY", "LOCATION_OWNER", "CREW_TEAM", "CASTING_AGENCY", "CATERING_COMPANY", "FUNDER", "FESTIVAL_CURATOR", "ADMIN"] },
 ];
 
 export function roleCanAccessPath(role: string | null | undefined, path: string | null | undefined): boolean {
@@ -131,5 +134,6 @@ export function defaultCreatorRoleForPath(path: string | null | undefined): stri
   if (safe.startsWith("/casting-agency")) return "CASTING_AGENCY";
   if (safe.startsWith("/catering-company")) return "CATERING_COMPANY";
   if (safe.startsWith("/funders")) return "FUNDER";
+  if (safe.startsWith("/festival")) return "FESTIVAL_CURATOR";
   return "CONTENT_CREATOR";
 }

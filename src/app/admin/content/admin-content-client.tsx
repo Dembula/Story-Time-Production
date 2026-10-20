@@ -91,6 +91,7 @@ function AdminPipelineDigest({ projectId }: { projectId: string }) {
 const STATUS_TABS = [
   { value: "ALL", label: "All", icon: Film },
   { value: "PENDING", label: "Pending", icon: Clock },
+  { value: "FESTIVAL_HOLD", label: "Festival hold", icon: Clock },
   { value: "APPROVED", label: "Published", icon: CheckCircle },
   { value: "REJECTED", label: "Rejected", icon: XCircle },
   { value: "CHANGES_REQUESTED", label: "Changes Req.", icon: AlertTriangle },
@@ -101,6 +102,7 @@ function statusBadge(status: string) {
   const m: Record<string, { bg: string; text: string; label: string }> = {
     DRAFT: { bg: "bg-slate-500/10", text: "text-slate-400", label: "Draft" },
     PENDING: { bg: "bg-yellow-500/10", text: "text-yellow-400", label: "Pending" },
+    FESTIVAL_HOLD: { bg: "bg-violet-500/10", text: "text-violet-300", label: "Held — festival in progress" },
     APPROVED: { bg: "bg-green-500/10", text: "text-green-400", label: "Published" },
     REJECTED: { bg: "bg-red-500/10", text: "text-red-400", label: "Rejected" },
     CHANGES_REQUESTED: { bg: "bg-orange-500/10", text: "text-orange-400", label: "Changes Req." },
@@ -798,10 +800,15 @@ export function AdminContentClient() {
                       </button>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {c.reviewStatus !== "APPROVED" && (
+                      {c.reviewStatus === "FESTIVAL_HOLD" ? (
+                        <p className="w-full text-xs text-violet-300">
+                          Held for a live film festival (Universe opt-in). Approval unlocks when the festival is marked ended.
+                        </p>
+                      ) : null}
+                      {c.reviewStatus !== "APPROVED" && c.reviewStatus !== "FESTIVAL_HOLD" && (
                         <button onClick={() => handleReview(c.id, "APPROVE")} disabled={actionLoading === c.id} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500/20 transition text-sm disabled:opacity-50"><CheckCircle className="w-3.5 h-3.5" />Approve</button>
                       )}
-                      {c.reviewStatus !== "APPROVED" && (
+                      {c.reviewStatus !== "APPROVED" && c.reviewStatus !== "FESTIVAL_HOLD" && (
                         <button onClick={() => handleReview(c.id, "APPROVE", true)} disabled={actionLoading === c.id} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition text-sm disabled:opacity-50"><Star className="w-3.5 h-3.5" />Approve & Feature</button>
                       )}
                       {c.reviewStatus !== "REJECTED" && (

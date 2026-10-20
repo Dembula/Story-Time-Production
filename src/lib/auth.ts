@@ -40,16 +40,6 @@ function asVerificationStatus(value: unknown): SessionVerificationStatus | undef
     : undefined;
 }
 
-function pickCreatorRole(roles: Set<string>, fallbackRole?: string | null): string | null {
-  const creatorRoles = [...roles].filter((r) => CREATOR_ROLES.has(r));
-  if (creatorRoles.length === 0) {
-    return fallbackRole && CREATOR_ROLES.has(fallbackRole) ? fallbackRole : null;
-  }
-  if (fallbackRole && creatorRoles.includes(fallbackRole)) return fallbackRole;
-  if (creatorRoles.includes("CONTENT_CREATOR")) return "CONTENT_CREATOR";
-  return creatorRoles.sort()[0] ?? null;
-}
-
 const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim() ?? "";
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim() ?? "";
 const githubClientId = process.env.GITHUB_ID?.trim() ?? "";
@@ -162,16 +152,15 @@ export const authOptions: NextAuthOptions = {
             ? selectedRoleRaw.trim().toUpperCase()
             : null;
 
-        let role: string | null = null;
-        if (selectedRole) {
-          if (!CREATOR_ROLES.has(selectedRole) || !roles.has(selectedRole)) {
-            return null;
-          }
-          role = selectedRole;
-        } else {
-          role = pickCreatorRole(roles, user.role);
+        // Account type is required for creator portal login so multi-role users never
+        // land in the wrong dashboard (e.g. festival vs content creator).
+        if (!selectedRole || !CREATOR_ROLES.has(selectedRole)) {
+          return null;
         }
-        if (!role) return null;
+        if (!roles.has(selectedRole)) {
+          return null;
+        }
+        const role = selectedRole;
         if (user.role !== role) {
           await prisma.user.update({ where: { id: user.id }, data: { role } });
         }
@@ -308,8 +297,8 @@ export const authOptions: NextAuthOptions = {
           })
         : null;
       if (pending) {
-        const roleMap: Record<string, string> = { music: "MUSIC_CREATOR", equipment: "EQUIPMENT_COMPANY", location: "LOCATION_OWNER", content: "CONTENT_CREATOR", crew: "CREW_TEAM", casting: "CASTING_AGENCY", catering: "CATERING_COMPANY", funder: "FUNDER" };
-        const role = roleMap[pending.type] || "CONTENT_CREATOR";
+        const { CREATOR_SIGNUP_TYPE_TO_ROLE } = await import("@/lib/creator-account-types");
+        const role = CREATOR_SIGNUP_TYPE_TO_ROLE[pending.type] || "CONTENT_CREATOR";
         await prisma.user.update({
           where: { id: user.id },
           data: {

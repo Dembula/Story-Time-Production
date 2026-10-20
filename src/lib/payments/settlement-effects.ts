@@ -268,6 +268,17 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
     });
   }
 
+  if (paymentRecord.relatedEntityType === "FestivalSubmission" && paymentRecord.relatedEntityId) {
+    await db.festivalSubmission.update({
+      where: { id: paymentRecord.relatedEntityId },
+      data: {
+        paymentStatus: "PAID",
+        paymentRecordId: paymentRecord.id ?? undefined,
+        submittedAt: new Date(),
+      },
+    });
+  }
+
   if (paymentRecord.relatedEntityType === "ScriptReviewRequest" && paymentRecord.relatedEntityId) {
     const review = await db.scriptReviewRequest.update({
       where: { id: paymentRecord.relatedEntityId },

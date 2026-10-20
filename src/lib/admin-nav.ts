@@ -34,6 +34,7 @@ export const adminNavSections: DashboardNavSection[] = [
     title: "Finance",
     items: [
       { href: "/admin/financial", label: "Finance hub", highlight: true },
+      { href: "/admin/festival-remittances", label: "Festival remittances" },
       { href: "/admin/promo-codes", label: "Promo codes" },
       { href: "/admin/funders", label: "Funders" },
       { href: "/admin/funding-programs", label: "Funding programs" },

@@ -10,6 +10,7 @@ export const CREATOR_ROLES = new Set([
   "CASTING_AGENCY",
   "CATERING_COMPANY",
   "FUNDER",
+  "FESTIVAL_CURATOR",
 ]);
 export const ADMIN_ROLES = new Set(["ADMIN"]);
 
@@ -23,6 +24,7 @@ export type PlatformRole =
   | "CASTING_AGENCY"
   | "CATERING_COMPANY"
   | "FUNDER"
+  | "FESTIVAL_CURATOR"
   | "ADMIN";
 
 export const ALL_PLATFORM_ROLES: PlatformRole[] = [
@@ -35,6 +37,7 @@ export const ALL_PLATFORM_ROLES: PlatformRole[] = [
   "CASTING_AGENCY",
   "CATERING_COMPANY",
   "FUNDER",
+  "FESTIVAL_CURATOR",
   "ADMIN",
 ];
 

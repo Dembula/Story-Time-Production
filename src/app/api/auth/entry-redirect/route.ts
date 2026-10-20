@@ -36,6 +36,7 @@ export async function GET() {
     return NextResponse.json({ path: defaultHomeForRole(role, session.user.email) });
   }
 
+  // Festival / marketplace / funder: always home for the active JWT role (never another portal).
   return NextResponse.json({
     path: defaultHomeForRole(role, session.user.email),
   });

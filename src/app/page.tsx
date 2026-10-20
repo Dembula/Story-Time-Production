@@ -26,6 +26,7 @@ export default async function HomePage() {
     if (session.user.role === "CASTING_AGENCY") redirect("/company/onboarding/subscription");
     if (session.user.role === "CATERING_COMPANY") redirect("/company/onboarding/subscription");
     if (session.user.role === "FUNDER") redirect(defaultHomeForRole("FUNDER"));
+    if (session.user.role === "FESTIVAL_CURATOR") redirect(defaultHomeForRole("FESTIVAL_CURATOR"));
     redirect(defaultHomeForRole(session.user.role));
   }
 

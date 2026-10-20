@@ -18,6 +18,7 @@ import {
   CREATOR_APPLE_IAP_LICENSE_PURPOSE,
   CREATOR_APPLE_IAP_UPLOAD_PURPOSE,
 } from "@/lib/payments/apple-iap/purposes";
+import { FESTIVAL_SUBMISSION_FEE_PURPOSE } from "@/lib/festival/constants";
 
 const PLATFORM_REVENUE_PURPOSES = new Set([
   "SCRIPT_REVIEW",
@@ -309,6 +310,37 @@ export async function allocateGatewayPaymentLedger(payment: {
       pendingDescription: "Pending contract hire earnings",
     });
     return;
+  }
+
+  // Festival submission fees: Story Time collects via PayFast, holds for remittance to the festival (not ST service revenue).
+  if (
+    purpose === FESTIVAL_SUBMISSION_FEE_PURPOSE &&
+    payment.relatedEntityType === "FestivalSubmission" &&
+    payment.relatedEntityId
+  ) {
+    const { prisma } = await import("@/lib/prisma");
+    const submission = await prisma.festivalSubmission.findUnique({
+      where: { id: payment.relatedEntityId },
+      select: { festival: { select: { ownerUserId: true, name: true } } },
+    });
+    if (submission?.festival?.ownerUserId) {
+      await allocatePayeeGatewayLedger({
+        idempotencyKey,
+        paymentId: payment.id,
+        relatedEntityType: payment.relatedEntityType,
+        relatedEntityId: payment.relatedEntityId,
+        flow: "festival_submission_fee",
+        grossAmount,
+        settlementAmount,
+        providerFeeAmount,
+        sellerUserId: submission.festival.ownerUserId,
+        baseAmount: settlementAmount,
+        feeAmount: 0,
+        incomingDescription: "Festival submission fee received (net after PayFast fees)",
+        pendingDescription: `Held for festival remittance — ${submission.festival.name}`,
+      });
+      return;
+    }
   }
 
   if (isViewerPoolPaymentPurpose(purpose)) {

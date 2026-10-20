@@ -21,6 +21,7 @@ export const SIGNUP_BIO_PLACEHOLDERS: Record<string, string> = {
   casting: "Introduce your agency, talent focus, and casting experience…",
   catering: "Describe your menu style, event types, and on-set experience…",
   funder: "Share your investment focus, thesis, and what kinds of projects you back…",
+  festival: "Describe your festival, programming focus, and the filmmakers you serve…",
 };
 
 export function signupBioPlaceholder(type: string): string {

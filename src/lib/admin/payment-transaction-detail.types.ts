@@ -16,6 +16,7 @@ export const PAYMENT_PURPOSE_LABELS: Record<string, string> = {
   CREATOR_MUSIC_UPLOAD: "Creator music upload",
   creator_film_upload: "Creator per-film upload",
   creator_film_upload_apple_iap: "Creator per-film upload (Apple IAP)",
+  festival_submission_fee: "Festival submission fee (held for festival)",
   creator_pipeline_yearly: "Creator pipeline (yearly)",
   creator_pipeline_monthly: "Creator pipeline (monthly)",
   creator_pipeline_monthly_renewal: "Creator pipeline monthly renewal",
