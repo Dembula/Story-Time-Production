@@ -436,13 +436,48 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
           requiresPayment?: boolean;
           checkoutUrl?: string;
           reviewStatus?: string;
+          code?: string;
         };
 
         if (!res.ok) {
           const message = data.error || "Submission failed";
+          const contentId = data.contentId || job.contentId || undefined;
+          const paymentGatewayBlocked =
+            res.status === 502 &&
+            (data.code === "PAYMENT_GATEWAY_UNAVAILABLE" ||
+              data.reviewStatus === "AWAITING_PAYMENT" ||
+              Boolean(contentId && /checkout|gateway|PayFast|DEMO_MODE/i.test(message)));
+
+          if (paymentGatewayBlocked && contentId) {
+            setJob(jobId, (j) => ({
+              ...j,
+              status: "complete",
+              contentId,
+              error: null,
+              finalizeWhenReady: false,
+              finalizePayload: null,
+              updatedAt: Date.now(),
+            }));
+            await notifyUploadEvent({
+              type: "CONTENT_UPLOAD_COMPLETE",
+              title: "Catalogue upload ready — payment needed",
+              body: `"${job.title}" was saved. Complete payment from My catalogue to enter review.`,
+              contentId,
+              url: "/creator/catalogue",
+            });
+            return {
+              ok: false,
+              error: message,
+              contentId,
+              requiresPayment: true,
+              reviewStatus: "AWAITING_PAYMENT",
+            };
+          }
+
           setJob(jobId, (j) => ({
             ...j,
             status: "failed",
+            contentId: contentId ?? j.contentId,
             error: message,
             finalizeWhenReady: false,
             updatedAt: Date.now(),
@@ -451,10 +486,10 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
             type: "CONTENT_UPLOAD_FAILED",
             title: "Catalogue upload failed",
             body: `${job.title}: ${message}`,
-            contentId: job.contentId,
-            url: job.contentId ? `/creator/upload?contentId=${job.contentId}` : "/creator/upload",
+            contentId,
+            url: contentId ? `/creator/upload?contentId=${contentId}` : "/creator/upload",
           });
-          return { ok: false, error: message };
+          return { ok: false, error: message, contentId };
         }
 
         const contentId = data.id || data.contentId || job.contentId || undefined;

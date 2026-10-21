@@ -3,7 +3,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
-import { Film, Pencil, Plus, Eye, AlertCircle, Trash2, Loader2 } from "lucide-react";
+import { CreditCard, Film, Pencil, Plus, Eye, AlertCircle, Trash2, Loader2 } from "lucide-react";
+import { CheckoutModal } from "@/components/payments/checkout-modal";
+import { CREATOR_PER_FILM_UPLOAD_PRICE } from "@/lib/pricing";
+import { formatZar } from "@/lib/format-currency-zar";
 import {
   isDeletableCatalogueStatus,
   isEditableCatalogueStatus,
@@ -64,7 +67,10 @@ function statusClass(status: string): string {
 export function MyCatalogueClient() {
   const queryClient = useQueryClient();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [payingId, setPayingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [checkoutUrl, setCheckoutUrl] = useState("");
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["creator-catalogue"],
@@ -97,6 +103,39 @@ export function MyCatalogueClient() {
     },
   });
 
+  const payMutation = useMutation({
+    mutationFn: async (item: CatalogueItem) => {
+      const res = await fetch(`/api/creator/content/${item.id}/pay-upload`, { method: "POST" });
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        requiresPayment?: boolean;
+        checkoutUrl?: string;
+        alreadyPaid?: boolean;
+        alreadyCovered?: boolean;
+      };
+      if (!res.ok) throw new Error(json.error || "Unable to start checkout");
+      return json;
+    },
+    onMutate: (item) => {
+      setPayingId(item.id);
+      setActionError(null);
+    },
+    onSuccess: (json) => {
+      if (json.requiresPayment && json.checkoutUrl) {
+        setCheckoutUrl(json.checkoutUrl);
+        setCheckoutOpen(true);
+        return;
+      }
+      void queryClient.invalidateQueries({ queryKey: ["creator-catalogue"] });
+    },
+    onError: (err) => {
+      setActionError(err instanceof Error ? err.message : "Unable to start checkout");
+    },
+    onSettled: () => {
+      setPayingId(null);
+    },
+  });
+
   function confirmDelete(item: CatalogueItem) {
     const ok = window.confirm(
       `Delete “${item.title}”? This removes the catalogue entry permanently. Uploaded media files in storage are not automatically purged.`,
@@ -109,6 +148,13 @@ export function MyCatalogueClient() {
 
   return (
     <div className="px-6 py-8 md:px-12 md:py-10">
+      <CheckoutModal
+        open={checkoutOpen}
+        checkoutUrl={checkoutUrl}
+        title="Complete film submission payment"
+        subtitle={`Pay ${formatZar(CREATOR_PER_FILM_UPLOAD_PRICE)} to submit this title for catalogue review. Your film enters the review queue only after successful payment.`}
+        onClose={() => setCheckoutOpen(false)}
+      />
       <div className="mx-auto max-w-5xl space-y-8">
         <header className="storytime-plan-card p-5 md:p-6 lg:p-8">
           <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
@@ -120,7 +166,8 @@ export function MyCatalogueClient() {
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-400">
             Manage titles you have submitted for distribution. Edit or delete drafts and mistaken
-            uploads, track review status, and add seasons to approved series.
+            uploads, finish payment if checkout was interrupted, track review status, and add seasons
+            to approved series.
           </p>
           <div className="mt-4">
             <Link
@@ -161,7 +208,8 @@ export function MyCatalogueClient() {
               const deletable = isDeletableCatalogueStatus(item.reviewStatus);
               const canAddSeason =
                 item.reviewStatus === "APPROVED" && isLongFormType(item.type);
-              const busy = deletingId === item.id;
+              const awaitingPayment = item.reviewStatus === "AWAITING_PAYMENT";
+              const busy = deletingId === item.id || payingId === item.id;
               return (
                 <li
                   key={item.id}
@@ -178,12 +226,29 @@ export function MyCatalogueClient() {
                     </div>
                     <p className="mt-1 text-xs text-slate-500">
                       {item.type}
-                      {item.submittedAt
-                        ? ` · Submitted ${new Date(item.submittedAt).toLocaleDateString()}`
-                        : " · Not submitted"}
+                      {awaitingPayment
+                        ? ` · Pay ${formatZar(CREATOR_PER_FILM_UPLOAD_PRICE)} to enter review`
+                        : item.submittedAt
+                          ? ` · Submitted ${new Date(item.submittedAt).toLocaleDateString()}`
+                          : " · Not submitted"}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    {awaitingPayment ? (
+                      <button
+                        type="button"
+                        onClick={() => payMutation.mutate(item)}
+                        disabled={busy}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-600 disabled:opacity-50"
+                      >
+                        {payingId === item.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <CreditCard className="h-3.5 w-3.5" />
+                        )}
+                        Pay now
+                      </button>
+                    ) : null}
                     {editable ? (
                       <Link
                         href={`/creator/upload?contentId=${item.id}`}
@@ -200,7 +265,7 @@ export function MyCatalogueClient() {
                         disabled={busy}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-red-400/30 px-3 py-1.5 text-xs font-medium text-red-200 hover:bg-red-500/10 disabled:opacity-50"
                       >
-                        {busy ? (
+                        {deletingId === item.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
                           <Trash2 className="h-3.5 w-3.5" />

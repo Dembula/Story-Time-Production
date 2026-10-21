@@ -5,14 +5,11 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isCreatorLicensePeriodActive } from "@/lib/pricing";
 import {
-  CREATOR_FILM_UPLOAD_PURPOSE,
   contentHasSuccessfulUploadPayment,
   creatorHasUnlimitedUploads,
   creatorNeedsPerFilmUploadPayment,
-  perFilmUploadAmount,
+  initializeCreatorFilmUploadCheckout,
 } from "@/lib/creator-film-upload-payment";
-import { initializeCheckout } from "@/lib/payments/billing";
-import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
 import { validateStorageUrlField } from "@/lib/storage-origin";
 import { getStreamAssetsByUrls } from "@/lib/stream-asset-store";
 import { linkOrIngestStreamForUrl } from "@/lib/stream-ingest-link";
@@ -493,24 +490,20 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const amount = perFilmUploadAmount();
-      const checkout = await initializeCheckout({
+      const checkout = await initializeCreatorFilmUploadCheckout({
         userId: creatorId,
         email: user.email,
         customerName: user.name,
-        amount,
-        purpose: CREATOR_FILM_UPLOAD_PURPOSE,
-        referenceType: "Content",
-        referenceId: content.id,
-        returnUrl: buildPaymentReturnUrl("/creator/dashboard", "creator_film_upload"),
-        metadata: { contentTitle: content.title, contentType: content.type },
+        contentId: content.id,
+        contentTitle: content.title,
+        contentType: content.type,
       });
       return NextResponse.json({
         ...content,
         requiresPayment: true,
-        checkoutUrl: checkout.checkout.checkoutUrl,
-        paymentRecordId: checkout.paymentRecord.id,
-        uploadFee: amount,
+        checkoutUrl: checkout.checkoutUrl,
+        paymentRecordId: checkout.paymentRecordId,
+        uploadFee: checkout.amount,
       });
     } catch (error) {
       await prisma.content.update({
@@ -518,7 +511,15 @@ export async function POST(request: NextRequest) {
         data: { reviewStatus: "AWAITING_PAYMENT" },
       });
       const message = error instanceof Error ? error.message : "Unable to initialize checkout.";
-      return NextResponse.json({ error: message, contentId: content.id }, { status: 502 });
+      return NextResponse.json(
+        {
+          error: message,
+          contentId: content.id,
+          reviewStatus: "AWAITING_PAYMENT",
+          code: "PAYMENT_GATEWAY_UNAVAILABLE",
+        },
+        { status: 502 },
+      );
     }
   }
 

@@ -8,7 +8,7 @@ import type {
 } from "@/lib/payments/gateway";
 
 const NOT_CONFIGURED =
-  "Payment gateway is not configured yet. PayFast integration is required before checkout can start.";
+  "Payment gateway is not configured. Set PayFast credentials, or enable PAYMENTS_DEMO_MODE=true for simulated checkout.";
 
 function notConfigured(): never {
   throw new Error(NOT_CONFIGURED);

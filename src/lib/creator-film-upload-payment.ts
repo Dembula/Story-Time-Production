@@ -5,6 +5,8 @@ import {
   isCreatorLicensePeriodActive,
 } from "@/lib/pricing";
 import { CREATOR_APPLE_IAP_UPLOAD_PURPOSE } from "@/lib/payments/apple-iap/purposes";
+import { initializeCheckout } from "@/lib/payments/billing";
+import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
 
 export const CREATOR_FILM_UPLOAD_PURPOSE = "creator_film_upload";
 
@@ -49,4 +51,35 @@ export async function contentHasSuccessfulUploadPayment(contentId: string): Prom
 
 export function perFilmUploadAmount(): number {
   return CREATOR_PER_FILM_UPLOAD_PRICE;
+}
+
+/** Start (or retry) PayFast/demo checkout for a per-film catalogue upload fee. */
+export async function initializeCreatorFilmUploadCheckout(args: {
+  userId: string;
+  email?: string | null;
+  customerName?: string | null;
+  contentId: string;
+  contentTitle?: string | null;
+  contentType?: string | null;
+}) {
+  const amount = perFilmUploadAmount();
+  const checkout = await initializeCheckout({
+    userId: args.userId,
+    email: args.email,
+    customerName: args.customerName,
+    amount,
+    purpose: CREATOR_FILM_UPLOAD_PURPOSE,
+    referenceType: "Content",
+    referenceId: args.contentId,
+    returnUrl: buildPaymentReturnUrl("/creator/dashboard", "creator_film_upload"),
+    metadata: {
+      contentTitle: args.contentTitle ?? undefined,
+      contentType: args.contentType ?? undefined,
+    },
+  });
+  return {
+    amount,
+    checkoutUrl: checkout.checkout.checkoutUrl,
+    paymentRecordId: checkout.paymentRecord.id,
+  };
 }

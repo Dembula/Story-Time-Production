@@ -10,7 +10,7 @@ import {
   ArrowRight, ArrowLeft, CheckCircle, AlertCircle, Send, Save,
   Clapperboard, Globe, Tag, Clock, Calendar, Star, Tv, Shield, FileText,
   Laugh, Mic2, Trophy, Palette, Video, Radio, Newspaper, GraduationCap,
-  Sparkles, ChevronDown, ChevronUp, type LucideIcon,
+  Sparkles, ChevronDown, ChevronUp, CreditCard, Loader2, type LucideIcon,
 } from "lucide-react";
 import { applyPrefillToUploadForm, type ProjectUploadPrefill } from "@/lib/project-upload-prefill";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
@@ -198,6 +198,8 @@ function DistributionUploadInner() {
       if (forceNewUpload) {
         setEditingContentId(null);
         setResubmitMode(false);
+        setLoadedReviewStatus(null);
+        setPaymentPendingNotice(false);
         setServerContentHydrated(true);
       }
       return;
@@ -209,6 +211,8 @@ function DistributionUploadInner() {
       .then((data) => {
         if (cancelled || !data?.id) return;
         setEditingContentId(data.id);
+        setLoadedReviewStatus(typeof data.reviewStatus === "string" ? data.reviewStatus : null);
+        setPaymentPendingNotice(data.reviewStatus === "AWAITING_PAYMENT");
         setResubmitMode(["REJECTED", "CHANGES_REQUESTED", "UNPUBLISHED"].includes(data.reviewStatus));
         setForm((f) => ({
           ...f,
@@ -374,6 +378,9 @@ function DistributionUploadInner() {
   const [error, setError] = useState("");
   const [checkoutUrl, setCheckoutUrl] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [loadedReviewStatus, setLoadedReviewStatus] = useState<string | null>(null);
+  const [paymentPendingNotice, setPaymentPendingNotice] = useState(false);
+  const [payingUpload, setPayingUpload] = useState(false);
 
   const [form, setForm] = useState({
     title: "",
@@ -1195,11 +1202,6 @@ function DistributionUploadInner() {
       if (!uploadJobId) setUploadJobId(jobId);
 
       const result = await requestFinalize(jobId, payload);
-      if (!result.ok) {
-        setError(result.error || "Submission failed");
-        return;
-      }
-
       if (result.contentId) {
         setEditingContentId(result.contentId);
         if (userId) {
@@ -1208,20 +1210,41 @@ function DistributionUploadInner() {
         }
       }
 
+      if (!result.ok) {
+        if (result.requiresPayment || result.reviewStatus === "AWAITING_PAYMENT") {
+          setLoadedReviewStatus("AWAITING_PAYMENT");
+          setPaymentPendingNotice(true);
+          setError(
+            result.error ||
+              "Your upload was saved, but checkout could not start. Use Pay now below, or pay from My catalogue.",
+          );
+          return;
+        }
+        setError(result.error || "Submission failed");
+        return;
+      }
+
       if (result.deferred) {
         setBackgroundSubmitNotice(true);
         return;
       }
 
       if (result.requiresPayment) {
+        setLoadedReviewStatus("AWAITING_PAYMENT");
         if (result.checkoutUrl) {
           setCheckoutUrl(result.checkoutUrl);
           setCheckoutOpen(true);
+          setPaymentPendingNotice(true);
           return;
         }
-        setError("Unable to start checkout. Please try again.");
+        setPaymentPendingNotice(true);
+        setError(
+          "Unable to start checkout. Use Pay now below, or finish payment from My catalogue once the gateway is available.",
+        );
       } else if (result.reviewStatus === "AWAITING_PAYMENT") {
-        setError("Payment is required before your film can enter review.");
+        setLoadedReviewStatus("AWAITING_PAYMENT");
+        setPaymentPendingNotice(true);
+        setError("Payment is required before your film can enter review. Use Pay now below.");
       } else if (asDraft) {
         setSuccess(true);
         setTimeout(() => router.push("/creator/catalogue"), 1500);
@@ -1231,6 +1254,43 @@ function DistributionUploadInner() {
       }
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function startPendingUploadPayment() {
+    const contentId = editingContentId ?? contentIdFromUrl;
+    if (!contentId) {
+      setError("Save or submit this title first, then pay from My catalogue.");
+      return;
+    }
+    setPayingUpload(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/creator/content/${contentId}/pay-upload`, { method: "POST" });
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        requiresPayment?: boolean;
+        checkoutUrl?: string;
+        alreadyPaid?: boolean;
+        alreadyCovered?: boolean;
+      };
+      if (!res.ok) {
+        setError(json.error || "Unable to start checkout");
+        setPaymentPendingNotice(true);
+        return;
+      }
+      if (json.requiresPayment && json.checkoutUrl) {
+        setCheckoutUrl(json.checkoutUrl);
+        setCheckoutOpen(true);
+        setPaymentPendingNotice(true);
+        return;
+      }
+      setLoadedReviewStatus("PENDING");
+      setPaymentPendingNotice(false);
+      setSuccess(true);
+      setTimeout(() => router.push("/creator/catalogue"), 1500);
+    } finally {
+      setPayingUpload(false);
     }
   }
 
@@ -1286,7 +1346,11 @@ function DistributionUploadInner() {
         checkoutUrl={checkoutUrl}
         title="Complete film submission payment"
         subtitle={`Pay ${formatZar(CREATOR_PER_FILM_UPLOAD_PRICE)} to submit this title for catalogue review. Your film enters the review queue only after successful payment.`}
-        onClose={() => setCheckoutOpen(false)}
+        onClose={() => {
+          setCheckoutOpen(false);
+          setPaymentPendingNotice(true);
+          setLoadedReviewStatus((s) => s ?? "AWAITING_PAYMENT");
+        }}
       />
       <div className="mx-auto max-w-6xl space-y-8">
         <header className="storytime-plan-card p-5 md:p-6 lg:p-8">
@@ -1325,6 +1389,38 @@ function DistributionUploadInner() {
             <p className="mt-1 text-xs text-slate-400">
               You already paid for this title — resubmission after rejection or requested changes is free.
             </p>
+          </div>
+        ) : null}
+
+        {(paymentPendingNotice || loadedReviewStatus === "AWAITING_PAYMENT") &&
+        (editingContentId || contentIdFromUrl) ? (
+          <div className="creator-glass-panel rounded-xl border border-amber-400/30 bg-amber-500/[0.08] p-4">
+            <p className="text-sm font-medium text-amber-100">Payment required to enter review</p>
+            <p className="mt-1 text-xs text-slate-400">
+              Your upload is saved. Pay {formatZar(CREATOR_PER_FILM_UPLOAD_PRICE)} to submit it for catalogue
+              review, or finish later from My catalogue.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void startPendingUploadPayment()}
+                disabled={payingUpload}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-600 disabled:opacity-50"
+              >
+                {payingUpload ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <CreditCard className="h-3.5 w-3.5" />
+                )}
+                Pay now
+              </button>
+              <Link
+                href="/creator/catalogue"
+                className="inline-flex items-center rounded-lg border border-white/12 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5"
+              >
+                Open My catalogue
+              </Link>
+            </div>
           </div>
         ) : null}
 
