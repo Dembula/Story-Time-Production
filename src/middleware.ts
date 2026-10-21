@@ -11,11 +11,15 @@ export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
 
   // Universe iOS/Android (+ TV): map Bearer JWT → NextAuth cookie so getServerSession works.
+  // Keep this list complete for every viewer API the TV/mobile apps call.
   if (
     path.startsWith("/api/content") ||
     path.startsWith("/api/watch") ||
+    path.startsWith("/api/watchlist") ||
     path.startsWith("/api/viewer") ||
     path.startsWith("/api/browse") ||
+    path.startsWith("/api/crew") ||
+    path.startsWith("/api/people") ||
     path.startsWith("/api/tv")
   ) {
     if (req.method === "OPTIONS") {
