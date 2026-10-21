@@ -10,8 +10,9 @@ import { headersWithInjectedSessionCookie, TV_CORS_HEADERS } from "@/lib/tv-auth
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
 
-  // Universe iOS/Android (+ TV): map Bearer JWT → NextAuth cookie so getServerSession works.
-  // Keep this list complete for every viewer API the TV/mobile apps call.
+  // Universe iOS/Android (+ LG/Samsung TV): map Bearer / tv_token → NextAuth cookie
+  // and attach CORS. Matcher MUST include watchlist/crew/people or those routes
+  // never get injection (QA: sign-in works, then My List / credits fail).
   if (
     path.startsWith("/api/content") ||
     path.startsWith("/api/watch") ||
@@ -178,8 +179,14 @@ export const config = {
   matcher: [
     "/api/content/:path*",
     "/api/watch/:path*",
+    "/api/watchlist",
+    "/api/watchlist/:path*",
     "/api/viewer/:path*",
     "/api/browse/:path*",
+    "/api/crew",
+    "/api/crew/:path*",
+    "/api/people",
+    "/api/people/:path*",
     "/api/tv/:path*",
     "/browse/content/:id",
     "/browse/account",

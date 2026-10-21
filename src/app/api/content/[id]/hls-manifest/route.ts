@@ -144,15 +144,24 @@ export async function GET(
       if (!masterHasDemuxedAudio(rewritten)) {
         return hlsResponse(rewritten, 45);
       }
+      // Preserve TV media-auth query params so <video> follow-on playlist fetches
+      // still authenticate (native players cannot send Authorization headers).
+      const tvToken = req.nextUrl.searchParams.get("tv_token")?.trim() || "";
+      const tvProfile = req.nextUrl.searchParams.get("tv_profile")?.trim() || "";
+      const withTvAuthParams = (params: URLSearchParams) => {
+        if (tvToken) params.set("tv_token", tvToken);
+        if (tvProfile) params.set("tv_profile", tvProfile);
+        return params;
+      };
       const stitchedMaster = rewriteMasterPlaylistForIntroStitch(rewritten, {
         buildVariantProxyUrl: (absoluteVariantUrl) => {
-          const params = new URLSearchParams();
+          const params = withTvAuthParams(new URLSearchParams());
           if (episodeId) params.set("episodeId", episodeId);
           params.set("variant", encodeVariantRef(absoluteVariantUrl));
           return `${origin}/api/content/${id}/hls-manifest?${params.toString()}`;
         },
         buildAudioProxyUrl: (absoluteAudioUrl) => {
-          const params = new URLSearchParams();
+          const params = withTvAuthParams(new URLSearchParams());
           if (episodeId) params.set("episodeId", episodeId);
           params.set("audio", encodeVariantRef(absoluteAudioUrl));
           return `${origin}/api/content/${id}/hls-manifest?${params.toString()}`;

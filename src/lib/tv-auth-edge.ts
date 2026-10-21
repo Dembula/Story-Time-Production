@@ -3,8 +3,9 @@ import type { NextRequest } from "next/server";
 export const TV_CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+  // LG also sends X-Viewer-Profile-Id; omitting it breaks CORS preflight after profile select.
   "Access-Control-Allow-Headers":
-    "Authorization, Content-Type, Accept, X-ST-Platform, X-ST-Device, X-ST-Viewer-Profile",
+    "Authorization, Content-Type, Accept, X-ST-Platform, X-ST-Device, X-ST-Viewer-Profile, X-Viewer-Profile-Id",
   "Access-Control-Max-Age": "86400",
 };
 
@@ -23,11 +24,23 @@ export function authorizationBearer(req: NextRequest): string | null {
   return null;
 }
 
+/** JWT from Authorization header or tv_token query (media elements). */
+export function tvAccessTokenFromRequest(req: NextRequest): string | null {
+  return authorizationBearer(req);
+}
+
+function viewerProfileIdFromRequest(req: NextRequest): string | null {
+  const fromHeader =
+    (req.headers.get("x-st-viewer-profile") || req.headers.get("x-viewer-profile-id") || "").trim();
+  if (fromHeader) return fromHeader;
+  return (req.nextUrl.searchParams.get("tv_profile") || "").trim() || null;
+}
+
 /** Copy a TV Bearer JWT onto the NextAuth cookie name so getServerSession/getToken work. */
 export function headersWithInjectedSessionCookie(req: NextRequest): Headers {
   const headers = new Headers(req.headers);
   const extras: string[] = [];
-  const token = authorizationBearer(req);
+  const token = tvAccessTokenFromRequest(req);
   const existing = headers.get("cookie") || "";
 
   if (token) {
@@ -39,9 +52,7 @@ export function headersWithInjectedSessionCookie(req: NextRequest): Headers {
     }
   }
 
-  const profileId =
-    (req.headers.get("x-st-viewer-profile") || "").trim() ||
-    (req.nextUrl.searchParams.get("tv_profile") || "").trim();
+  const profileId = viewerProfileIdFromRequest(req);
   if (profileId && /^[a-zA-Z0-9_-]+$/.test(profileId)) {
     if (!existing.includes("st_viewer_profile=")) extras.push(`st_viewer_profile=${profileId}`);
     if (!existing.includes("st_viewer_profile_unlock=")) extras.push(`st_viewer_profile_unlock=${profileId}`);
