@@ -10,7 +10,10 @@ export type IndustryNewsArticle = {
   sourceName: string;
   sourceHost: string;
   publishedLabel: string | null;
-  provider: WebSearchResult["source"];
+  publishedAt: string | null;
+  provider: "rss" | WebSearchResult["source"] | "curated";
+  /** Real article vs homepage/hub — hubs skip scrape-on-expand. */
+  kind: "article" | "hub";
 };
 
 export type IndustryNewsPayload = {
@@ -20,16 +23,55 @@ export type IndustryNewsPayload = {
   refreshed: boolean;
   staleAfterMinutes: number;
   queryFocus: string;
+  liveCount: number;
+  providerNote: string | null;
 };
 
-const CACHE_TTL_MS = 30 * 60 * 1000;
-const STALE_AFTER_MINUTES = 30;
+const CACHE_TTL_MS = 20 * 60 * 1000;
+const STALE_AFTER_MINUTES = 20;
+const MAX_ARTICLES = 28;
+const FETCH_TIMEOUT_MS = 10_000;
 
-const FOCUS_QUERIES = [
-  "South Africa film industry news this week",
-  "NFVF South African film funding cinema production news",
-  "South Africa film festival Durban FilmMart Encounters Cape Town film news",
-  "South African streaming film television production industry update",
+/** Google News RSS + a few industry outlet searches — works without Tavily/Serper keys. */
+const RSS_FEEDS: Array<{ url: string; label: string }> = [
+  {
+    label: "SA film",
+    url: "https://news.google.com/rss/search?q=%22South+Africa%22+(film+OR+cinema+OR+NFVF+OR+%22film+festival%22+OR+screenplay+OR+filmmaking)&hl=en-ZA&gl=ZA&ceid=ZA:en",
+  },
+  {
+    label: "Screen Africa",
+    url: "https://news.google.com/rss/search?q=site:screenafrica.com&hl=en-ZA&gl=ZA&ceid=ZA:en",
+  },
+  {
+    label: "NFVF",
+    url: "https://news.google.com/rss/search?q=NFVF+(film+OR+cinema+OR+funding+OR+grant)&hl=en-ZA&gl=ZA&ceid=ZA:en",
+  },
+  {
+    label: "Festivals",
+    url: "https://news.google.com/rss/search?q=%22Durban+FilmMart%22+OR+%22Encounters+Documentary%22+OR+%22RapidLion%22+OR+%22Cape+Town+International+Film%22+OR+%22Jozi+Film%22&hl=en-ZA&gl=ZA&ceid=ZA:en",
+  },
+  {
+    label: "Bizcommunity",
+    url: "https://news.google.com/rss/search?q=site:bizcommunity.com+(film+OR+cinema+OR+television+OR+streaming)+%22South+Africa%22&hl=en-ZA&gl=ZA&ceid=ZA:en",
+  },
+  {
+    label: "News24 / IOL",
+    url: "https://news.google.com/rss/search?q=(site:news24.com+OR+site:iol.co.za)+(film+OR+cinema+OR+movie+OR+Netflix)+%22South+Africa%22&hl=en-ZA&gl=ZA&ceid=ZA:en",
+  },
+  {
+    label: "Daily Maverick / M&G",
+    url: "https://news.google.com/rss/search?q=(site:dailymaverick.co.za+OR+site:mg.co.za)+(film+OR+cinema+OR+television)&hl=en-ZA&gl=ZA&ceid=ZA:en",
+  },
+  {
+    label: "Production",
+    url: "https://news.google.com/rss/search?q=%22South+Africa%22+(%22film+production%22+OR+%22TV+production%22+OR+filming+OR+%22location+shoot%22)&hl=en-ZA&gl=ZA&ceid=ZA:en",
+  },
+];
+
+const WEB_FALLBACK_QUERIES = [
+  "South Africa film industry news",
+  "NFVF South Africa film funding",
+  "South African film festival news",
 ] as const;
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -51,6 +93,18 @@ const SOURCE_LABELS: Record<string, string> = {
   "bbc.co.uk": "BBC",
   "reuters.com": "Reuters",
   "hollywoodreporter.com": "Hollywood Reporter",
+  "screendaily.com": "Screen Daily",
+  "indiewire.com": "IndieWire",
+  "channel24.co.za": "Channel24",
+  "ewn.co.za": "EWN",
+  "sabcnews.com": "SABC News",
+  "enca.com": "eNCA",
+  "citizen.co.za": "The Citizen",
+  "businesslive.co.za": "BusinessLIVE",
+  "techcentral.co.za": "TechCentral",
+  "mediaupdate.co.za": "Media Update",
+  "themediaonline.co.za": "The Media Online",
+  "news.google.com": "Google News",
 };
 
 type CacheBox = {
@@ -72,7 +126,7 @@ function sourceNameForHost(host: string): string {
   if (!host) return "Web source";
   if (SOURCE_LABELS[host]) return SOURCE_LABELS[host];
   const parts = host.split(".");
-  const core = parts.length >= 2 ? parts[parts.length - 2] : parts[0];
+  const core = parts.length >= 2 ? parts[parts.length - 2]! : parts[0]!;
   return core
     .split("-")
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
@@ -86,36 +140,281 @@ function articleId(url: string, title: string): string {
   return `news-${hash.toString(36)}`;
 }
 
-function looksSaFilmRelevant(title: string, snippet: string, host: string): boolean {
-  const blob = `${title} ${snippet} ${host}`.toLowerCase();
-  const sa =
-    /\b(south africa|south african|sa\b|nfvf|gauteng|cape town|durban|joburg|johannesburg|kwazulu|western cape|eastern cape)\b/.test(
-      blob,
-    );
-  const film =
-    /\b(film|cinema|movie|series|festival|production|shoot|streaming|nfvf|documentary|screen|television|tv|cast|director|screenwriter|hollywood)\b/.test(
-      blob,
-    );
-  return sa && film;
+function stripHtml(input: string): string {
+  return input
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function mapResult(r: WebSearchResult): IndustryNewsArticle | null {
-  const url = (r.url || "").trim();
-  const title = (r.title || "").trim();
-  const summary = (r.snippet || "").trim();
-  if (!url || !title) return null;
-  const host = hostFromUrl(url);
-  if (!looksSaFilmRelevant(title, summary, host)) return null;
-  return {
-    id: articleId(url, title),
-    title,
-    summary: summary || "Open the source for the full report.",
-    url,
-    sourceName: sourceNameForHost(host),
-    sourceHost: host || "unknown",
-    publishedLabel: null,
-    provider: r.source,
-  };
+function decodeXmlEntities(input: string): string {
+  return input
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
+}
+
+function tagValue(block: string, tag: string): string {
+  const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i");
+  const m = block.match(re);
+  return m?.[1] ? decodeXmlEntities(m[1].trim()) : "";
+}
+
+function sourceFromItem(block: string): { name: string; url: string } {
+  const m = block.match(/<source[^>]*url=["']([^"']+)["'][^>]*>([\s\S]*?)<\/source>/i);
+  if (m) {
+    return { url: decodeXmlEntities(m[1] || ""), name: stripHtml(decodeXmlEntities(m[2] || "")) };
+  }
+  return { url: "", name: "" };
+}
+
+function formatPubLabel(date: Date | null): string | null {
+  if (!date || Number.isNaN(date.getTime())) return null;
+  const diffMs = Date.now() - date.getTime();
+  const mins = Math.round(diffMs / 60_000);
+  if (mins < 60) return `${Math.max(1, mins)}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `${hours}h ago`;
+  return date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+function isHubUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const path = u.pathname.replace(/\/+$/, "");
+    return path === "" || path === "/" || /^\/(news|category|section|media)?\/?$/i.test(path);
+  } catch {
+    return false;
+  }
+}
+
+function looksRelevant(title: string, summary: string, host: string): boolean {
+  const blob = `${title} ${summary} ${host}`.toLowerCase();
+  // Soft filter: keep film/TV/screen industry, prefer SA but allow African screen coverage.
+  const film =
+    /\b(film|cinema|movie|series|festival|production|shoot|streaming|nfvf|documentary|screen|television|tv|netflix|showmax|cast|director|screenwriter|hollywood|box[\s-]?office)\b/.test(
+      blob,
+    );
+  if (!film) return false;
+  const saOrIndustry =
+    /\b(south africa|south african|sa\b|nfvf|gauteng|cape town|durban|joburg|johannesburg|africa|african|screenafrica|bizcommunity)\b/.test(
+      blob,
+    ) ||
+    Boolean(
+      SOURCE_LABELS[host] ||
+        host.endsWith(".za") ||
+        host.includes("screenafrica") ||
+        host.includes("nfvf") ||
+        host.includes("bizcommunity"),
+    );
+  return saOrIndustry;
+}
+
+async function fetchText(url: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      redirect: "follow",
+      headers: {
+        Accept: "application/rss+xml, application/xml, text/xml, text/html;q=0.8, */*;q=0.5",
+        "User-Agent": "StoryTimeUniverseCreatorNews/1.1 (+https://story-time.online)",
+      },
+      signal: controller.signal,
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function parseRssItems(xml: string): IndustryNewsArticle[] {
+  const items = xml.match(/<item[\s\S]*?<\/item>/gi) ?? [];
+  const out: IndustryNewsArticle[] = [];
+
+  for (const block of items) {
+    let title = stripHtml(tagValue(block, "title"));
+    // Google News titles often end with " - Source Name"
+    let sourceName = "";
+    const dash = title.lastIndexOf(" - ");
+    if (dash > 20) {
+      sourceName = title.slice(dash + 3).trim();
+      title = title.slice(0, dash).trim();
+    }
+
+    const link = stripHtml(tagValue(block, "link")) || tagValue(block, "guid");
+    const description = stripHtml(tagValue(block, "description"));
+    const pubRaw = tagValue(block, "pubDate");
+    const pubDate = pubRaw ? new Date(pubRaw) : null;
+    const sourceTag = sourceFromItem(block);
+    if (sourceTag.name) sourceName = sourceTag.name;
+
+    if (!title || !link) continue;
+
+    const host =
+      hostFromUrl(sourceTag.url) ||
+      hostFromUrl(link) ||
+      (sourceName ? sourceName.toLowerCase().replace(/\s+/g, "") + ".com" : "news.google.com");
+
+    const summary =
+      description ||
+      `Coverage from ${sourceName || sourceNameForHost(host)} on the South African / African screen industry.`;
+
+    if (!looksRelevant(title, summary, host)) continue;
+
+    out.push({
+      id: articleId(link, title),
+      title,
+      summary: summary.slice(0, 600),
+      url: link,
+      sourceName: sourceName || sourceNameForHost(host),
+      sourceHost: hostFromUrl(sourceTag.url) || hostFromUrl(link) || host,
+      publishedLabel: formatPubLabel(pubDate),
+      publishedAt: pubDate && !Number.isNaN(pubDate.getTime()) ? pubDate.toISOString() : null,
+      provider: "rss",
+      kind: isHubUrl(link) ? "hub" : "article",
+    });
+  }
+
+  return out;
+}
+
+async function collectFromRss(): Promise<IndustryNewsArticle[]> {
+  const settled = await Promise.all(
+    RSS_FEEDS.map(async (feed) => {
+      const xml = await fetchText(feed.url);
+      if (!xml) return [] as IndustryNewsArticle[];
+      return parseRssItems(xml);
+    }),
+  );
+  return settled.flat();
+}
+
+async function collectFromWebSearch(): Promise<IndustryNewsArticle[]> {
+  const out: IndustryNewsArticle[] = [];
+  for (const query of WEB_FALLBACK_QUERIES) {
+    try {
+      const batch = await searchWeb(query, 8);
+      for (const row of batch) {
+        const url = (row.url || "").trim();
+        const title = (row.title || "").trim();
+        const summary = (row.snippet || "").trim();
+        if (!url || !title) continue;
+        const host = hostFromUrl(url);
+        if (!looksRelevant(title, summary, host)) continue;
+        out.push({
+          id: articleId(url, title),
+          title,
+          summary: summary || "Open the source for the full report.",
+          url,
+          sourceName: sourceNameForHost(host),
+          sourceHost: host || "unknown",
+          publishedLabel: null,
+          publishedAt: null,
+          provider: row.source,
+          kind: isHubUrl(url) ? "hub" : "article",
+        });
+      }
+    } catch {
+      /* next query */
+    }
+  }
+  return out;
+}
+
+function curatedFallback(): IndustryNewsArticle[] {
+  const items = [
+    {
+      title: "NFVF — funding & industry programmes",
+      summary:
+        "National Film and Video Foundation hub for funding windows, transformation programmes, and official SA film development updates.",
+      url: "https://www.nfvf.co.za/",
+      host: "nfvf.co.za",
+    },
+    {
+      title: "Screen Africa — African screen news",
+      summary:
+        "Production, festival, and distribution coverage across the African screen industries, with strong South African reporting.",
+      url: "https://www.screenafrica.com/",
+      host: "screenafrica.com",
+    },
+    {
+      title: "Bizcommunity — Media & Entertainment",
+      summary:
+        "South African media and entertainment business news spanning film, TV, advertising, and streaming.",
+      url: "https://www.bizcommunity.com/Category/196/15.html",
+      host: "bizcommunity.com",
+    },
+    {
+      title: "News24 — Entertainment",
+      summary: "South African entertainment desk covering film, TV, and celebrity culture.",
+      url: "https://www.news24.com/life/entertainment",
+      host: "news24.com",
+    },
+    {
+      title: "IOL — Entertainment",
+      summary: "Independent Online entertainment coverage including local film and TV stories.",
+      url: "https://www.iol.co.za/entertainment",
+      host: "iol.co.za",
+    },
+    {
+      title: "Daily Maverick — Arts & Culture",
+      summary: "In-depth South African arts and culture reporting, often including film and festivals.",
+      url: "https://www.dailymaverick.co.za/section/maverick-life/",
+      host: "dailymaverick.co.za",
+    },
+  ] as const;
+
+  return items.map((item) => ({
+    id: articleId(item.url, item.title),
+    title: item.title,
+    summary: item.summary,
+    url: item.url,
+    sourceName: sourceNameForHost(item.host),
+    sourceHost: item.host,
+    publishedLabel: "Hub",
+    publishedAt: null,
+    provider: "curated" as const,
+    kind: "hub" as const,
+  }));
+}
+
+function dedupeAndRank(articles: IndustryNewsArticle[], max: number): IndustryNewsArticle[] {
+  const seen = new Set<string>();
+  const ranked = [...articles].sort((a, b) => {
+    const at = a.publishedAt ? Date.parse(a.publishedAt) : 0;
+    const bt = b.publishedAt ? Date.parse(b.publishedAt) : 0;
+    if (bt !== at) return bt - at;
+    if (a.kind !== b.kind) return a.kind === "article" ? -1 : 1;
+    return a.title.localeCompare(b.title);
+  });
+
+  const out: IndustryNewsArticle[] = [];
+  for (const a of ranked) {
+    const key = a.url.replace(/#.*$/, "").replace(/\/$/, "").toLowerCase();
+    const titleKey = a.title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (seen.has(key) || seen.has(titleKey)) continue;
+    seen.add(key);
+    seen.add(titleKey);
+    out.push(a);
+    if (out.length >= max) break;
+  }
+  return out;
 }
 
 function buildSources(articles: IndustryNewsArticle[]) {
@@ -129,65 +428,6 @@ function buildSources(articles: IndustryNewsArticle[]) {
   return [...map.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
-async function collectLiveArticles(max = 12): Promise<IndustryNewsArticle[]> {
-  const seen = new Set<string>();
-  const out: IndustryNewsArticle[] = [];
-
-  for (const query of FOCUS_QUERIES) {
-    if (out.length >= max) break;
-    const batch = await searchWeb(query, 6);
-    for (const row of batch) {
-      const mapped = mapResult(row);
-      if (!mapped) continue;
-      const key = mapped.url.replace(/#.*$/, "").replace(/\/$/, "").toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(mapped);
-      if (out.length >= max) break;
-    }
-  }
-
-  return out;
-}
-
-/** Static fallback so the panel never looks empty if search providers are down. */
-function curatedFallback(): IndustryNewsArticle[] {
-  const items = [
-    {
-      title: "NFVF — National Film and Video Foundation",
-      summary:
-        "Track funding windows, transformation programmes, and official SA film development updates from the National Film and Video Foundation.",
-      url: "https://www.nfvf.co.za/",
-      host: "nfvf.co.za",
-    },
-    {
-      title: "Screen Africa — industry news",
-      summary:
-        "Production, festival, and distribution coverage focused on the African screen industries, including South Africa.",
-      url: "https://www.screenafrica.com/",
-      host: "screenafrica.com",
-    },
-    {
-      title: "Bizcommunity Media & Entertainment",
-      summary:
-        "South African media and entertainment business news spanning film, TV, advertising, and streaming.",
-      url: "https://www.bizcommunity.com/Category/196/15.html",
-      host: "bizcommunity.com",
-    },
-  ] as const;
-
-  return items.map((item) => ({
-    id: articleId(item.url, item.title),
-    title: item.title,
-    summary: item.summary,
-    url: item.url,
-    sourceName: sourceNameForHost(item.host),
-    sourceHost: item.host,
-    publishedLabel: "Hub",
-    provider: "duckduckgo" as const,
-  }));
-}
-
 export async function getCreatorIndustryNews(opts?: {
   forceRefresh?: boolean;
 }): Promise<IndustryNewsPayload> {
@@ -197,28 +437,39 @@ export async function getCreatorIndustryNews(opts?: {
     return { ...cache.payload, refreshed: false };
   }
 
-  let articles: IndustryNewsArticle[] = [];
-  try {
-    articles = await collectLiveArticles(12);
-  } catch {
-    articles = [];
+  const [rssArticles, webArticles] = await Promise.all([
+    collectFromRss().catch(() => [] as IndustryNewsArticle[]),
+    collectFromWebSearch().catch(() => [] as IndustryNewsArticle[]),
+  ]);
+
+  let live = dedupeAndRank([...rssArticles, ...webArticles], MAX_ARTICLES);
+  let providerNote: string | null = null;
+
+  if (live.length < 6) {
+    const hubs = curatedFallback();
+    live = dedupeAndRank([...live, ...hubs], MAX_ARTICLES);
+    if (rssArticles.length === 0 && webArticles.length === 0) {
+      providerNote =
+        "Live feeds were briefly unavailable — showing industry hubs. Tap refresh in a minute.";
+    }
   }
-  if (articles.length === 0) articles = curatedFallback();
 
   const payload: IndustryNewsPayload = {
-    articles,
-    sources: buildSources(articles),
+    articles: live,
+    sources: buildSources(live),
     fetchedAt: new Date().toISOString(),
     refreshed: true,
     staleAfterMinutes: STALE_AFTER_MINUTES,
     queryFocus: "South African film & screen industry",
+    liveCount: live.filter((a) => a.provider !== "curated").length,
+    providerNote,
   };
 
   cache = { payload, expiresAt: now + CACHE_TTL_MS };
   return payload;
 }
 
-/** Best-effort full-text extract for in-panel reading (same-origin server fetch). */
+/** Best-effort full-text extract for in-panel reading. */
 export async function extractArticleBody(urlRaw: string): Promise<{
   ok: boolean;
   title?: string;
@@ -238,35 +489,32 @@ export async function extractArticleBody(urlRaw: string): Promise<{
   }
 
   const host = hostFromUrl(url.toString());
+  if (isHubUrl(url.toString()) || host === "news.google.com") {
+    return {
+      ok: false,
+      error: "This link opens on the publisher’s site — use Open original to read the full piece.",
+      sourceHost: host,
+      sourceName: sourceNameForHost(host),
+    };
+  }
+
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 12_000);
-    const res = await fetch(url.toString(), {
-      method: "GET",
-      redirect: "follow",
-      headers: {
-        Accept: "text/html,application/xhtml+xml",
-        "User-Agent": "StoryTimeUniverseCreatorNews/1.0 (+https://story-time.online)",
-      },
-      signal: controller.signal,
-      next: { revalidate: 3600 },
-    }).finally(() => clearTimeout(timer));
-    if (!res.ok) {
+    const html = await fetchText(url.toString());
+    if (!html) {
       return {
         ok: false,
-        error: `Source returned ${res.status}. Open the original link instead.`,
+        error: "Could not reach this publisher. Open the original link instead.",
         sourceHost: host,
         sourceName: sourceNameForHost(host),
       };
     }
-    const html = await res.text();
     const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
     const title = titleMatch?.[1]?.replace(/\s+/g, " ").trim();
     const text = htmlToReadableText(html);
-    if (text.length < 120) {
+    if (text.length < 160) {
       return {
         ok: false,
-        error: "Could not extract a readable article body from this source.",
+        error: "This publisher blocks in-app reading. Open the original for the full story.",
         title,
         sourceHost: host,
         sourceName: sourceNameForHost(host),

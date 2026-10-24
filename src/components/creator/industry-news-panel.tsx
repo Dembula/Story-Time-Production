@@ -10,6 +10,7 @@ import {
   Loader2,
   Newspaper,
   RefreshCw,
+  Sparkles,
   X,
 } from "lucide-react";
 
@@ -21,6 +22,8 @@ export type IndustryNewsArticle = {
   sourceName: string;
   sourceHost: string;
   publishedLabel: string | null;
+  publishedAt?: string | null;
+  kind?: "article" | "hub";
 };
 
 type IndustryNewsPayload = {
@@ -30,6 +33,8 @@ type IndustryNewsPayload = {
   refreshed: boolean;
   staleAfterMinutes: number;
   queryFocus: string;
+  liveCount?: number;
+  providerNote?: string | null;
 };
 
 type IndustryNewsPanelProps = {
@@ -62,10 +67,26 @@ function ArticleCard({
   const [fullText, setFullText] = useState<string | null>(null);
   const [fullError, setFullError] = useState<string | null>(null);
   const [loadingFull, setLoadingFull] = useState(false);
+  const isHub = article.kind === "hub";
 
   useEffect(() => {
-    if (!expanded || fullText || fullError || loadingFull) return;
+    if (!expanded) return;
+    if (isHub) {
+      setLoadingFull(false);
+      setFullError(null);
+      return;
+    }
+    if (fullText || fullError || loadingFull) return;
+
     let cancelled = false;
+    let settled = false;
+    const timer = window.setTimeout(() => {
+      if (cancelled || settled) return;
+      settled = true;
+      setLoadingFull(false);
+      setFullError((prev) => prev || "Taking too long — open the original to read the full piece.");
+    }, 9000);
+
     setLoadingFull(true);
     fetch("/api/creator/industry-news/article", {
       method: "POST",
@@ -78,27 +99,34 @@ function ArticleCard({
           text?: string;
           error?: string;
         };
-        if (cancelled) return;
+        if (cancelled || settled) return;
+        settled = true;
         if (json.ok && json.text) {
           setFullText(json.text);
           setFullError(null);
         } else {
-          setFullError(json.error || "Full text unavailable — open the source below.");
+          setFullError(json.error || "Full text unavailable on this publisher.");
         }
       })
       .catch(() => {
-        if (!cancelled) setFullError("Could not load the full article. Open the source instead.");
+        if (cancelled || settled) return;
+        settled = true;
+        setFullError("Could not load in-app. Open the original instead.");
       })
       .finally(() => {
         if (!cancelled) setLoadingFull(false);
+        window.clearTimeout(timer);
       });
+
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [expanded, article.url, fullText, fullError, loadingFull]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetch once per expand
+  }, [expanded, article.url, isHub]);
 
   return (
-    <article className="rounded-xl border border-white/10 bg-white/[0.03] transition hover:border-orange-400/25 hover:bg-orange-500/[0.04]">
+    <article className="overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.04] to-white/[0.02] shadow-sm shadow-black/20 transition hover:border-orange-400/30 hover:from-orange-500/[0.07] hover:to-white/[0.02]">
       <button
         type="button"
         onClick={onToggle}
@@ -106,11 +134,20 @@ function ArticleCard({
         aria-expanded={expanded}
       >
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-orange-300/80">
-            {article.sourceName}
-            {article.publishedLabel ? ` · ${article.publishedLabel}` : ""}
-          </p>
-          <h3 className="mt-1.5 text-sm font-semibold leading-snug text-white">{article.title}</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-orange-400/25 bg-orange-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-orange-200">
+              {article.sourceName}
+            </span>
+            {article.publishedLabel ? (
+              <span className="text-[10px] uppercase tracking-wide text-slate-500">
+                {article.publishedLabel}
+              </span>
+            ) : null}
+            {isHub ? (
+              <span className="text-[10px] uppercase tracking-wide text-slate-600">Hub</span>
+            ) : null}
+          </div>
+          <h3 className="mt-2 text-[15px] font-semibold leading-snug text-white">{article.title}</h3>
           {!expanded ? (
             <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-slate-400">{article.summary}</p>
           ) : null}
@@ -132,21 +169,25 @@ function ArticleCard({
             <div className="space-y-3 border-t border-white/8 px-4 pb-4 pt-3">
               <p className="text-sm leading-relaxed text-slate-300">{article.summary}</p>
 
-              {loadingFull ? (
+              {!isHub && loadingFull ? (
                 <div className="flex items-center gap-2 text-xs text-slate-500">
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-orange-400" />
-                  Loading full article…
+                  Pulling full article…
                 </div>
               ) : null}
 
               {fullText ? (
-                <div className="max-h-72 overflow-y-auto rounded-lg border border-white/8 bg-black/30 p-3 text-xs leading-relaxed text-slate-300 whitespace-pre-wrap">
+                <div className="max-h-80 overflow-y-auto rounded-xl border border-white/8 bg-black/35 p-3.5 text-[13px] leading-relaxed text-slate-300 whitespace-pre-wrap">
                   {fullText}
                 </div>
               ) : null}
 
-              {fullError && !fullText ? (
-                <p className="text-xs text-amber-200/90">{fullError}</p>
+              {(fullError || isHub) && !fullText ? (
+                <div className="rounded-xl border border-amber-400/20 bg-amber-500/[0.07] px-3 py-2.5 text-xs leading-relaxed text-amber-100/90">
+                  {isHub
+                    ? "This is a publisher hub. Open the original site to browse their latest stories."
+                    : fullError}
+                </div>
               ) : null}
 
               <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/8 pt-3">
@@ -160,10 +201,10 @@ function ArticleCard({
                   href={article.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-orange-400/30 bg-orange-500/10 px-2.5 py-1.5 text-[11px] font-medium text-orange-200 hover:bg-orange-500/20"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-orange-400"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  Open original
+                  {isHub ? "Visit hub" : "Read full story"}
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </div>
@@ -185,7 +226,10 @@ export function IndustryNewsPanel({ open, onClose }: IndustryNewsPanelProps) {
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setExpandedId(null);
+      return;
+    }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -206,12 +250,13 @@ export function IndustryNewsPanel({ open, onClose }: IndustryNewsPanelProps) {
       return (await res.json()) as IndustryNewsPayload;
     },
     enabled: open,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 3 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
+    setExpandedId(null);
     try {
       const res = await fetch("/api/creator/industry-news?refresh=1");
       if (!res.ok) throw new Error("Refresh failed");
@@ -240,7 +285,7 @@ export function IndustryNewsPanel({ open, onClose }: IndustryNewsPanelProps) {
           <motion.button
             type="button"
             aria-label="Close industry news"
-            className="fixed inset-0 z-[1988] bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[1988] bg-black/65 backdrop-blur-sm"
             initial={prefersReducedMotion ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={prefersReducedMotion ? undefined : { opacity: 0 }}
@@ -250,66 +295,80 @@ export function IndustryNewsPanel({ open, onClose }: IndustryNewsPanelProps) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="industry-news-title"
-            className="fixed inset-y-0 left-0 z-[1990] flex w-full max-w-md flex-col border-r border-orange-500/20 bg-gradient-to-b from-slate-950 via-slate-950 to-black shadow-2xl shadow-orange-500/10"
+            className="fixed inset-y-0 left-0 z-[1990] flex w-full max-w-[26rem] flex-col border-r border-orange-500/25 bg-gradient-to-b from-[#0b0f16] via-slate-950 to-black shadow-2xl shadow-orange-500/15"
             initial={prefersReducedMotion ? false : { x: "-100%" }}
             animate={{ x: 0 }}
             exit={prefersReducedMotion ? undefined : { x: "-100%" }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           >
-            <header className="flex shrink-0 items-start justify-between gap-3 border-b border-orange-500/15 bg-orange-500/[0.06] px-5 py-4">
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-orange-300/80">
-                  Creator briefing
-                </p>
-                <h2
-                  id="industry-news-title"
-                  className="mt-1 flex items-center gap-2 font-display text-lg font-semibold text-white"
-                >
-                  <Newspaper className="h-5 w-5 text-orange-400" />
-                  SA film news
-                </h2>
-                <p className="mt-1 text-xs leading-relaxed text-slate-400">
-                  Live updates for the South African screen industry — funding, festivals,
-                  production, and distribution.
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => void refresh()}
-                  disabled={refreshing || isFetching}
-                  className="rounded-xl border border-white/10 p-2 text-slate-400 hover:bg-white/5 hover:text-white disabled:opacity-50"
-                  title="Refresh news"
-                  aria-label="Refresh news"
-                >
-                  <RefreshCw className={`h-4 w-4 ${refreshing || isFetching ? "animate-spin" : ""}`} />
-                </button>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="rounded-xl border border-white/10 p-2 text-slate-400 hover:bg-white/5 hover:text-white"
-                  aria-label="Close"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+            <header className="relative shrink-0 overflow-hidden border-b border-orange-500/20 px-5 pb-4 pt-5">
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(249,115,22,0.18),transparent_55%)]" />
+              <div className="relative flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-orange-300/85">
+                    Creator briefing
+                  </p>
+                  <h2
+                    id="industry-news-title"
+                    className="mt-1.5 flex items-center gap-2 font-display text-xl font-semibold text-white"
+                  >
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-orange-400/30 bg-orange-500/15">
+                      <Newspaper className="h-4 w-4 text-orange-400" />
+                    </span>
+                    SA film news
+                  </h2>
+                  <p className="mt-2 max-w-sm text-xs leading-relaxed text-slate-400">
+                    Fresh South African screen industry coverage — funding, festivals, production,
+                    and distribution from many outlets.
+                  </p>
+                </div>
+                <div className="relative flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => void refresh()}
+                    disabled={refreshing || isFetching}
+                    className="rounded-xl border border-white/10 bg-white/[0.03] p-2 text-slate-400 hover:bg-white/5 hover:text-white disabled:opacity-50"
+                    title="Refresh news"
+                    aria-label="Refresh news"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${refreshing || isFetching ? "animate-spin" : ""}`} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="rounded-xl border border-white/10 bg-white/[0.03] p-2 text-slate-400 hover:bg-white/5 hover:text-white"
+                    aria-label="Close"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </header>
 
-            <div className="flex items-center justify-between gap-2 border-b border-white/8 px-5 py-2.5 text-[11px] text-slate-500">
-              <span>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/8 px-5 py-2.5 text-[11px] text-slate-500">
+              <span className="inline-flex items-center gap-1.5">
+                <Sparkles className="h-3 w-3 text-orange-400/80" />
                 {updatedLabel ? `Updated ${updatedLabel}` : "Fetching…"}
-                {data?.staleAfterMinutes
-                  ? ` · refreshes about every ${data.staleAfterMinutes} min`
-                  : ""}
               </span>
-              <span className="text-slate-600">{articles.length} stories</span>
+              <span className="text-slate-400">
+                {articles.length} stories
+                {typeof data?.liveCount === "number" ? (
+                  <span className="text-slate-600"> · {data.liveCount} live</span>
+                ) : null}
+              </span>
             </div>
+
+            {data?.providerNote ? (
+              <div className="border-b border-amber-400/20 bg-amber-500/10 px-5 py-2 text-[11px] text-amber-100/90">
+                {data.providerNote}
+              </div>
+            ) : null}
 
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
               {isLoading ? (
-                <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-sm text-slate-400">
-                  <Loader2 className="h-6 w-6 animate-spin text-orange-400" />
-                  Gathering South African film industry updates…
+                <div className="flex min-h-[45vh] flex-col items-center justify-center gap-3 text-sm text-slate-400">
+                  <Loader2 className="h-7 w-7 animate-spin text-orange-400" />
+                  Gathering stories from South African film outlets…
                 </div>
               ) : error ? (
                 <div className="rounded-xl border border-red-400/25 bg-red-500/10 p-4 text-sm text-red-100">
@@ -337,11 +396,11 @@ export function IndustryNewsPanel({ open, onClose }: IndustryNewsPanelProps) {
             </div>
 
             {sources.length > 0 ? (
-              <footer className="shrink-0 border-t border-white/10 bg-black/40 px-5 py-4">
+              <footer className="shrink-0 border-t border-white/10 bg-black/50 px-5 py-4">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Sources in this briefing
+                  Sources in this briefing ({sources.length})
                 </p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
+                <div className="mt-2.5 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto">
                   {sources.map((s) => (
                     <span
                       key={s.host || s.name}
@@ -354,8 +413,8 @@ export function IndustryNewsPanel({ open, onClose }: IndustryNewsPanelProps) {
                   ))}
                 </div>
                 <p className="mt-3 text-[10px] leading-relaxed text-slate-600">
-                  Headlines are aggregated from public web sources. Always verify details on the
-                  original outlet before acting on funding or festival dates.
+                  Aggregated from public news feeds. Always verify funding dates and festival
+                  details on the original outlet.
                 </p>
               </footer>
             ) : null}
