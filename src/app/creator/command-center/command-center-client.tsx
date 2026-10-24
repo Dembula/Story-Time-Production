@@ -16,6 +16,7 @@ import {
   FolderKanban,
   Layers,
   LineChart,
+  Newspaper,
   Percent,
   Radio,
   Sparkles,
@@ -37,6 +38,7 @@ import { CommandCenterCalendar } from "@/components/creator/command-center-calen
 import { AudienceAgeChart } from "@/components/creator/audience-age-chart";
 import { AudiencePieChart } from "@/components/creator/audience-pie-chart";
 import { EngagementFeed } from "@/components/creator/engagement-feed";
+import { IndustryNewsPanel } from "@/components/creator/industry-news-panel";
 
 type RevenueData = {
   revenue: number;
@@ -117,6 +119,7 @@ export function CommandCenterClient() {
     payoutStatus?: string | null;
   } | null>(null);
   const [selectedFilmId, setSelectedFilmId] = useState<string | null>(null);
+  const [newsOpen, setNewsOpen] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -214,11 +217,20 @@ export function CommandCenterClient() {
   if (loading) {
     return (
       <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
-        <div>
+        <IndustryNewsPanel open={newsOpen} onClose={() => setNewsOpen(false)} />
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <h1 className="mb-2 flex items-center gap-3 font-display text-2xl font-semibold text-white md:text-3xl">
             <Radio className="w-8 h-8 text-orange-500" />
             Command Center
           </h1>
+          <button
+            type="button"
+            onClick={() => setNewsOpen(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-orange-400/35 bg-orange-500/10 px-4 py-2.5 text-sm font-medium text-orange-100 hover:bg-orange-500/20"
+          >
+            <Newspaper className="h-4 w-4 text-orange-400" />
+            News
+          </button>
         </div>
         <CommandCenterCalendar />
         <div className="flex items-center justify-center min-h-[30vh]">
@@ -231,11 +243,20 @@ export function CommandCenterClient() {
   if (!cc) {
     return (
       <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
-        <div>
+        <IndustryNewsPanel open={newsOpen} onClose={() => setNewsOpen(false)} />
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <h1 className="mb-2 flex items-center gap-3 font-display text-2xl font-semibold text-white md:text-3xl">
             <Radio className="w-8 h-8 text-orange-500" />
             Command Center
           </h1>
+          <button
+            type="button"
+            onClick={() => setNewsOpen(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-orange-400/35 bg-orange-500/10 px-4 py-2.5 text-sm font-medium text-orange-100 hover:bg-orange-500/20"
+          >
+            <Newspaper className="h-4 w-4 text-orange-400" />
+            News
+          </button>
         </div>
         <CommandCenterCalendar />
         <div className="rounded-xl border border-red-400/25 bg-red-500/10 p-4 text-sm text-red-100">
@@ -260,8 +281,9 @@ export function CommandCenterClient() {
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
+      <IndustryNewsPanel open={newsOpen} onClose={() => setNewsOpen(false)} />
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div data-tour="cc-title">
+        <div data-tour="cc-title" className="min-w-0 flex-1">
           <h1 className="mb-2 flex items-center gap-3 font-display text-2xl font-semibold text-white md:text-3xl">
             <Radio className="w-8 h-8 text-orange-500" />
             Command Center
@@ -270,6 +292,17 @@ export function CommandCenterClient() {
             Decision layer for your studio: audience, monetization (ZAR), catalogue performance, production health, and AI
             assistance — wired to the same data as scheduling, control center, call sheets, and payouts.
           </p>
+        </div>
+        <div className="shrink-0 pt-1">
+          <button
+            type="button"
+            onClick={() => setNewsOpen(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-orange-400/35 bg-orange-500/10 px-4 py-2.5 text-sm font-medium text-orange-100 shadow-sm shadow-orange-500/10 transition hover:border-orange-400/55 hover:bg-orange-500/20 hover:text-white"
+            data-tour="cc-news"
+          >
+            <Newspaper className="h-4 w-4 text-orange-400" />
+            News
+          </button>
         </div>
       </div>
 
