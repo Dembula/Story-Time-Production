@@ -41,17 +41,20 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   }
 
   const body = await req.json().catch(() => ({}));
+  const origin = req.nextUrl?.origin || null;
   const result = await createFestivalTeamInvite({
     festivalId,
     invitedByUserId: auth.userId,
     email: typeof body.email === "string" ? body.email : "",
     role: typeof body.role === "string" ? body.role : "STAGE1_REVIEWER",
     personalMessage: typeof body.personalMessage === "string" ? body.personalMessage : null,
+    origin,
   });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
 
   return NextResponse.json({
     invite: result.invite,
-    joinUrl: buildAppUrl(`/festival/join/${result.invite.token}`),
+    joinUrl: result.joinUrl || buildAppUrl(`/festival/join/${result.invite.token}`),
+    emailed: result.emailed,
   }, { status: 201 });
 }

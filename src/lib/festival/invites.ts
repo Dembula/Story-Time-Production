@@ -5,9 +5,33 @@ import { prisma } from "@/lib/prisma";
 import { normalizeInviteEmail, inviteExpiresAtDefault } from "@/lib/creator-team-invites";
 import { FESTIVAL_MEMBER_ROLE } from "@/lib/festival/constants";
 import { notifyUser } from "@/lib/notify-user";
+import { sendTransactionalEmail } from "@/lib/email";
+import { buildAppUrl } from "@/lib/app-url";
 
 export function generateFestivalInviteToken(): string {
   return randomBytes(24).toString("hex");
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function roleLabel(role: string): string {
+  switch (role) {
+    case FESTIVAL_MEMBER_ROLE.ADMIN:
+      return "Festival admin";
+    case FESTIVAL_MEMBER_ROLE.STAGE1_REVIEWER:
+      return "Stage 1 reviewer";
+    case FESTIVAL_MEMBER_ROLE.STAGE2_REVIEWER:
+      return "Stage 2 reviewer";
+    default:
+      return role.replace(/_/g, " ");
+  }
 }
 
 /** Attach pending festival invites to a newly registered / known user by email. */
@@ -34,6 +58,7 @@ export async function createFestivalTeamInvite(args: {
   email: string;
   role: string;
   personalMessage?: string | null;
+  origin?: string | null;
 }) {
   const emailNorm = normalizeInviteEmail(args.email);
   if (!emailNorm) return { ok: false as const, error: "Invalid email." };
@@ -46,6 +71,12 @@ export async function createFestivalTeamInvite(args: {
   if (!allowedRoles.has(args.role as never)) {
     return { ok: false as const, error: "Invalid invite role." };
   }
+
+  const festival = await prisma.festival.findUnique({
+    where: { id: args.festivalId },
+    select: { id: true, name: true },
+  });
+  if (!festival) return { ok: false as const, error: "Festival not found." };
 
   const existingMember = await prisma.user.findFirst({
     where: { email: { equals: emailNorm, mode: "insensitive" } },
@@ -63,6 +94,11 @@ export async function createFestivalTeamInvite(args: {
   });
   if (pending) return { ok: false as const, error: "A pending invite already exists for this email." };
 
+  const inviter = await prisma.user.findUnique({
+    where: { id: args.invitedByUserId },
+    select: { name: true, email: true },
+  });
+
   const invite = await prisma.festivalTeamInvite.create({
     data: {
       festivalId: args.festivalId,
@@ -77,21 +113,72 @@ export async function createFestivalTeamInvite(args: {
     },
   });
 
+  const joinPath = `/festival/join/${invite.token}`;
+  const joinUrl = args.origin
+    ? `${args.origin.replace(/\/$/, "")}${joinPath}`
+    : buildAppUrl(joinPath);
+
+  const inviterLabel = inviter?.name?.trim() || inviter?.email?.trim() || "A Story Time festival curator";
+  const roleText = roleLabel(args.role);
+  const personalMessage = args.personalMessage?.trim() || null;
+
+  const emailBody = [
+    `${inviterLabel} invited you to join the review team for "${festival.name}" on Story Time Festivals.`,
+    `Role: ${roleText}`,
+    personalMessage ? `\nMessage:\n${personalMessage}` : "",
+    "",
+    existingMember
+      ? "Sign in with this email and open the link to accept:"
+      : "Create a Story Time account with this email (or sign in), then open the link to join the festival team:",
+    joinUrl,
+    "",
+    "This invite expires in 14 days.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  let emailed = false;
+  try {
+    emailed = await sendTransactionalEmail({
+      to: emailNorm,
+      subject: `You're invited to review "${festival.name}"`,
+      text: emailBody,
+      html: `
+      <p><strong>${escapeHtml(inviterLabel)}</strong> invited you to join the review team for
+      <strong>${escapeHtml(festival.name)}</strong> on Story Time Festivals.</p>
+      <p>Role: ${escapeHtml(roleText)}</p>
+      ${personalMessage ? `<p>${escapeHtml(personalMessage)}</p>` : ""}
+      <p><a href="${joinUrl}">${existingMember ? "Accept festival team invite" : "Create your account & join"}</a></p>
+      <p style="color:#888;font-size:12px">This invite expires in 14 days.</p>
+    `,
+    });
+    if (!emailed) {
+      console.error("festival team invite email did not send", { emailNorm, festivalId: festival.id });
+    }
+  } catch (err) {
+    console.error("festival team invite email failed", err);
+  }
+
   if (existingMember) {
     await notifyUser({
       userId: existingMember.id,
       type: "FESTIVAL_TEAM_INVITE",
       title: "Festival team invitation",
-      body: "You have been invited to join a festival review team on Story Time.",
+      body: `${inviterLabel} invited you to join "${festival.name}" as ${roleText}. Open the invite link in your email or Festival portal.`,
       metadata: {
-        url: `/festival/join/${invite.token}`,
+        url: joinPath,
         inviteId: invite.id,
         festivalId: args.festivalId,
       },
     }).catch(() => {});
   }
 
-  return { ok: true as const, invite };
+  return {
+    ok: true as const,
+    invite,
+    joinUrl,
+    emailed: Boolean(emailed),
+  };
 }
 
 export async function acceptFestivalTeamInvite(args: {

@@ -12,6 +12,7 @@ import { initializeCheckout } from "@/lib/payments/billing";
 import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
 import { createUniverseHoldContent } from "@/lib/festival/universe-hold";
 import { festivalSubmissionHasSuccessfulPayment } from "@/lib/festival/payment";
+import { packFestivalImageUrl, packFestivalVideoUrl } from "@/lib/festival/media-urls";
 
 type Ctx = { params: Promise<{ festivalId: string }> };
 
@@ -47,8 +48,34 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const feeAmountZar = feeForTier(category, tier);
   const universeOptIn = Boolean(body.universeOptIn);
   const stillUrls = Array.isArray(body.stillUrls)
-    ? body.stillUrls.filter((u: unknown) => typeof u === "string")
+    ? body.stillUrls
+        .filter((u: unknown): u is string => typeof u === "string" && u.trim().length > 0)
+        .map((u: string) => packFestivalImageUrl(u.trim()) ?? u.trim())
     : [];
+
+  const rawScreener = typeof body.screenerUrl === "string" ? body.screenerUrl.trim() : "";
+  if (!rawScreener) {
+    return NextResponse.json({ error: "Screener upload or URL is required." }, { status: 400 });
+  }
+  const screenerUrl = packFestivalVideoUrl(rawScreener) ?? rawScreener;
+  const rawTrailer = typeof body.trailerUrl === "string" ? body.trailerUrl.trim() : "";
+  const trailerUrl = rawTrailer ? packFestivalVideoUrl(rawTrailer) ?? rawTrailer : null;
+
+  const contact = body.contact && typeof body.contact === "object" ? body.contact : null;
+  const contactEmail =
+    contact && typeof (contact as { email?: unknown }).email === "string"
+      ? String((contact as { email: string }).email).trim()
+      : "";
+  const contactPhone =
+    contact && typeof (contact as { phone?: unknown }).phone === "string"
+      ? String((contact as { phone: string }).phone).trim()
+      : "";
+  if (!contactEmail || !contactEmail.includes("@")) {
+    return NextResponse.json({ error: "Contact email is required." }, { status: 400 });
+  }
+  if (!contactPhone) {
+    return NextResponse.json({ error: "Contact phone is required." }, { status: 400 });
+  }
 
   const submission = await prisma.festivalSubmission.create({
     data: {
@@ -63,8 +90,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
         credits: body.credits ?? null,
         specifications: body.specifications ?? null,
       },
-      screenerUrl: typeof body.screenerUrl === "string" ? body.screenerUrl.trim() : null,
-      trailerUrl: typeof body.trailerUrl === "string" ? body.trailerUrl.trim() : null,
+      screenerUrl,
+      trailerUrl,
       stillUrls,
       feeAmountZar,
       paymentStatus: feeAmountZar > 0 ? "AWAITING_PAYMENT" : "PAID",

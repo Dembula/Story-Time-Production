@@ -13,6 +13,7 @@ export default function FestivalTeamPage() {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("STAGE1_REVIEWER");
   const [joinUrl, setJoinUrl] = useState("");
+  const [emailStatus, setEmailStatus] = useState("");
   const [error, setError] = useState("");
   const qc = useQueryClient();
 
@@ -38,11 +39,19 @@ export default function FestivalTeamPage() {
     },
     onSuccess: (json) => {
       setJoinUrl(json.joinUrl || "");
+      setEmailStatus(
+        json.emailed
+          ? "Invite email sent. They can also use the link below."
+          : "Invite saved. Email transport did not confirm delivery — share the link below.",
+      );
       setEmail("");
       setError("");
       qc.invalidateQueries({ queryKey: ["festival-team", activeId] });
     },
-    onError: (e: Error) => setError(e.message),
+    onError: (e: Error) => {
+      setEmailStatus("");
+      setError(e.message);
+    },
   });
 
   return (
@@ -102,8 +111,11 @@ export default function FestivalTeamPage() {
                 Send invite
               </button>
               {error ? <p className="text-sm text-red-400 sm:col-span-3">{error}</p> : null}
+              {emailStatus ? (
+                <p className="text-sm text-emerald-300 sm:col-span-3">{emailStatus}</p>
+              ) : null}
               {joinUrl ? (
-                <p className="break-all text-xs text-emerald-300 sm:col-span-3">Invite link: {joinUrl}</p>
+                <p className="break-all text-xs text-slate-400 sm:col-span-3">Invite link: {joinUrl}</p>
               ) : null}
             </form>
           </OpsSection>

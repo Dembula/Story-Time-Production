@@ -99,6 +99,7 @@ export default function FestivalSubmissionsPage() {
                       <th className="px-4 py-3">Fee</th>
                       <th className="px-4 py-3">Stage</th>
                       <th className="px-4 py-3">Selection</th>
+                      <th className="px-4 py-3">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -120,6 +121,14 @@ export default function FestivalSubmissionsPage() {
                           {s.stage1Group ? ` · ${s.stage1Group}` : ""}
                         </td>
                         <td className="px-4 py-3 text-slate-400">{s.selectionStatus.replace(/_/g, " ")}</td>
+                        <td className="px-4 py-3">
+                          <Link
+                            href={`/festival/review/${s.id}`}
+                            className="rounded-lg border border-orange-400/35 px-2.5 py-1 text-xs font-semibold text-orange-200 hover:bg-orange-500/10"
+                          >
+                            View details
+                          </Link>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

@@ -103,48 +103,73 @@ export default function FestivalReviewHubPage() {
                 body="Entries show here after filmmakers complete payment."
               />
             ) : (
-              <div className="overflow-hidden rounded-2xl border border-white/8">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="bg-white/[0.03] text-[11px] uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-4 py-3">Title</th>
-                      <th className="px-4 py-3">Category</th>
-                      <th className="px-4 py-3">Group</th>
-                      <th className="px-4 py-3">Selection</th>
-                      <th className="px-4 py-3">Flags</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {submissions.map((s: {
-                      id: string;
-                      title: string;
-                      stage1Group?: string | null;
-                      selectionStatus: string;
-                      escalateFlag: boolean;
-                      category?: { name: string };
-                    }) => (
-                      <tr key={s.id} className="border-t border-white/8 hover:bg-white/[0.02]">
-                        <td className="px-4 py-3">
-                          <Link
-                            href={`/festival/review/${s.id}`}
-                            className="font-medium text-white hover:text-orange-200"
+              <ul className="space-y-2">
+                {submissions.map((s: {
+                  id: string;
+                  title: string;
+                  stage1Group?: string | null;
+                  selectionStatus: string;
+                  escalateFlag: boolean;
+                  reviewStage?: string;
+                  category?: { name: string };
+                  creator?: { name?: string | null; email?: string | null };
+                }) => {
+                  const official = s.selectionStatus === "OFFICIAL_SELECTION";
+                  return (
+                    <li
+                      key={s.id}
+                      className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 ${
+                        official
+                          ? "border-emerald-400/30 bg-emerald-500/[0.06]"
+                          : s.escalateFlag || s.reviewStage === "STAGE2"
+                            ? "border-orange-400/20 bg-orange-500/[0.04]"
+                            : "border-white/8 bg-white/[0.02]"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <Link
+                          href={`/festival/review/${s.id}`}
+                          className="font-medium text-white hover:text-orange-200"
+                        >
+                          {s.title}
+                        </Link>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          {s.category?.name || "—"}
+                          {s.creator?.name || s.creator?.email
+                            ? ` · ${s.creator?.name || s.creator?.email}`
+                            : ""}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold text-slate-300">
+                            {s.reviewStage === "STAGE2" ? "Stage 2" : "Stage 1"}
+                            {s.stage1Group ? ` · ${s.stage1Group}` : ""}
+                          </span>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                              official
+                                ? "bg-emerald-500/20 text-emerald-100"
+                                : "bg-white/[0.06] text-slate-400"
+                            }`}
                           >
-                            {s.title}
-                          </Link>
-                        </td>
-                        <td className="px-4 py-3 text-slate-400">{s.category?.name || "—"}</td>
-                        <td className="px-4 py-3 text-slate-300">{s.stage1Group || "—"}</td>
-                        <td className="px-4 py-3 text-slate-400">
-                          {s.selectionStatus.replace(/_/g, " ")}
-                        </td>
-                        <td className="px-4 py-3 text-amber-200/80">
-                          {s.escalateFlag ? "Escalate" : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                            {s.selectionStatus.replace(/_/g, " ")}
+                          </span>
+                          {s.escalateFlag ? (
+                            <span className="rounded-full bg-orange-500/20 px-2 py-0.5 text-[10px] font-semibold text-orange-100">
+                              Escalated
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                      <Link
+                        href={`/festival/review/${s.id}`}
+                        className="rounded-xl bg-orange-500/90 px-3.5 py-2 text-xs font-semibold text-slate-950 hover:bg-orange-400"
+                      >
+                        Review
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </OpsSection>
         </>
