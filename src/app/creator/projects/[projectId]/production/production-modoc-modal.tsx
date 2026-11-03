@@ -11,6 +11,7 @@ const PRODUCTION_MODOC_TASKS = [
   "on_set_tasks",
   "equipment_tracking",
   "shoot_progress",
+  "cont_sheet",
   "continuity_manager",
   "dailies_review",
   "production_expense_tracker",
