@@ -898,26 +898,71 @@ export function ContSheetStudio({ projectId, title }: Props) {
                 <p className="px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                   Scenes
                 </p>
-                {day.scenes.map((s) => (
-                  <button
-                    key={s.clientKey}
-                    type="button"
-                    onClick={() => {
-                      setActiveSceneKey(s.clientKey);
-                      setSelectedTakeKey(s.takes[0]?.clientKey ?? null);
-                    }}
-                    className={`block w-full rounded-xl px-3 py-2 text-left text-sm ${
-                      activeScene?.clientKey === s.clientKey
-                        ? "bg-orange-500/20 text-orange-100 ring-1 ring-orange-400/30"
-                        : "text-slate-300 hover:bg-white/[0.04]"
-                    }`}
-                  >
-                    {s.sceneCode || "Untitled"}
-                    <span className="mt-0.5 block text-[10px] text-slate-500">
-                      {s.takes.length} take{s.takes.length === 1 ? "" : "s"}
-                    </span>
-                  </button>
-                ))}
+                {day.scenes.map((s) => {
+                  const selected = activeScene?.clientKey === s.clientKey;
+                  return (
+                    <div
+                      key={s.clientKey}
+                      className={`group flex items-stretch gap-0.5 rounded-xl ${
+                        selected
+                          ? "bg-orange-500/20 text-orange-100 ring-1 ring-orange-400/30"
+                          : "text-slate-300 hover:bg-white/[0.04]"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveSceneKey(s.clientKey);
+                          setSelectedTakeKey(s.takes[0]?.clientKey ?? null);
+                        }}
+                        className="min-w-0 flex-1 px-3 py-2 text-left text-sm"
+                      >
+                        {s.sceneCode || "Untitled"}
+                        <span
+                          className={`mt-0.5 block text-[10px] ${
+                            selected ? "text-orange-200/70" : "text-slate-500"
+                          }`}
+                        >
+                          {s.takes.length} take{s.takes.length === 1 ? "" : "s"}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        title="Delete scene"
+                        aria-label={`Delete scene ${s.sceneCode || "Untitled"}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (
+                            !window.confirm(
+                              `Delete scene ${s.sceneCode || "Untitled"} and its takes?`,
+                            )
+                          ) {
+                            return;
+                          }
+                          const remaining = day.scenes.filter((x) => x.clientKey !== s.clientKey);
+                          const next =
+                            remaining.find((x) => x.clientKey === activeSceneKey) ??
+                            remaining[Math.max(0, day.scenes.findIndex((x) => x.clientKey === s.clientKey) - 1)] ??
+                            remaining[0] ??
+                            null;
+                          setDay((d) =>
+                            d
+                              ? deriveContSheetMetrics({
+                                  ...d,
+                                  scenes: remaining,
+                                })
+                              : d,
+                          );
+                          setActiveSceneKey(next?.clientKey ?? null);
+                          setSelectedTakeKey(next?.takes[0]?.clientKey ?? null);
+                        }}
+                        className="shrink-0 rounded-lg px-2 text-slate-500 opacity-70 hover:bg-red-500/15 hover:text-red-300 group-hover:opacity-100"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
                 <button
                   type="button"
                   onClick={() => {
