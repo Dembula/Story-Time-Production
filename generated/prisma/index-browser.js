@@ -2774,6 +2774,60 @@ exports.Prisma.RiskChecklistItemScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.ContSheetDayScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  shootDayId: 'shootDayId',
+  version: 'version',
+  showTitle: 'showTitle',
+  productionCompany: 'productionCompany',
+  callSheetNumber: 'callSheetNumber',
+  reportDate: 'reportDate',
+  cameraUnit: 'cameraUnit',
+  crewJson: 'crewJson',
+  dayClockJson: 'dayClockJson',
+  scenesSummaryJson: 'scenesSummaryJson',
+  totalsJson: 'totalsJson',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ContSheetSceneScalarFieldEnum = {
+  id: 'id',
+  dayId: 'dayId',
+  projectSceneId: 'projectSceneId',
+  episode: 'episode',
+  sceneCode: 'sceneCode',
+  dayNight: 'dayNight',
+  intExt: 'intExt',
+  location: 'location',
+  weather: 'weather',
+  turnoverTime: 'turnoverTime',
+  estimatedTiming: 'estimatedTiming',
+  actualTiming: 'actualTiming',
+  completionStatus: 'completionStatus',
+  sortOrder: 'sortOrder',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ContSheetTakeScalarFieldEnum = {
+  id: 'id',
+  sceneId: 'sceneId',
+  slate: 'slate',
+  takeNumber: 'takeNumber',
+  pickup: 'pickup',
+  printStatus: 'printStatus',
+  durationSec: 'durationSec',
+  description: 'description',
+  notes: 'notes',
+  camera: 'camera',
+  sortOrder: 'sortOrder',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.ContinuityNoteScalarFieldEnum = {
   id: 'id',
   projectId: 'projectId',
@@ -3699,6 +3753,9 @@ exports.Prisma.ModelName = {
   EquipmentPlanItem: 'EquipmentPlanItem',
   RiskPlan: 'RiskPlan',
   RiskChecklistItem: 'RiskChecklistItem',
+  ContSheetDay: 'ContSheetDay',
+  ContSheetScene: 'ContSheetScene',
+  ContSheetTake: 'ContSheetTake',
   ContinuityNote: 'ContinuityNote',
   DailiesBatch: 'DailiesBatch',
   DailiesClip: 'DailiesClip',

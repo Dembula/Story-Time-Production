@@ -984,6 +984,21 @@ export type RiskPlan = $Result.DefaultSelection<Prisma.$RiskPlanPayload>
  */
 export type RiskChecklistItem = $Result.DefaultSelection<Prisma.$RiskChecklistItemPayload>
 /**
+ * Model ContSheetDay
+ * 
+ */
+export type ContSheetDay = $Result.DefaultSelection<Prisma.$ContSheetDayPayload>
+/**
+ * Model ContSheetScene
+ * 
+ */
+export type ContSheetScene = $Result.DefaultSelection<Prisma.$ContSheetScenePayload>
+/**
+ * Model ContSheetTake
+ * 
+ */
+export type ContSheetTake = $Result.DefaultSelection<Prisma.$ContSheetTakePayload>
+/**
  * Model ContinuityNote
  * 
  */
@@ -3315,6 +3330,36 @@ export class PrismaClient<
   get riskChecklistItem(): Prisma.RiskChecklistItemDelegate<ExtArgs>;
 
   /**
+   * `prisma.contSheetDay`: Exposes CRUD operations for the **ContSheetDay** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more ContSheetDays
+    * const contSheetDays = await prisma.contSheetDay.findMany()
+    * ```
+    */
+  get contSheetDay(): Prisma.ContSheetDayDelegate<ExtArgs>;
+
+  /**
+   * `prisma.contSheetScene`: Exposes CRUD operations for the **ContSheetScene** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more ContSheetScenes
+    * const contSheetScenes = await prisma.contSheetScene.findMany()
+    * ```
+    */
+  get contSheetScene(): Prisma.ContSheetSceneDelegate<ExtArgs>;
+
+  /**
+   * `prisma.contSheetTake`: Exposes CRUD operations for the **ContSheetTake** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more ContSheetTakes
+    * const contSheetTakes = await prisma.contSheetTake.findMany()
+    * ```
+    */
+  get contSheetTake(): Prisma.ContSheetTakeDelegate<ExtArgs>;
+
+  /**
    * `prisma.continuityNote`: Exposes CRUD operations for the **ContinuityNote** model.
     * Example usage:
     * ```ts
@@ -4478,6 +4523,9 @@ export namespace Prisma {
     EquipmentPlanItem: 'EquipmentPlanItem',
     RiskPlan: 'RiskPlan',
     RiskChecklistItem: 'RiskChecklistItem',
+    ContSheetDay: 'ContSheetDay',
+    ContSheetScene: 'ContSheetScene',
+    ContSheetTake: 'ContSheetTake',
     ContinuityNote: 'ContinuityNote',
     DailiesBatch: 'DailiesBatch',
     DailiesClip: 'DailiesClip',
@@ -4546,7 +4594,7 @@ export namespace Prisma {
 
   export type TypeMap<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, ClientOptions = {}> = {
     meta: {
-      modelProps: "account" | "session" | "verificationToken" | "user" | "userRole" | "promoCode" | "promoCodeRedemption" | "studioCompany" | "creatorStudioProfile" | "creatorStudioTeamInvite" | "creatorAccountProfileVault" | "adminRequest" | "adminAccessApplication" | "content" | "contentSeason" | "contentEpisode" | "contentEnrichment" | "knowledgeChunk" | "knowledgeEdge" | "aiRequestLog" | "contentScene" | "contentSubtitle" | "btsVideo" | "watchSession" | "viewerProfile" | "watchProgress" | "comment" | "rating" | "watchlistItem" | "musicTrack" | "syncDeal" | "platformRevenue" | "financeFeeSettings" | "financeFeeSettingsHistory" | "platformRevenueConnector" | "platformRevenueConnectorHistory" | "platformFreeTrialSettings" | "platformFreeTrialSettingsHistory" | "pendingCreatorSignup" | "activityLog" | "equipmentListing" | "equipmentRequest" | "message" | "syncRequest" | "crewMember" | "creditPerson" | "auditionPost" | "originalProject" | "creatorCalendarEvent" | "originalPitch" | "originalMember" | "projectCollaboratorInvite" | "locationListing" | "locationBooking" | "crewTeam" | "crewTeamMember" | "creatorCrewRoster" | "creatorCastRoster" | "crewTeamRequest" | "castingAgency" | "castingTalent" | "castingAuditionSubmission" | "castingTalentAvailability" | "castingInquiry" | "viewerSubscription" | "viewerContentAccess" | "subscriptionPayment" | "creatorPayout" | "creatorBanking" | "transaction" | "cateringCompany" | "cateringBooking" | "companySubscription" | "creatorDistributionLicense" | "uploadPayment" | "competitionPeriod" | "creatorVote" | "testPayment" | "paymentRecord" | "paymentWebhookEvent" | "wallet" | "walletAccount" | "ledgerBatch" | "ledgerEntry" | "escrowAccount" | "invoice" | "invoiceLine" | "payoutRequest" | "gatewayEvent" | "gatewayReference" | "userPreference" | "viewerPaymentMethod" | "notification" | "userTourProgress" | "emailCampaignDelivery" | "creatorFollow" | "connectionRequest" | "networkPost" | "networkPortfolioItem" | "networkPostComment" | "networkPostLike" | "networkPostSave" | "networkCollaborationApplication" | "networkConversation" | "networkConversationParticipant" | "networkMessage" | "projectVisualAsset" | "storyboardBoard" | "storyboardFrame" | "storyboardGuestInvite" | "storyboardGuestSession" | "projectIdea" | "projectScript" | "projectScriptVersion" | "projectScene" | "projectActivity" | "scriptReviewRequest" | "scriptReviewSession" | "scriptReviewAnnotation" | "scriptReviewGuestInvite" | "scriptReviewGuestSession" | "breakdownCharacter" | "breakdownProp" | "breakdownLocation" | "breakdownWardrobe" | "breakdownExtra" | "breakdownVehicle" | "breakdownStunt" | "breakdownSfx" | "breakdownMakeup" | "projectBudget" | "projectProductionContext" | "projectBudgetAssumption" | "projectBudgetLine" | "productionExpense" | "projectVendor" | "purchaseOrder" | "purchaseOrderLine" | "purchaseOrderEvent" | "payrollRun" | "payrollLineItem" | "projectBudgetVersion" | "projectBudgetVersionLine" | "pettyCashFund" | "financeApprovalStep" | "globalVendor" | "bankImportBatch" | "bankTransaction" | "shootDay" | "shootDayControlBoard" | "shootDayScene" | "callSheet" | "castingRole" | "castingInvitation" | "crewRoleNeed" | "crewInvitation" | "projectContract" | "projectContractEvent" | "projectContractVersion" | "projectSignature" | "contractClause" | "contractApprovalStep" | "contractSigner" | "contractGuestToken" | "contractEsignEnvelope" | "fundingRequest" | "fundingProgram" | "fundingProgramApplication" | "funderProfile" | "funderVerification" | "payoutKycProfile" | "payoutKycVerification" | "investmentOpportunity" | "companyFundingListing" | "investmentDeal" | "dealTermSheet" | "dealNegotiationMessage" | "dealContract" | "dealContractSignature" | "dealPayment" | "capTableEntry" | "projectRevenueEvent" | "stakeholderPayout" | "pitchDeck" | "pitchDeckSlide" | "projectChatThread" | "projectChatMessage" | "projectTask" | "tableReadSession" | "tableReadParticipant" | "tableReadNote" | "equipmentPlanItem" | "riskPlan" | "riskChecklistItem" | "continuityNote" | "dailiesBatch" | "dailiesClip" | "dailiesNote" | "incidentReport" | "footageAsset" | "streamAsset" | "musicSelection" | "postProductionReview" | "reviewNote" | "editReviewGuestInvite" | "editReviewGuestSession" | "finalDelivery" | "distributionSubmission" | "projectWorkspaceLink" | "projectToolProgress" | "vaSupportTicket" | "modocConversation" | "modocPlaybookRule" | "modocActionLog" | "modocTopicStat" | "modocSessionIntel" | "modocMessage" | "scriptReviewNote" | "creatorScript" | "creatorTreatment" | "creatorScriptVersion" | "creatorScriptComment" | "creatorScriptImport" | "iPAsset" | "iPVersion" | "iPOwnershipStructure" | "iPLicensingAgreement" | "iPTransaction" | "adminAuditLog" | "passwordResetToken" | "analyticsEvent" | "analyticsDailyRollup" | "opsIncident" | "castingTalentPortalToken" | "locationListingManager" | "equipmentInventoryTag" | "cateringMealForecast" | "stakeholderSyncEvent" | "festival" | "festivalCategory" | "festivalMediaAsset" | "festivalMembership" | "festivalTeamInvite" | "festivalFlagDef" | "festivalSubmission" | "festivalStage1Review" | "festivalStage2Review"
+      modelProps: "account" | "session" | "verificationToken" | "user" | "userRole" | "promoCode" | "promoCodeRedemption" | "studioCompany" | "creatorStudioProfile" | "creatorStudioTeamInvite" | "creatorAccountProfileVault" | "adminRequest" | "adminAccessApplication" | "content" | "contentSeason" | "contentEpisode" | "contentEnrichment" | "knowledgeChunk" | "knowledgeEdge" | "aiRequestLog" | "contentScene" | "contentSubtitle" | "btsVideo" | "watchSession" | "viewerProfile" | "watchProgress" | "comment" | "rating" | "watchlistItem" | "musicTrack" | "syncDeal" | "platformRevenue" | "financeFeeSettings" | "financeFeeSettingsHistory" | "platformRevenueConnector" | "platformRevenueConnectorHistory" | "platformFreeTrialSettings" | "platformFreeTrialSettingsHistory" | "pendingCreatorSignup" | "activityLog" | "equipmentListing" | "equipmentRequest" | "message" | "syncRequest" | "crewMember" | "creditPerson" | "auditionPost" | "originalProject" | "creatorCalendarEvent" | "originalPitch" | "originalMember" | "projectCollaboratorInvite" | "locationListing" | "locationBooking" | "crewTeam" | "crewTeamMember" | "creatorCrewRoster" | "creatorCastRoster" | "crewTeamRequest" | "castingAgency" | "castingTalent" | "castingAuditionSubmission" | "castingTalentAvailability" | "castingInquiry" | "viewerSubscription" | "viewerContentAccess" | "subscriptionPayment" | "creatorPayout" | "creatorBanking" | "transaction" | "cateringCompany" | "cateringBooking" | "companySubscription" | "creatorDistributionLicense" | "uploadPayment" | "competitionPeriod" | "creatorVote" | "testPayment" | "paymentRecord" | "paymentWebhookEvent" | "wallet" | "walletAccount" | "ledgerBatch" | "ledgerEntry" | "escrowAccount" | "invoice" | "invoiceLine" | "payoutRequest" | "gatewayEvent" | "gatewayReference" | "userPreference" | "viewerPaymentMethod" | "notification" | "userTourProgress" | "emailCampaignDelivery" | "creatorFollow" | "connectionRequest" | "networkPost" | "networkPortfolioItem" | "networkPostComment" | "networkPostLike" | "networkPostSave" | "networkCollaborationApplication" | "networkConversation" | "networkConversationParticipant" | "networkMessage" | "projectVisualAsset" | "storyboardBoard" | "storyboardFrame" | "storyboardGuestInvite" | "storyboardGuestSession" | "projectIdea" | "projectScript" | "projectScriptVersion" | "projectScene" | "projectActivity" | "scriptReviewRequest" | "scriptReviewSession" | "scriptReviewAnnotation" | "scriptReviewGuestInvite" | "scriptReviewGuestSession" | "breakdownCharacter" | "breakdownProp" | "breakdownLocation" | "breakdownWardrobe" | "breakdownExtra" | "breakdownVehicle" | "breakdownStunt" | "breakdownSfx" | "breakdownMakeup" | "projectBudget" | "projectProductionContext" | "projectBudgetAssumption" | "projectBudgetLine" | "productionExpense" | "projectVendor" | "purchaseOrder" | "purchaseOrderLine" | "purchaseOrderEvent" | "payrollRun" | "payrollLineItem" | "projectBudgetVersion" | "projectBudgetVersionLine" | "pettyCashFund" | "financeApprovalStep" | "globalVendor" | "bankImportBatch" | "bankTransaction" | "shootDay" | "shootDayControlBoard" | "shootDayScene" | "callSheet" | "castingRole" | "castingInvitation" | "crewRoleNeed" | "crewInvitation" | "projectContract" | "projectContractEvent" | "projectContractVersion" | "projectSignature" | "contractClause" | "contractApprovalStep" | "contractSigner" | "contractGuestToken" | "contractEsignEnvelope" | "fundingRequest" | "fundingProgram" | "fundingProgramApplication" | "funderProfile" | "funderVerification" | "payoutKycProfile" | "payoutKycVerification" | "investmentOpportunity" | "companyFundingListing" | "investmentDeal" | "dealTermSheet" | "dealNegotiationMessage" | "dealContract" | "dealContractSignature" | "dealPayment" | "capTableEntry" | "projectRevenueEvent" | "stakeholderPayout" | "pitchDeck" | "pitchDeckSlide" | "projectChatThread" | "projectChatMessage" | "projectTask" | "tableReadSession" | "tableReadParticipant" | "tableReadNote" | "equipmentPlanItem" | "riskPlan" | "riskChecklistItem" | "contSheetDay" | "contSheetScene" | "contSheetTake" | "continuityNote" | "dailiesBatch" | "dailiesClip" | "dailiesNote" | "incidentReport" | "footageAsset" | "streamAsset" | "musicSelection" | "postProductionReview" | "reviewNote" | "editReviewGuestInvite" | "editReviewGuestSession" | "finalDelivery" | "distributionSubmission" | "projectWorkspaceLink" | "projectToolProgress" | "vaSupportTicket" | "modocConversation" | "modocPlaybookRule" | "modocActionLog" | "modocTopicStat" | "modocSessionIntel" | "modocMessage" | "scriptReviewNote" | "creatorScript" | "creatorTreatment" | "creatorScriptVersion" | "creatorScriptComment" | "creatorScriptImport" | "iPAsset" | "iPVersion" | "iPOwnershipStructure" | "iPLicensingAgreement" | "iPTransaction" | "adminAuditLog" | "passwordResetToken" | "analyticsEvent" | "analyticsDailyRollup" | "opsIncident" | "castingTalentPortalToken" | "locationListingManager" | "equipmentInventoryTag" | "cateringMealForecast" | "stakeholderSyncEvent" | "festival" | "festivalCategory" | "festivalMediaAsset" | "festivalMembership" | "festivalTeamInvite" | "festivalFlagDef" | "festivalSubmission" | "festivalStage1Review" | "festivalStage2Review"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -18130,6 +18178,216 @@ export namespace Prisma {
           }
         }
       }
+      ContSheetDay: {
+        payload: Prisma.$ContSheetDayPayload<ExtArgs>
+        fields: Prisma.ContSheetDayFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.ContSheetDayFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetDayPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.ContSheetDayFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetDayPayload>
+          }
+          findFirst: {
+            args: Prisma.ContSheetDayFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetDayPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.ContSheetDayFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetDayPayload>
+          }
+          findMany: {
+            args: Prisma.ContSheetDayFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetDayPayload>[]
+          }
+          create: {
+            args: Prisma.ContSheetDayCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetDayPayload>
+          }
+          createMany: {
+            args: Prisma.ContSheetDayCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.ContSheetDayCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetDayPayload>[]
+          }
+          delete: {
+            args: Prisma.ContSheetDayDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetDayPayload>
+          }
+          update: {
+            args: Prisma.ContSheetDayUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetDayPayload>
+          }
+          deleteMany: {
+            args: Prisma.ContSheetDayDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.ContSheetDayUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          upsert: {
+            args: Prisma.ContSheetDayUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetDayPayload>
+          }
+          aggregate: {
+            args: Prisma.ContSheetDayAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateContSheetDay>
+          }
+          groupBy: {
+            args: Prisma.ContSheetDayGroupByArgs<ExtArgs>
+            result: $Utils.Optional<ContSheetDayGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.ContSheetDayCountArgs<ExtArgs>
+            result: $Utils.Optional<ContSheetDayCountAggregateOutputType> | number
+          }
+        }
+      }
+      ContSheetScene: {
+        payload: Prisma.$ContSheetScenePayload<ExtArgs>
+        fields: Prisma.ContSheetSceneFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.ContSheetSceneFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetScenePayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.ContSheetSceneFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetScenePayload>
+          }
+          findFirst: {
+            args: Prisma.ContSheetSceneFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetScenePayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.ContSheetSceneFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetScenePayload>
+          }
+          findMany: {
+            args: Prisma.ContSheetSceneFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetScenePayload>[]
+          }
+          create: {
+            args: Prisma.ContSheetSceneCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetScenePayload>
+          }
+          createMany: {
+            args: Prisma.ContSheetSceneCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.ContSheetSceneCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetScenePayload>[]
+          }
+          delete: {
+            args: Prisma.ContSheetSceneDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetScenePayload>
+          }
+          update: {
+            args: Prisma.ContSheetSceneUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetScenePayload>
+          }
+          deleteMany: {
+            args: Prisma.ContSheetSceneDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.ContSheetSceneUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          upsert: {
+            args: Prisma.ContSheetSceneUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetScenePayload>
+          }
+          aggregate: {
+            args: Prisma.ContSheetSceneAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateContSheetScene>
+          }
+          groupBy: {
+            args: Prisma.ContSheetSceneGroupByArgs<ExtArgs>
+            result: $Utils.Optional<ContSheetSceneGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.ContSheetSceneCountArgs<ExtArgs>
+            result: $Utils.Optional<ContSheetSceneCountAggregateOutputType> | number
+          }
+        }
+      }
+      ContSheetTake: {
+        payload: Prisma.$ContSheetTakePayload<ExtArgs>
+        fields: Prisma.ContSheetTakeFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.ContSheetTakeFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetTakePayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.ContSheetTakeFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetTakePayload>
+          }
+          findFirst: {
+            args: Prisma.ContSheetTakeFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetTakePayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.ContSheetTakeFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetTakePayload>
+          }
+          findMany: {
+            args: Prisma.ContSheetTakeFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetTakePayload>[]
+          }
+          create: {
+            args: Prisma.ContSheetTakeCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetTakePayload>
+          }
+          createMany: {
+            args: Prisma.ContSheetTakeCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.ContSheetTakeCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetTakePayload>[]
+          }
+          delete: {
+            args: Prisma.ContSheetTakeDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetTakePayload>
+          }
+          update: {
+            args: Prisma.ContSheetTakeUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetTakePayload>
+          }
+          deleteMany: {
+            args: Prisma.ContSheetTakeDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.ContSheetTakeUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          upsert: {
+            args: Prisma.ContSheetTakeUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ContSheetTakePayload>
+          }
+          aggregate: {
+            args: Prisma.ContSheetTakeAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateContSheetTake>
+          }
+          groupBy: {
+            args: Prisma.ContSheetTakeGroupByArgs<ExtArgs>
+            result: $Utils.Optional<ContSheetTakeGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.ContSheetTakeCountArgs<ExtArgs>
+            result: $Utils.Optional<ContSheetTakeCountAggregateOutputType> | number
+          }
+        }
+      }
       ContinuityNote: {
         payload: Prisma.$ContinuityNotePayload<ExtArgs>
         fields: Prisma.ContinuityNoteFieldRefs
@@ -24194,6 +24452,7 @@ export namespace Prisma {
     visualAssets: number
     storyboardBoards: number
     continuityNotes: number
+    contSheetDays: number
     dailiesBatches: number
     dailiesClips: number
     scriptReviewNotes: number
@@ -24266,6 +24525,7 @@ export namespace Prisma {
     visualAssets?: boolean | OriginalProjectCountOutputTypeCountVisualAssetsArgs
     storyboardBoards?: boolean | OriginalProjectCountOutputTypeCountStoryboardBoardsArgs
     continuityNotes?: boolean | OriginalProjectCountOutputTypeCountContinuityNotesArgs
+    contSheetDays?: boolean | OriginalProjectCountOutputTypeCountContSheetDaysArgs
     dailiesBatches?: boolean | OriginalProjectCountOutputTypeCountDailiesBatchesArgs
     dailiesClips?: boolean | OriginalProjectCountOutputTypeCountDailiesClipsArgs
     scriptReviewNotes?: boolean | OriginalProjectCountOutputTypeCountScriptReviewNotesArgs
@@ -24670,6 +24930,13 @@ export namespace Prisma {
    */
   export type OriginalProjectCountOutputTypeCountContinuityNotesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     where?: ContinuityNoteWhereInput
+  }
+
+  /**
+   * OriginalProjectCountOutputType without action
+   */
+  export type OriginalProjectCountOutputTypeCountContSheetDaysArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: ContSheetDayWhereInput
   }
 
   /**
@@ -25746,6 +26013,7 @@ export namespace Prisma {
     breakdownMakeups: number
     shootDayLinks: number
     continuityNotes: number
+    contSheetScenes: number
     dailies: number
     dailiesClips: number
     footageAssets: number
@@ -25767,6 +26035,7 @@ export namespace Prisma {
     breakdownMakeups?: boolean | ProjectSceneCountOutputTypeCountBreakdownMakeupsArgs
     shootDayLinks?: boolean | ProjectSceneCountOutputTypeCountShootDayLinksArgs
     continuityNotes?: boolean | ProjectSceneCountOutputTypeCountContinuityNotesArgs
+    contSheetScenes?: boolean | ProjectSceneCountOutputTypeCountContSheetScenesArgs
     dailies?: boolean | ProjectSceneCountOutputTypeCountDailiesArgs
     dailiesClips?: boolean | ProjectSceneCountOutputTypeCountDailiesClipsArgs
     footageAssets?: boolean | ProjectSceneCountOutputTypeCountFootageAssetsArgs
@@ -25862,6 +26131,13 @@ export namespace Prisma {
    */
   export type ProjectSceneCountOutputTypeCountContinuityNotesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     where?: ContinuityNoteWhereInput
+  }
+
+  /**
+   * ProjectSceneCountOutputType without action
+   */
+  export type ProjectSceneCountOutputTypeCountContSheetScenesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: ContSheetSceneWhereInput
   }
 
   /**
@@ -26438,6 +26714,7 @@ export namespace Prisma {
     callSheets: number
     incidents: number
     continuityNotes: number
+    contSheetDays: number
     dailiesBatches: number
     dailiesClips: number
     projectTasks: number
@@ -26449,6 +26726,7 @@ export namespace Prisma {
     callSheets?: boolean | ShootDayCountOutputTypeCountCallSheetsArgs
     incidents?: boolean | ShootDayCountOutputTypeCountIncidentsArgs
     continuityNotes?: boolean | ShootDayCountOutputTypeCountContinuityNotesArgs
+    contSheetDays?: boolean | ShootDayCountOutputTypeCountContSheetDaysArgs
     dailiesBatches?: boolean | ShootDayCountOutputTypeCountDailiesBatchesArgs
     dailiesClips?: boolean | ShootDayCountOutputTypeCountDailiesClipsArgs
     projectTasks?: boolean | ShootDayCountOutputTypeCountProjectTasksArgs
@@ -26492,6 +26770,13 @@ export namespace Prisma {
    */
   export type ShootDayCountOutputTypeCountContinuityNotesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     where?: ContinuityNoteWhereInput
+  }
+
+  /**
+   * ShootDayCountOutputType without action
+   */
+  export type ShootDayCountOutputTypeCountContSheetDaysArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: ContSheetDayWhereInput
   }
 
   /**
@@ -27213,6 +27498,68 @@ export namespace Prisma {
    */
   export type RiskPlanCountOutputTypeCountItemsArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     where?: RiskChecklistItemWhereInput
+  }
+
+
+  /**
+   * Count Type ContSheetDayCountOutputType
+   */
+
+  export type ContSheetDayCountOutputType = {
+    scenes: number
+  }
+
+  export type ContSheetDayCountOutputTypeSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    scenes?: boolean | ContSheetDayCountOutputTypeCountScenesArgs
+  }
+
+  // Custom InputTypes
+  /**
+   * ContSheetDayCountOutputType without action
+   */
+  export type ContSheetDayCountOutputTypeDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetDayCountOutputType
+     */
+    select?: ContSheetDayCountOutputTypeSelect<ExtArgs> | null
+  }
+
+  /**
+   * ContSheetDayCountOutputType without action
+   */
+  export type ContSheetDayCountOutputTypeCountScenesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: ContSheetSceneWhereInput
+  }
+
+
+  /**
+   * Count Type ContSheetSceneCountOutputType
+   */
+
+  export type ContSheetSceneCountOutputType = {
+    takes: number
+  }
+
+  export type ContSheetSceneCountOutputTypeSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    takes?: boolean | ContSheetSceneCountOutputTypeCountTakesArgs
+  }
+
+  // Custom InputTypes
+  /**
+   * ContSheetSceneCountOutputType without action
+   */
+  export type ContSheetSceneCountOutputTypeDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetSceneCountOutputType
+     */
+    select?: ContSheetSceneCountOutputTypeSelect<ExtArgs> | null
+  }
+
+  /**
+   * ContSheetSceneCountOutputType without action
+   */
+  export type ContSheetSceneCountOutputTypeCountTakesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: ContSheetTakeWhereInput
   }
 
 
@@ -80743,6 +81090,7 @@ export namespace Prisma {
     storyboardBoards?: boolean | OriginalProject$storyboardBoardsArgs<ExtArgs>
     riskPlan?: boolean | OriginalProject$riskPlanArgs<ExtArgs>
     continuityNotes?: boolean | OriginalProject$continuityNotesArgs<ExtArgs>
+    contSheetDays?: boolean | OriginalProject$contSheetDaysArgs<ExtArgs>
     dailiesBatches?: boolean | OriginalProject$dailiesBatchesArgs<ExtArgs>
     dailiesClips?: boolean | OriginalProject$dailiesClipsArgs<ExtArgs>
     scriptReviewNotes?: boolean | OriginalProject$scriptReviewNotesArgs<ExtArgs>
@@ -80854,6 +81202,7 @@ export namespace Prisma {
     storyboardBoards?: boolean | OriginalProject$storyboardBoardsArgs<ExtArgs>
     riskPlan?: boolean | OriginalProject$riskPlanArgs<ExtArgs>
     continuityNotes?: boolean | OriginalProject$continuityNotesArgs<ExtArgs>
+    contSheetDays?: boolean | OriginalProject$contSheetDaysArgs<ExtArgs>
     dailiesBatches?: boolean | OriginalProject$dailiesBatchesArgs<ExtArgs>
     dailiesClips?: boolean | OriginalProject$dailiesClipsArgs<ExtArgs>
     scriptReviewNotes?: boolean | OriginalProject$scriptReviewNotesArgs<ExtArgs>
@@ -80934,6 +81283,7 @@ export namespace Prisma {
       storyboardBoards: Prisma.$StoryboardBoardPayload<ExtArgs>[]
       riskPlan: Prisma.$RiskPlanPayload<ExtArgs> | null
       continuityNotes: Prisma.$ContinuityNotePayload<ExtArgs>[]
+      contSheetDays: Prisma.$ContSheetDayPayload<ExtArgs>[]
       dailiesBatches: Prisma.$DailiesBatchPayload<ExtArgs>[]
       dailiesClips: Prisma.$DailiesClipPayload<ExtArgs>[]
       scriptReviewNotes: Prisma.$ScriptReviewNotePayload<ExtArgs>[]
@@ -81387,6 +81737,7 @@ export namespace Prisma {
     storyboardBoards<T extends OriginalProject$storyboardBoardsArgs<ExtArgs> = {}>(args?: Subset<T, OriginalProject$storyboardBoardsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$StoryboardBoardPayload<ExtArgs>, T, "findMany"> | Null>
     riskPlan<T extends OriginalProject$riskPlanArgs<ExtArgs> = {}>(args?: Subset<T, OriginalProject$riskPlanArgs<ExtArgs>>): Prisma__RiskPlanClient<$Result.GetResult<Prisma.$RiskPlanPayload<ExtArgs>, T, "findUniqueOrThrow"> | null, null, ExtArgs>
     continuityNotes<T extends OriginalProject$continuityNotesArgs<ExtArgs> = {}>(args?: Subset<T, OriginalProject$continuityNotesArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ContinuityNotePayload<ExtArgs>, T, "findMany"> | Null>
+    contSheetDays<T extends OriginalProject$contSheetDaysArgs<ExtArgs> = {}>(args?: Subset<T, OriginalProject$contSheetDaysArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ContSheetDayPayload<ExtArgs>, T, "findMany"> | Null>
     dailiesBatches<T extends OriginalProject$dailiesBatchesArgs<ExtArgs> = {}>(args?: Subset<T, OriginalProject$dailiesBatchesArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$DailiesBatchPayload<ExtArgs>, T, "findMany"> | Null>
     dailiesClips<T extends OriginalProject$dailiesClipsArgs<ExtArgs> = {}>(args?: Subset<T, OriginalProject$dailiesClipsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$DailiesClipPayload<ExtArgs>, T, "findMany"> | Null>
     scriptReviewNotes<T extends OriginalProject$scriptReviewNotesArgs<ExtArgs> = {}>(args?: Subset<T, OriginalProject$scriptReviewNotesArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ScriptReviewNotePayload<ExtArgs>, T, "findMany"> | Null>
@@ -82882,6 +83233,26 @@ export namespace Prisma {
     take?: number
     skip?: number
     distinct?: ContinuityNoteScalarFieldEnum | ContinuityNoteScalarFieldEnum[]
+  }
+
+  /**
+   * OriginalProject.contSheetDays
+   */
+  export type OriginalProject$contSheetDaysArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetDay
+     */
+    select?: ContSheetDaySelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetDayInclude<ExtArgs> | null
+    where?: ContSheetDayWhereInput
+    orderBy?: ContSheetDayOrderByWithRelationInput | ContSheetDayOrderByWithRelationInput[]
+    cursor?: ContSheetDayWhereUniqueInput
+    take?: number
+    skip?: number
+    distinct?: ContSheetDayScalarFieldEnum | ContSheetDayScalarFieldEnum[]
   }
 
   /**
@@ -152674,6 +153045,7 @@ export namespace Prisma {
     breakdownMakeups?: boolean | ProjectScene$breakdownMakeupsArgs<ExtArgs>
     shootDayLinks?: boolean | ProjectScene$shootDayLinksArgs<ExtArgs>
     continuityNotes?: boolean | ProjectScene$continuityNotesArgs<ExtArgs>
+    contSheetScenes?: boolean | ProjectScene$contSheetScenesArgs<ExtArgs>
     dailies?: boolean | ProjectScene$dailiesArgs<ExtArgs>
     dailiesClips?: boolean | ProjectScene$dailiesClipsArgs<ExtArgs>
     footageAssets?: boolean | ProjectScene$footageAssetsArgs<ExtArgs>
@@ -152738,6 +153110,7 @@ export namespace Prisma {
     breakdownMakeups?: boolean | ProjectScene$breakdownMakeupsArgs<ExtArgs>
     shootDayLinks?: boolean | ProjectScene$shootDayLinksArgs<ExtArgs>
     continuityNotes?: boolean | ProjectScene$continuityNotesArgs<ExtArgs>
+    contSheetScenes?: boolean | ProjectScene$contSheetScenesArgs<ExtArgs>
     dailies?: boolean | ProjectScene$dailiesArgs<ExtArgs>
     dailiesClips?: boolean | ProjectScene$dailiesClipsArgs<ExtArgs>
     footageAssets?: boolean | ProjectScene$footageAssetsArgs<ExtArgs>
@@ -152770,6 +153143,7 @@ export namespace Prisma {
       breakdownMakeups: Prisma.$BreakdownMakeupPayload<ExtArgs>[]
       shootDayLinks: Prisma.$ShootDayScenePayload<ExtArgs>[]
       continuityNotes: Prisma.$ContinuityNotePayload<ExtArgs>[]
+      contSheetScenes: Prisma.$ContSheetScenePayload<ExtArgs>[]
       dailies: Prisma.$DailiesBatchPayload<ExtArgs>[]
       dailiesClips: Prisma.$DailiesClipPayload<ExtArgs>[]
       footageAssets: Prisma.$FootageAssetPayload<ExtArgs>[]
@@ -153184,6 +153558,7 @@ export namespace Prisma {
     breakdownMakeups<T extends ProjectScene$breakdownMakeupsArgs<ExtArgs> = {}>(args?: Subset<T, ProjectScene$breakdownMakeupsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$BreakdownMakeupPayload<ExtArgs>, T, "findMany"> | Null>
     shootDayLinks<T extends ProjectScene$shootDayLinksArgs<ExtArgs> = {}>(args?: Subset<T, ProjectScene$shootDayLinksArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ShootDayScenePayload<ExtArgs>, T, "findMany"> | Null>
     continuityNotes<T extends ProjectScene$continuityNotesArgs<ExtArgs> = {}>(args?: Subset<T, ProjectScene$continuityNotesArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ContinuityNotePayload<ExtArgs>, T, "findMany"> | Null>
+    contSheetScenes<T extends ProjectScene$contSheetScenesArgs<ExtArgs> = {}>(args?: Subset<T, ProjectScene$contSheetScenesArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ContSheetScenePayload<ExtArgs>, T, "findMany"> | Null>
     dailies<T extends ProjectScene$dailiesArgs<ExtArgs> = {}>(args?: Subset<T, ProjectScene$dailiesArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$DailiesBatchPayload<ExtArgs>, T, "findMany"> | Null>
     dailiesClips<T extends ProjectScene$dailiesClipsArgs<ExtArgs> = {}>(args?: Subset<T, ProjectScene$dailiesClipsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$DailiesClipPayload<ExtArgs>, T, "findMany"> | Null>
     footageAssets<T extends ProjectScene$footageAssetsArgs<ExtArgs> = {}>(args?: Subset<T, ProjectScene$footageAssetsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$FootageAssetPayload<ExtArgs>, T, "findMany"> | Null>
@@ -153800,6 +154175,26 @@ export namespace Prisma {
     take?: number
     skip?: number
     distinct?: ContinuityNoteScalarFieldEnum | ContinuityNoteScalarFieldEnum[]
+  }
+
+  /**
+   * ProjectScene.contSheetScenes
+   */
+  export type ProjectScene$contSheetScenesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetScene
+     */
+    select?: ContSheetSceneSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetSceneInclude<ExtArgs> | null
+    where?: ContSheetSceneWhereInput
+    orderBy?: ContSheetSceneOrderByWithRelationInput | ContSheetSceneOrderByWithRelationInput[]
+    cursor?: ContSheetSceneWhereUniqueInput
+    take?: number
+    skip?: number
+    distinct?: ContSheetSceneScalarFieldEnum | ContSheetSceneScalarFieldEnum[]
   }
 
   /**
@@ -189632,6 +190027,7 @@ export namespace Prisma {
     callSheets?: boolean | ShootDay$callSheetsArgs<ExtArgs>
     incidents?: boolean | ShootDay$incidentsArgs<ExtArgs>
     continuityNotes?: boolean | ShootDay$continuityNotesArgs<ExtArgs>
+    contSheetDays?: boolean | ShootDay$contSheetDaysArgs<ExtArgs>
     dailiesBatches?: boolean | ShootDay$dailiesBatchesArgs<ExtArgs>
     dailiesClips?: boolean | ShootDay$dailiesClipsArgs<ExtArgs>
     projectTasks?: boolean | ShootDay$projectTasksArgs<ExtArgs>
@@ -189677,6 +190073,7 @@ export namespace Prisma {
     callSheets?: boolean | ShootDay$callSheetsArgs<ExtArgs>
     incidents?: boolean | ShootDay$incidentsArgs<ExtArgs>
     continuityNotes?: boolean | ShootDay$continuityNotesArgs<ExtArgs>
+    contSheetDays?: boolean | ShootDay$contSheetDaysArgs<ExtArgs>
     dailiesBatches?: boolean | ShootDay$dailiesBatchesArgs<ExtArgs>
     dailiesClips?: boolean | ShootDay$dailiesClipsArgs<ExtArgs>
     projectTasks?: boolean | ShootDay$projectTasksArgs<ExtArgs>
@@ -189696,6 +190093,7 @@ export namespace Prisma {
       callSheets: Prisma.$CallSheetPayload<ExtArgs>[]
       incidents: Prisma.$IncidentReportPayload<ExtArgs>[]
       continuityNotes: Prisma.$ContinuityNotePayload<ExtArgs>[]
+      contSheetDays: Prisma.$ContSheetDayPayload<ExtArgs>[]
       dailiesBatches: Prisma.$DailiesBatchPayload<ExtArgs>[]
       dailiesClips: Prisma.$DailiesClipPayload<ExtArgs>[]
       projectTasks: Prisma.$ProjectTaskPayload<ExtArgs>[]
@@ -190090,6 +190488,7 @@ export namespace Prisma {
     callSheets<T extends ShootDay$callSheetsArgs<ExtArgs> = {}>(args?: Subset<T, ShootDay$callSheetsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$CallSheetPayload<ExtArgs>, T, "findMany"> | Null>
     incidents<T extends ShootDay$incidentsArgs<ExtArgs> = {}>(args?: Subset<T, ShootDay$incidentsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$IncidentReportPayload<ExtArgs>, T, "findMany"> | Null>
     continuityNotes<T extends ShootDay$continuityNotesArgs<ExtArgs> = {}>(args?: Subset<T, ShootDay$continuityNotesArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ContinuityNotePayload<ExtArgs>, T, "findMany"> | Null>
+    contSheetDays<T extends ShootDay$contSheetDaysArgs<ExtArgs> = {}>(args?: Subset<T, ShootDay$contSheetDaysArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ContSheetDayPayload<ExtArgs>, T, "findMany"> | Null>
     dailiesBatches<T extends ShootDay$dailiesBatchesArgs<ExtArgs> = {}>(args?: Subset<T, ShootDay$dailiesBatchesArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$DailiesBatchPayload<ExtArgs>, T, "findMany"> | Null>
     dailiesClips<T extends ShootDay$dailiesClipsArgs<ExtArgs> = {}>(args?: Subset<T, ShootDay$dailiesClipsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$DailiesClipPayload<ExtArgs>, T, "findMany"> | Null>
     projectTasks<T extends ShootDay$projectTasksArgs<ExtArgs> = {}>(args?: Subset<T, ShootDay$projectTasksArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ProjectTaskPayload<ExtArgs>, T, "findMany"> | Null>
@@ -190531,6 +190930,26 @@ export namespace Prisma {
     take?: number
     skip?: number
     distinct?: ContinuityNoteScalarFieldEnum | ContinuityNoteScalarFieldEnum[]
+  }
+
+  /**
+   * ShootDay.contSheetDays
+   */
+  export type ShootDay$contSheetDaysArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetDay
+     */
+    select?: ContSheetDaySelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetDayInclude<ExtArgs> | null
+    where?: ContSheetDayWhereInput
+    orderBy?: ContSheetDayOrderByWithRelationInput | ContSheetDayOrderByWithRelationInput[]
+    cursor?: ContSheetDayWhereUniqueInput
+    take?: number
+    skip?: number
+    distinct?: ContSheetDayScalarFieldEnum | ContSheetDayScalarFieldEnum[]
   }
 
   /**
@@ -238016,6 +238435,3360 @@ export namespace Prisma {
      * Choose, which related nodes to fetch as well
      */
     include?: RiskChecklistItemInclude<ExtArgs> | null
+  }
+
+
+  /**
+   * Model ContSheetDay
+   */
+
+  export type AggregateContSheetDay = {
+    _count: ContSheetDayCountAggregateOutputType | null
+    _avg: ContSheetDayAvgAggregateOutputType | null
+    _sum: ContSheetDaySumAggregateOutputType | null
+    _min: ContSheetDayMinAggregateOutputType | null
+    _max: ContSheetDayMaxAggregateOutputType | null
+  }
+
+  export type ContSheetDayAvgAggregateOutputType = {
+    version: number | null
+  }
+
+  export type ContSheetDaySumAggregateOutputType = {
+    version: number | null
+  }
+
+  export type ContSheetDayMinAggregateOutputType = {
+    id: string | null
+    projectId: string | null
+    shootDayId: string | null
+    version: number | null
+    showTitle: string | null
+    productionCompany: string | null
+    callSheetNumber: string | null
+    reportDate: string | null
+    cameraUnit: string | null
+    notes: string | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type ContSheetDayMaxAggregateOutputType = {
+    id: string | null
+    projectId: string | null
+    shootDayId: string | null
+    version: number | null
+    showTitle: string | null
+    productionCompany: string | null
+    callSheetNumber: string | null
+    reportDate: string | null
+    cameraUnit: string | null
+    notes: string | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type ContSheetDayCountAggregateOutputType = {
+    id: number
+    projectId: number
+    shootDayId: number
+    version: number
+    showTitle: number
+    productionCompany: number
+    callSheetNumber: number
+    reportDate: number
+    cameraUnit: number
+    crewJson: number
+    dayClockJson: number
+    scenesSummaryJson: number
+    totalsJson: number
+    notes: number
+    createdAt: number
+    updatedAt: number
+    _all: number
+  }
+
+
+  export type ContSheetDayAvgAggregateInputType = {
+    version?: true
+  }
+
+  export type ContSheetDaySumAggregateInputType = {
+    version?: true
+  }
+
+  export type ContSheetDayMinAggregateInputType = {
+    id?: true
+    projectId?: true
+    shootDayId?: true
+    version?: true
+    showTitle?: true
+    productionCompany?: true
+    callSheetNumber?: true
+    reportDate?: true
+    cameraUnit?: true
+    notes?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type ContSheetDayMaxAggregateInputType = {
+    id?: true
+    projectId?: true
+    shootDayId?: true
+    version?: true
+    showTitle?: true
+    productionCompany?: true
+    callSheetNumber?: true
+    reportDate?: true
+    cameraUnit?: true
+    notes?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type ContSheetDayCountAggregateInputType = {
+    id?: true
+    projectId?: true
+    shootDayId?: true
+    version?: true
+    showTitle?: true
+    productionCompany?: true
+    callSheetNumber?: true
+    reportDate?: true
+    cameraUnit?: true
+    crewJson?: true
+    dayClockJson?: true
+    scenesSummaryJson?: true
+    totalsJson?: true
+    notes?: true
+    createdAt?: true
+    updatedAt?: true
+    _all?: true
+  }
+
+  export type ContSheetDayAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which ContSheetDay to aggregate.
+     */
+    where?: ContSheetDayWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ContSheetDays to fetch.
+     */
+    orderBy?: ContSheetDayOrderByWithRelationInput | ContSheetDayOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: ContSheetDayWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ContSheetDays from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ContSheetDays.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned ContSheetDays
+    **/
+    _count?: true | ContSheetDayCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to average
+    **/
+    _avg?: ContSheetDayAvgAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to sum
+    **/
+    _sum?: ContSheetDaySumAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: ContSheetDayMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: ContSheetDayMaxAggregateInputType
+  }
+
+  export type GetContSheetDayAggregateType<T extends ContSheetDayAggregateArgs> = {
+        [P in keyof T & keyof AggregateContSheetDay]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateContSheetDay[P]>
+      : GetScalarType<T[P], AggregateContSheetDay[P]>
+  }
+
+
+
+
+  export type ContSheetDayGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: ContSheetDayWhereInput
+    orderBy?: ContSheetDayOrderByWithAggregationInput | ContSheetDayOrderByWithAggregationInput[]
+    by: ContSheetDayScalarFieldEnum[] | ContSheetDayScalarFieldEnum
+    having?: ContSheetDayScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: ContSheetDayCountAggregateInputType | true
+    _avg?: ContSheetDayAvgAggregateInputType
+    _sum?: ContSheetDaySumAggregateInputType
+    _min?: ContSheetDayMinAggregateInputType
+    _max?: ContSheetDayMaxAggregateInputType
+  }
+
+  export type ContSheetDayGroupByOutputType = {
+    id: string
+    projectId: string
+    shootDayId: string
+    version: number
+    showTitle: string | null
+    productionCompany: string | null
+    callSheetNumber: string | null
+    reportDate: string | null
+    cameraUnit: string | null
+    crewJson: JsonValue | null
+    dayClockJson: JsonValue | null
+    scenesSummaryJson: JsonValue | null
+    totalsJson: JsonValue | null
+    notes: string | null
+    createdAt: Date
+    updatedAt: Date
+    _count: ContSheetDayCountAggregateOutputType | null
+    _avg: ContSheetDayAvgAggregateOutputType | null
+    _sum: ContSheetDaySumAggregateOutputType | null
+    _min: ContSheetDayMinAggregateOutputType | null
+    _max: ContSheetDayMaxAggregateOutputType | null
+  }
+
+  type GetContSheetDayGroupByPayload<T extends ContSheetDayGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<ContSheetDayGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof ContSheetDayGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], ContSheetDayGroupByOutputType[P]>
+            : GetScalarType<T[P], ContSheetDayGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type ContSheetDaySelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    projectId?: boolean
+    shootDayId?: boolean
+    version?: boolean
+    showTitle?: boolean
+    productionCompany?: boolean
+    callSheetNumber?: boolean
+    reportDate?: boolean
+    cameraUnit?: boolean
+    crewJson?: boolean
+    dayClockJson?: boolean
+    scenesSummaryJson?: boolean
+    totalsJson?: boolean
+    notes?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+    project?: boolean | OriginalProjectDefaultArgs<ExtArgs>
+    shootDay?: boolean | ShootDayDefaultArgs<ExtArgs>
+    scenes?: boolean | ContSheetDay$scenesArgs<ExtArgs>
+    _count?: boolean | ContSheetDayCountOutputTypeDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["contSheetDay"]>
+
+  export type ContSheetDaySelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    projectId?: boolean
+    shootDayId?: boolean
+    version?: boolean
+    showTitle?: boolean
+    productionCompany?: boolean
+    callSheetNumber?: boolean
+    reportDate?: boolean
+    cameraUnit?: boolean
+    crewJson?: boolean
+    dayClockJson?: boolean
+    scenesSummaryJson?: boolean
+    totalsJson?: boolean
+    notes?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+    project?: boolean | OriginalProjectDefaultArgs<ExtArgs>
+    shootDay?: boolean | ShootDayDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["contSheetDay"]>
+
+  export type ContSheetDaySelectScalar = {
+    id?: boolean
+    projectId?: boolean
+    shootDayId?: boolean
+    version?: boolean
+    showTitle?: boolean
+    productionCompany?: boolean
+    callSheetNumber?: boolean
+    reportDate?: boolean
+    cameraUnit?: boolean
+    crewJson?: boolean
+    dayClockJson?: boolean
+    scenesSummaryJson?: boolean
+    totalsJson?: boolean
+    notes?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }
+
+  export type ContSheetDayInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    project?: boolean | OriginalProjectDefaultArgs<ExtArgs>
+    shootDay?: boolean | ShootDayDefaultArgs<ExtArgs>
+    scenes?: boolean | ContSheetDay$scenesArgs<ExtArgs>
+    _count?: boolean | ContSheetDayCountOutputTypeDefaultArgs<ExtArgs>
+  }
+  export type ContSheetDayIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    project?: boolean | OriginalProjectDefaultArgs<ExtArgs>
+    shootDay?: boolean | ShootDayDefaultArgs<ExtArgs>
+  }
+
+  export type $ContSheetDayPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "ContSheetDay"
+    objects: {
+      project: Prisma.$OriginalProjectPayload<ExtArgs>
+      shootDay: Prisma.$ShootDayPayload<ExtArgs>
+      scenes: Prisma.$ContSheetScenePayload<ExtArgs>[]
+    }
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      projectId: string
+      shootDayId: string
+      version: number
+      showTitle: string | null
+      productionCompany: string | null
+      callSheetNumber: string | null
+      reportDate: string | null
+      cameraUnit: string | null
+      /**
+       * Crew snapshot: lineProducer, producer, productionManager, directors, scriptSupervisor
+       */
+      crewJson: Prisma.JsonValue | null
+      /**
+       * Day clock: callTime, firstTurnover, lunch, firstShotAfterLunch, wrapTime
+       */
+      dayClockJson: Prisma.JsonValue | null
+      /**
+       * Column strip summary for scheduled/completed/dropped/added/partly + est/act timings
+       */
+      scenesSummaryJson: Prisma.JsonValue | null
+      /**
+       * Totals: totalEstTime, totalActTime, totalPages, previous/today/total metrics
+       */
+      totalsJson: Prisma.JsonValue | null
+      notes: string | null
+      createdAt: Date
+      updatedAt: Date
+    }, ExtArgs["result"]["contSheetDay"]>
+    composites: {}
+  }
+
+  type ContSheetDayGetPayload<S extends boolean | null | undefined | ContSheetDayDefaultArgs> = $Result.GetResult<Prisma.$ContSheetDayPayload, S>
+
+  type ContSheetDayCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = 
+    Omit<ContSheetDayFindManyArgs, 'select' | 'include' | 'distinct'> & {
+      select?: ContSheetDayCountAggregateInputType | true
+    }
+
+  export interface ContSheetDayDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['ContSheetDay'], meta: { name: 'ContSheetDay' } }
+    /**
+     * Find zero or one ContSheetDay that matches the filter.
+     * @param {ContSheetDayFindUniqueArgs} args - Arguments to find a ContSheetDay
+     * @example
+     * // Get one ContSheetDay
+     * const contSheetDay = await prisma.contSheetDay.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends ContSheetDayFindUniqueArgs>(args: SelectSubset<T, ContSheetDayFindUniqueArgs<ExtArgs>>): Prisma__ContSheetDayClient<$Result.GetResult<Prisma.$ContSheetDayPayload<ExtArgs>, T, "findUnique"> | null, null, ExtArgs>
+
+    /**
+     * Find one ContSheetDay that matches the filter or throw an error with `error.code='P2025'` 
+     * if no matches were found.
+     * @param {ContSheetDayFindUniqueOrThrowArgs} args - Arguments to find a ContSheetDay
+     * @example
+     * // Get one ContSheetDay
+     * const contSheetDay = await prisma.contSheetDay.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends ContSheetDayFindUniqueOrThrowArgs>(args: SelectSubset<T, ContSheetDayFindUniqueOrThrowArgs<ExtArgs>>): Prisma__ContSheetDayClient<$Result.GetResult<Prisma.$ContSheetDayPayload<ExtArgs>, T, "findUniqueOrThrow">, never, ExtArgs>
+
+    /**
+     * Find the first ContSheetDay that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetDayFindFirstArgs} args - Arguments to find a ContSheetDay
+     * @example
+     * // Get one ContSheetDay
+     * const contSheetDay = await prisma.contSheetDay.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends ContSheetDayFindFirstArgs>(args?: SelectSubset<T, ContSheetDayFindFirstArgs<ExtArgs>>): Prisma__ContSheetDayClient<$Result.GetResult<Prisma.$ContSheetDayPayload<ExtArgs>, T, "findFirst"> | null, null, ExtArgs>
+
+    /**
+     * Find the first ContSheetDay that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetDayFindFirstOrThrowArgs} args - Arguments to find a ContSheetDay
+     * @example
+     * // Get one ContSheetDay
+     * const contSheetDay = await prisma.contSheetDay.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends ContSheetDayFindFirstOrThrowArgs>(args?: SelectSubset<T, ContSheetDayFindFirstOrThrowArgs<ExtArgs>>): Prisma__ContSheetDayClient<$Result.GetResult<Prisma.$ContSheetDayPayload<ExtArgs>, T, "findFirstOrThrow">, never, ExtArgs>
+
+    /**
+     * Find zero or more ContSheetDays that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetDayFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all ContSheetDays
+     * const contSheetDays = await prisma.contSheetDay.findMany()
+     * 
+     * // Get first 10 ContSheetDays
+     * const contSheetDays = await prisma.contSheetDay.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const contSheetDayWithIdOnly = await prisma.contSheetDay.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends ContSheetDayFindManyArgs>(args?: SelectSubset<T, ContSheetDayFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ContSheetDayPayload<ExtArgs>, T, "findMany">>
+
+    /**
+     * Create a ContSheetDay.
+     * @param {ContSheetDayCreateArgs} args - Arguments to create a ContSheetDay.
+     * @example
+     * // Create one ContSheetDay
+     * const ContSheetDay = await prisma.contSheetDay.create({
+     *   data: {
+     *     // ... data to create a ContSheetDay
+     *   }
+     * })
+     * 
+     */
+    create<T extends ContSheetDayCreateArgs>(args: SelectSubset<T, ContSheetDayCreateArgs<ExtArgs>>): Prisma__ContSheetDayClient<$Result.GetResult<Prisma.$ContSheetDayPayload<ExtArgs>, T, "create">, never, ExtArgs>
+
+    /**
+     * Create many ContSheetDays.
+     * @param {ContSheetDayCreateManyArgs} args - Arguments to create many ContSheetDays.
+     * @example
+     * // Create many ContSheetDays
+     * const contSheetDay = await prisma.contSheetDay.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends ContSheetDayCreateManyArgs>(args?: SelectSubset<T, ContSheetDayCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many ContSheetDays and returns the data saved in the database.
+     * @param {ContSheetDayCreateManyAndReturnArgs} args - Arguments to create many ContSheetDays.
+     * @example
+     * // Create many ContSheetDays
+     * const contSheetDay = await prisma.contSheetDay.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many ContSheetDays and only return the `id`
+     * const contSheetDayWithIdOnly = await prisma.contSheetDay.createManyAndReturn({ 
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends ContSheetDayCreateManyAndReturnArgs>(args?: SelectSubset<T, ContSheetDayCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ContSheetDayPayload<ExtArgs>, T, "createManyAndReturn">>
+
+    /**
+     * Delete a ContSheetDay.
+     * @param {ContSheetDayDeleteArgs} args - Arguments to delete one ContSheetDay.
+     * @example
+     * // Delete one ContSheetDay
+     * const ContSheetDay = await prisma.contSheetDay.delete({
+     *   where: {
+     *     // ... filter to delete one ContSheetDay
+     *   }
+     * })
+     * 
+     */
+    delete<T extends ContSheetDayDeleteArgs>(args: SelectSubset<T, ContSheetDayDeleteArgs<ExtArgs>>): Prisma__ContSheetDayClient<$Result.GetResult<Prisma.$ContSheetDayPayload<ExtArgs>, T, "delete">, never, ExtArgs>
+
+    /**
+     * Update one ContSheetDay.
+     * @param {ContSheetDayUpdateArgs} args - Arguments to update one ContSheetDay.
+     * @example
+     * // Update one ContSheetDay
+     * const contSheetDay = await prisma.contSheetDay.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends ContSheetDayUpdateArgs>(args: SelectSubset<T, ContSheetDayUpdateArgs<ExtArgs>>): Prisma__ContSheetDayClient<$Result.GetResult<Prisma.$ContSheetDayPayload<ExtArgs>, T, "update">, never, ExtArgs>
+
+    /**
+     * Delete zero or more ContSheetDays.
+     * @param {ContSheetDayDeleteManyArgs} args - Arguments to filter ContSheetDays to delete.
+     * @example
+     * // Delete a few ContSheetDays
+     * const { count } = await prisma.contSheetDay.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends ContSheetDayDeleteManyArgs>(args?: SelectSubset<T, ContSheetDayDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more ContSheetDays.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetDayUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many ContSheetDays
+     * const contSheetDay = await prisma.contSheetDay.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends ContSheetDayUpdateManyArgs>(args: SelectSubset<T, ContSheetDayUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create or update one ContSheetDay.
+     * @param {ContSheetDayUpsertArgs} args - Arguments to update or create a ContSheetDay.
+     * @example
+     * // Update or create a ContSheetDay
+     * const contSheetDay = await prisma.contSheetDay.upsert({
+     *   create: {
+     *     // ... data to create a ContSheetDay
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the ContSheetDay we want to update
+     *   }
+     * })
+     */
+    upsert<T extends ContSheetDayUpsertArgs>(args: SelectSubset<T, ContSheetDayUpsertArgs<ExtArgs>>): Prisma__ContSheetDayClient<$Result.GetResult<Prisma.$ContSheetDayPayload<ExtArgs>, T, "upsert">, never, ExtArgs>
+
+
+    /**
+     * Count the number of ContSheetDays.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetDayCountArgs} args - Arguments to filter ContSheetDays to count.
+     * @example
+     * // Count the number of ContSheetDays
+     * const count = await prisma.contSheetDay.count({
+     *   where: {
+     *     // ... the filter for the ContSheetDays we want to count
+     *   }
+     * })
+    **/
+    count<T extends ContSheetDayCountArgs>(
+      args?: Subset<T, ContSheetDayCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], ContSheetDayCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a ContSheetDay.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetDayAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends ContSheetDayAggregateArgs>(args: Subset<T, ContSheetDayAggregateArgs>): Prisma.PrismaPromise<GetContSheetDayAggregateType<T>>
+
+    /**
+     * Group by ContSheetDay.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetDayGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends ContSheetDayGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: ContSheetDayGroupByArgs['orderBy'] }
+        : { orderBy?: ContSheetDayGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, ContSheetDayGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetContSheetDayGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the ContSheetDay model
+   */
+  readonly fields: ContSheetDayFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for ContSheetDay.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__ContSheetDayClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    project<T extends OriginalProjectDefaultArgs<ExtArgs> = {}>(args?: Subset<T, OriginalProjectDefaultArgs<ExtArgs>>): Prisma__OriginalProjectClient<$Result.GetResult<Prisma.$OriginalProjectPayload<ExtArgs>, T, "findUniqueOrThrow"> | Null, Null, ExtArgs>
+    shootDay<T extends ShootDayDefaultArgs<ExtArgs> = {}>(args?: Subset<T, ShootDayDefaultArgs<ExtArgs>>): Prisma__ShootDayClient<$Result.GetResult<Prisma.$ShootDayPayload<ExtArgs>, T, "findUniqueOrThrow"> | Null, Null, ExtArgs>
+    scenes<T extends ContSheetDay$scenesArgs<ExtArgs> = {}>(args?: Subset<T, ContSheetDay$scenesArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ContSheetScenePayload<ExtArgs>, T, "findMany"> | Null>
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the ContSheetDay model
+   */ 
+  interface ContSheetDayFieldRefs {
+    readonly id: FieldRef<"ContSheetDay", 'String'>
+    readonly projectId: FieldRef<"ContSheetDay", 'String'>
+    readonly shootDayId: FieldRef<"ContSheetDay", 'String'>
+    readonly version: FieldRef<"ContSheetDay", 'Int'>
+    readonly showTitle: FieldRef<"ContSheetDay", 'String'>
+    readonly productionCompany: FieldRef<"ContSheetDay", 'String'>
+    readonly callSheetNumber: FieldRef<"ContSheetDay", 'String'>
+    readonly reportDate: FieldRef<"ContSheetDay", 'String'>
+    readonly cameraUnit: FieldRef<"ContSheetDay", 'String'>
+    readonly crewJson: FieldRef<"ContSheetDay", 'Json'>
+    readonly dayClockJson: FieldRef<"ContSheetDay", 'Json'>
+    readonly scenesSummaryJson: FieldRef<"ContSheetDay", 'Json'>
+    readonly totalsJson: FieldRef<"ContSheetDay", 'Json'>
+    readonly notes: FieldRef<"ContSheetDay", 'String'>
+    readonly createdAt: FieldRef<"ContSheetDay", 'DateTime'>
+    readonly updatedAt: FieldRef<"ContSheetDay", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * ContSheetDay findUnique
+   */
+  export type ContSheetDayFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetDay
+     */
+    select?: ContSheetDaySelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetDayInclude<ExtArgs> | null
+    /**
+     * Filter, which ContSheetDay to fetch.
+     */
+    where: ContSheetDayWhereUniqueInput
+  }
+
+  /**
+   * ContSheetDay findUniqueOrThrow
+   */
+  export type ContSheetDayFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetDay
+     */
+    select?: ContSheetDaySelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetDayInclude<ExtArgs> | null
+    /**
+     * Filter, which ContSheetDay to fetch.
+     */
+    where: ContSheetDayWhereUniqueInput
+  }
+
+  /**
+   * ContSheetDay findFirst
+   */
+  export type ContSheetDayFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetDay
+     */
+    select?: ContSheetDaySelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetDayInclude<ExtArgs> | null
+    /**
+     * Filter, which ContSheetDay to fetch.
+     */
+    where?: ContSheetDayWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ContSheetDays to fetch.
+     */
+    orderBy?: ContSheetDayOrderByWithRelationInput | ContSheetDayOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for ContSheetDays.
+     */
+    cursor?: ContSheetDayWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ContSheetDays from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ContSheetDays.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of ContSheetDays.
+     */
+    distinct?: ContSheetDayScalarFieldEnum | ContSheetDayScalarFieldEnum[]
+  }
+
+  /**
+   * ContSheetDay findFirstOrThrow
+   */
+  export type ContSheetDayFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetDay
+     */
+    select?: ContSheetDaySelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetDayInclude<ExtArgs> | null
+    /**
+     * Filter, which ContSheetDay to fetch.
+     */
+    where?: ContSheetDayWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ContSheetDays to fetch.
+     */
+    orderBy?: ContSheetDayOrderByWithRelationInput | ContSheetDayOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for ContSheetDays.
+     */
+    cursor?: ContSheetDayWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ContSheetDays from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ContSheetDays.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of ContSheetDays.
+     */
+    distinct?: ContSheetDayScalarFieldEnum | ContSheetDayScalarFieldEnum[]
+  }
+
+  /**
+   * ContSheetDay findMany
+   */
+  export type ContSheetDayFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetDay
+     */
+    select?: ContSheetDaySelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetDayInclude<ExtArgs> | null
+    /**
+     * Filter, which ContSheetDays to fetch.
+     */
+    where?: ContSheetDayWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ContSheetDays to fetch.
+     */
+    orderBy?: ContSheetDayOrderByWithRelationInput | ContSheetDayOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing ContSheetDays.
+     */
+    cursor?: ContSheetDayWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ContSheetDays from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ContSheetDays.
+     */
+    skip?: number
+    distinct?: ContSheetDayScalarFieldEnum | ContSheetDayScalarFieldEnum[]
+  }
+
+  /**
+   * ContSheetDay create
+   */
+  export type ContSheetDayCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetDay
+     */
+    select?: ContSheetDaySelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetDayInclude<ExtArgs> | null
+    /**
+     * The data needed to create a ContSheetDay.
+     */
+    data: XOR<ContSheetDayCreateInput, ContSheetDayUncheckedCreateInput>
+  }
+
+  /**
+   * ContSheetDay createMany
+   */
+  export type ContSheetDayCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many ContSheetDays.
+     */
+    data: ContSheetDayCreateManyInput | ContSheetDayCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * ContSheetDay createManyAndReturn
+   */
+  export type ContSheetDayCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetDay
+     */
+    select?: ContSheetDaySelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * The data used to create many ContSheetDays.
+     */
+    data: ContSheetDayCreateManyInput | ContSheetDayCreateManyInput[]
+    skipDuplicates?: boolean
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetDayIncludeCreateManyAndReturn<ExtArgs> | null
+  }
+
+  /**
+   * ContSheetDay update
+   */
+  export type ContSheetDayUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetDay
+     */
+    select?: ContSheetDaySelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetDayInclude<ExtArgs> | null
+    /**
+     * The data needed to update a ContSheetDay.
+     */
+    data: XOR<ContSheetDayUpdateInput, ContSheetDayUncheckedUpdateInput>
+    /**
+     * Choose, which ContSheetDay to update.
+     */
+    where: ContSheetDayWhereUniqueInput
+  }
+
+  /**
+   * ContSheetDay updateMany
+   */
+  export type ContSheetDayUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update ContSheetDays.
+     */
+    data: XOR<ContSheetDayUpdateManyMutationInput, ContSheetDayUncheckedUpdateManyInput>
+    /**
+     * Filter which ContSheetDays to update
+     */
+    where?: ContSheetDayWhereInput
+  }
+
+  /**
+   * ContSheetDay upsert
+   */
+  export type ContSheetDayUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetDay
+     */
+    select?: ContSheetDaySelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetDayInclude<ExtArgs> | null
+    /**
+     * The filter to search for the ContSheetDay to update in case it exists.
+     */
+    where: ContSheetDayWhereUniqueInput
+    /**
+     * In case the ContSheetDay found by the `where` argument doesn't exist, create a new ContSheetDay with this data.
+     */
+    create: XOR<ContSheetDayCreateInput, ContSheetDayUncheckedCreateInput>
+    /**
+     * In case the ContSheetDay was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<ContSheetDayUpdateInput, ContSheetDayUncheckedUpdateInput>
+  }
+
+  /**
+   * ContSheetDay delete
+   */
+  export type ContSheetDayDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetDay
+     */
+    select?: ContSheetDaySelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetDayInclude<ExtArgs> | null
+    /**
+     * Filter which ContSheetDay to delete.
+     */
+    where: ContSheetDayWhereUniqueInput
+  }
+
+  /**
+   * ContSheetDay deleteMany
+   */
+  export type ContSheetDayDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which ContSheetDays to delete
+     */
+    where?: ContSheetDayWhereInput
+  }
+
+  /**
+   * ContSheetDay.scenes
+   */
+  export type ContSheetDay$scenesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetScene
+     */
+    select?: ContSheetSceneSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetSceneInclude<ExtArgs> | null
+    where?: ContSheetSceneWhereInput
+    orderBy?: ContSheetSceneOrderByWithRelationInput | ContSheetSceneOrderByWithRelationInput[]
+    cursor?: ContSheetSceneWhereUniqueInput
+    take?: number
+    skip?: number
+    distinct?: ContSheetSceneScalarFieldEnum | ContSheetSceneScalarFieldEnum[]
+  }
+
+  /**
+   * ContSheetDay without action
+   */
+  export type ContSheetDayDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetDay
+     */
+    select?: ContSheetDaySelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetDayInclude<ExtArgs> | null
+  }
+
+
+  /**
+   * Model ContSheetScene
+   */
+
+  export type AggregateContSheetScene = {
+    _count: ContSheetSceneCountAggregateOutputType | null
+    _avg: ContSheetSceneAvgAggregateOutputType | null
+    _sum: ContSheetSceneSumAggregateOutputType | null
+    _min: ContSheetSceneMinAggregateOutputType | null
+    _max: ContSheetSceneMaxAggregateOutputType | null
+  }
+
+  export type ContSheetSceneAvgAggregateOutputType = {
+    sortOrder: number | null
+  }
+
+  export type ContSheetSceneSumAggregateOutputType = {
+    sortOrder: number | null
+  }
+
+  export type ContSheetSceneMinAggregateOutputType = {
+    id: string | null
+    dayId: string | null
+    projectSceneId: string | null
+    episode: string | null
+    sceneCode: string | null
+    dayNight: string | null
+    intExt: string | null
+    location: string | null
+    weather: string | null
+    turnoverTime: string | null
+    estimatedTiming: string | null
+    actualTiming: string | null
+    completionStatus: string | null
+    sortOrder: number | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type ContSheetSceneMaxAggregateOutputType = {
+    id: string | null
+    dayId: string | null
+    projectSceneId: string | null
+    episode: string | null
+    sceneCode: string | null
+    dayNight: string | null
+    intExt: string | null
+    location: string | null
+    weather: string | null
+    turnoverTime: string | null
+    estimatedTiming: string | null
+    actualTiming: string | null
+    completionStatus: string | null
+    sortOrder: number | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type ContSheetSceneCountAggregateOutputType = {
+    id: number
+    dayId: number
+    projectSceneId: number
+    episode: number
+    sceneCode: number
+    dayNight: number
+    intExt: number
+    location: number
+    weather: number
+    turnoverTime: number
+    estimatedTiming: number
+    actualTiming: number
+    completionStatus: number
+    sortOrder: number
+    createdAt: number
+    updatedAt: number
+    _all: number
+  }
+
+
+  export type ContSheetSceneAvgAggregateInputType = {
+    sortOrder?: true
+  }
+
+  export type ContSheetSceneSumAggregateInputType = {
+    sortOrder?: true
+  }
+
+  export type ContSheetSceneMinAggregateInputType = {
+    id?: true
+    dayId?: true
+    projectSceneId?: true
+    episode?: true
+    sceneCode?: true
+    dayNight?: true
+    intExt?: true
+    location?: true
+    weather?: true
+    turnoverTime?: true
+    estimatedTiming?: true
+    actualTiming?: true
+    completionStatus?: true
+    sortOrder?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type ContSheetSceneMaxAggregateInputType = {
+    id?: true
+    dayId?: true
+    projectSceneId?: true
+    episode?: true
+    sceneCode?: true
+    dayNight?: true
+    intExt?: true
+    location?: true
+    weather?: true
+    turnoverTime?: true
+    estimatedTiming?: true
+    actualTiming?: true
+    completionStatus?: true
+    sortOrder?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type ContSheetSceneCountAggregateInputType = {
+    id?: true
+    dayId?: true
+    projectSceneId?: true
+    episode?: true
+    sceneCode?: true
+    dayNight?: true
+    intExt?: true
+    location?: true
+    weather?: true
+    turnoverTime?: true
+    estimatedTiming?: true
+    actualTiming?: true
+    completionStatus?: true
+    sortOrder?: true
+    createdAt?: true
+    updatedAt?: true
+    _all?: true
+  }
+
+  export type ContSheetSceneAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which ContSheetScene to aggregate.
+     */
+    where?: ContSheetSceneWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ContSheetScenes to fetch.
+     */
+    orderBy?: ContSheetSceneOrderByWithRelationInput | ContSheetSceneOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: ContSheetSceneWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ContSheetScenes from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ContSheetScenes.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned ContSheetScenes
+    **/
+    _count?: true | ContSheetSceneCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to average
+    **/
+    _avg?: ContSheetSceneAvgAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to sum
+    **/
+    _sum?: ContSheetSceneSumAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: ContSheetSceneMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: ContSheetSceneMaxAggregateInputType
+  }
+
+  export type GetContSheetSceneAggregateType<T extends ContSheetSceneAggregateArgs> = {
+        [P in keyof T & keyof AggregateContSheetScene]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateContSheetScene[P]>
+      : GetScalarType<T[P], AggregateContSheetScene[P]>
+  }
+
+
+
+
+  export type ContSheetSceneGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: ContSheetSceneWhereInput
+    orderBy?: ContSheetSceneOrderByWithAggregationInput | ContSheetSceneOrderByWithAggregationInput[]
+    by: ContSheetSceneScalarFieldEnum[] | ContSheetSceneScalarFieldEnum
+    having?: ContSheetSceneScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: ContSheetSceneCountAggregateInputType | true
+    _avg?: ContSheetSceneAvgAggregateInputType
+    _sum?: ContSheetSceneSumAggregateInputType
+    _min?: ContSheetSceneMinAggregateInputType
+    _max?: ContSheetSceneMaxAggregateInputType
+  }
+
+  export type ContSheetSceneGroupByOutputType = {
+    id: string
+    dayId: string
+    projectSceneId: string | null
+    episode: string | null
+    sceneCode: string
+    dayNight: string | null
+    intExt: string | null
+    location: string | null
+    weather: string | null
+    turnoverTime: string | null
+    estimatedTiming: string | null
+    actualTiming: string | null
+    completionStatus: string
+    sortOrder: number
+    createdAt: Date
+    updatedAt: Date
+    _count: ContSheetSceneCountAggregateOutputType | null
+    _avg: ContSheetSceneAvgAggregateOutputType | null
+    _sum: ContSheetSceneSumAggregateOutputType | null
+    _min: ContSheetSceneMinAggregateOutputType | null
+    _max: ContSheetSceneMaxAggregateOutputType | null
+  }
+
+  type GetContSheetSceneGroupByPayload<T extends ContSheetSceneGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<ContSheetSceneGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof ContSheetSceneGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], ContSheetSceneGroupByOutputType[P]>
+            : GetScalarType<T[P], ContSheetSceneGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type ContSheetSceneSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    dayId?: boolean
+    projectSceneId?: boolean
+    episode?: boolean
+    sceneCode?: boolean
+    dayNight?: boolean
+    intExt?: boolean
+    location?: boolean
+    weather?: boolean
+    turnoverTime?: boolean
+    estimatedTiming?: boolean
+    actualTiming?: boolean
+    completionStatus?: boolean
+    sortOrder?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+    day?: boolean | ContSheetDayDefaultArgs<ExtArgs>
+    projectScene?: boolean | ContSheetScene$projectSceneArgs<ExtArgs>
+    takes?: boolean | ContSheetScene$takesArgs<ExtArgs>
+    _count?: boolean | ContSheetSceneCountOutputTypeDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["contSheetScene"]>
+
+  export type ContSheetSceneSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    dayId?: boolean
+    projectSceneId?: boolean
+    episode?: boolean
+    sceneCode?: boolean
+    dayNight?: boolean
+    intExt?: boolean
+    location?: boolean
+    weather?: boolean
+    turnoverTime?: boolean
+    estimatedTiming?: boolean
+    actualTiming?: boolean
+    completionStatus?: boolean
+    sortOrder?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+    day?: boolean | ContSheetDayDefaultArgs<ExtArgs>
+    projectScene?: boolean | ContSheetScene$projectSceneArgs<ExtArgs>
+  }, ExtArgs["result"]["contSheetScene"]>
+
+  export type ContSheetSceneSelectScalar = {
+    id?: boolean
+    dayId?: boolean
+    projectSceneId?: boolean
+    episode?: boolean
+    sceneCode?: boolean
+    dayNight?: boolean
+    intExt?: boolean
+    location?: boolean
+    weather?: boolean
+    turnoverTime?: boolean
+    estimatedTiming?: boolean
+    actualTiming?: boolean
+    completionStatus?: boolean
+    sortOrder?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }
+
+  export type ContSheetSceneInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    day?: boolean | ContSheetDayDefaultArgs<ExtArgs>
+    projectScene?: boolean | ContSheetScene$projectSceneArgs<ExtArgs>
+    takes?: boolean | ContSheetScene$takesArgs<ExtArgs>
+    _count?: boolean | ContSheetSceneCountOutputTypeDefaultArgs<ExtArgs>
+  }
+  export type ContSheetSceneIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    day?: boolean | ContSheetDayDefaultArgs<ExtArgs>
+    projectScene?: boolean | ContSheetScene$projectSceneArgs<ExtArgs>
+  }
+
+  export type $ContSheetScenePayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "ContSheetScene"
+    objects: {
+      day: Prisma.$ContSheetDayPayload<ExtArgs>
+      projectScene: Prisma.$ProjectScenePayload<ExtArgs> | null
+      takes: Prisma.$ContSheetTakePayload<ExtArgs>[]
+    }
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      dayId: string
+      projectSceneId: string | null
+      episode: string | null
+      sceneCode: string
+      dayNight: string | null
+      intExt: string | null
+      location: string | null
+      weather: string | null
+      turnoverTime: string | null
+      estimatedTiming: string | null
+      actualTiming: string | null
+      /**
+       * scheduled | completed | dropped | added | partlyShot
+       */
+      completionStatus: string
+      sortOrder: number
+      createdAt: Date
+      updatedAt: Date
+    }, ExtArgs["result"]["contSheetScene"]>
+    composites: {}
+  }
+
+  type ContSheetSceneGetPayload<S extends boolean | null | undefined | ContSheetSceneDefaultArgs> = $Result.GetResult<Prisma.$ContSheetScenePayload, S>
+
+  type ContSheetSceneCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = 
+    Omit<ContSheetSceneFindManyArgs, 'select' | 'include' | 'distinct'> & {
+      select?: ContSheetSceneCountAggregateInputType | true
+    }
+
+  export interface ContSheetSceneDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['ContSheetScene'], meta: { name: 'ContSheetScene' } }
+    /**
+     * Find zero or one ContSheetScene that matches the filter.
+     * @param {ContSheetSceneFindUniqueArgs} args - Arguments to find a ContSheetScene
+     * @example
+     * // Get one ContSheetScene
+     * const contSheetScene = await prisma.contSheetScene.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends ContSheetSceneFindUniqueArgs>(args: SelectSubset<T, ContSheetSceneFindUniqueArgs<ExtArgs>>): Prisma__ContSheetSceneClient<$Result.GetResult<Prisma.$ContSheetScenePayload<ExtArgs>, T, "findUnique"> | null, null, ExtArgs>
+
+    /**
+     * Find one ContSheetScene that matches the filter or throw an error with `error.code='P2025'` 
+     * if no matches were found.
+     * @param {ContSheetSceneFindUniqueOrThrowArgs} args - Arguments to find a ContSheetScene
+     * @example
+     * // Get one ContSheetScene
+     * const contSheetScene = await prisma.contSheetScene.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends ContSheetSceneFindUniqueOrThrowArgs>(args: SelectSubset<T, ContSheetSceneFindUniqueOrThrowArgs<ExtArgs>>): Prisma__ContSheetSceneClient<$Result.GetResult<Prisma.$ContSheetScenePayload<ExtArgs>, T, "findUniqueOrThrow">, never, ExtArgs>
+
+    /**
+     * Find the first ContSheetScene that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetSceneFindFirstArgs} args - Arguments to find a ContSheetScene
+     * @example
+     * // Get one ContSheetScene
+     * const contSheetScene = await prisma.contSheetScene.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends ContSheetSceneFindFirstArgs>(args?: SelectSubset<T, ContSheetSceneFindFirstArgs<ExtArgs>>): Prisma__ContSheetSceneClient<$Result.GetResult<Prisma.$ContSheetScenePayload<ExtArgs>, T, "findFirst"> | null, null, ExtArgs>
+
+    /**
+     * Find the first ContSheetScene that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetSceneFindFirstOrThrowArgs} args - Arguments to find a ContSheetScene
+     * @example
+     * // Get one ContSheetScene
+     * const contSheetScene = await prisma.contSheetScene.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends ContSheetSceneFindFirstOrThrowArgs>(args?: SelectSubset<T, ContSheetSceneFindFirstOrThrowArgs<ExtArgs>>): Prisma__ContSheetSceneClient<$Result.GetResult<Prisma.$ContSheetScenePayload<ExtArgs>, T, "findFirstOrThrow">, never, ExtArgs>
+
+    /**
+     * Find zero or more ContSheetScenes that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetSceneFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all ContSheetScenes
+     * const contSheetScenes = await prisma.contSheetScene.findMany()
+     * 
+     * // Get first 10 ContSheetScenes
+     * const contSheetScenes = await prisma.contSheetScene.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const contSheetSceneWithIdOnly = await prisma.contSheetScene.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends ContSheetSceneFindManyArgs>(args?: SelectSubset<T, ContSheetSceneFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ContSheetScenePayload<ExtArgs>, T, "findMany">>
+
+    /**
+     * Create a ContSheetScene.
+     * @param {ContSheetSceneCreateArgs} args - Arguments to create a ContSheetScene.
+     * @example
+     * // Create one ContSheetScene
+     * const ContSheetScene = await prisma.contSheetScene.create({
+     *   data: {
+     *     // ... data to create a ContSheetScene
+     *   }
+     * })
+     * 
+     */
+    create<T extends ContSheetSceneCreateArgs>(args: SelectSubset<T, ContSheetSceneCreateArgs<ExtArgs>>): Prisma__ContSheetSceneClient<$Result.GetResult<Prisma.$ContSheetScenePayload<ExtArgs>, T, "create">, never, ExtArgs>
+
+    /**
+     * Create many ContSheetScenes.
+     * @param {ContSheetSceneCreateManyArgs} args - Arguments to create many ContSheetScenes.
+     * @example
+     * // Create many ContSheetScenes
+     * const contSheetScene = await prisma.contSheetScene.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends ContSheetSceneCreateManyArgs>(args?: SelectSubset<T, ContSheetSceneCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many ContSheetScenes and returns the data saved in the database.
+     * @param {ContSheetSceneCreateManyAndReturnArgs} args - Arguments to create many ContSheetScenes.
+     * @example
+     * // Create many ContSheetScenes
+     * const contSheetScene = await prisma.contSheetScene.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many ContSheetScenes and only return the `id`
+     * const contSheetSceneWithIdOnly = await prisma.contSheetScene.createManyAndReturn({ 
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends ContSheetSceneCreateManyAndReturnArgs>(args?: SelectSubset<T, ContSheetSceneCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ContSheetScenePayload<ExtArgs>, T, "createManyAndReturn">>
+
+    /**
+     * Delete a ContSheetScene.
+     * @param {ContSheetSceneDeleteArgs} args - Arguments to delete one ContSheetScene.
+     * @example
+     * // Delete one ContSheetScene
+     * const ContSheetScene = await prisma.contSheetScene.delete({
+     *   where: {
+     *     // ... filter to delete one ContSheetScene
+     *   }
+     * })
+     * 
+     */
+    delete<T extends ContSheetSceneDeleteArgs>(args: SelectSubset<T, ContSheetSceneDeleteArgs<ExtArgs>>): Prisma__ContSheetSceneClient<$Result.GetResult<Prisma.$ContSheetScenePayload<ExtArgs>, T, "delete">, never, ExtArgs>
+
+    /**
+     * Update one ContSheetScene.
+     * @param {ContSheetSceneUpdateArgs} args - Arguments to update one ContSheetScene.
+     * @example
+     * // Update one ContSheetScene
+     * const contSheetScene = await prisma.contSheetScene.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends ContSheetSceneUpdateArgs>(args: SelectSubset<T, ContSheetSceneUpdateArgs<ExtArgs>>): Prisma__ContSheetSceneClient<$Result.GetResult<Prisma.$ContSheetScenePayload<ExtArgs>, T, "update">, never, ExtArgs>
+
+    /**
+     * Delete zero or more ContSheetScenes.
+     * @param {ContSheetSceneDeleteManyArgs} args - Arguments to filter ContSheetScenes to delete.
+     * @example
+     * // Delete a few ContSheetScenes
+     * const { count } = await prisma.contSheetScene.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends ContSheetSceneDeleteManyArgs>(args?: SelectSubset<T, ContSheetSceneDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more ContSheetScenes.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetSceneUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many ContSheetScenes
+     * const contSheetScene = await prisma.contSheetScene.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends ContSheetSceneUpdateManyArgs>(args: SelectSubset<T, ContSheetSceneUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create or update one ContSheetScene.
+     * @param {ContSheetSceneUpsertArgs} args - Arguments to update or create a ContSheetScene.
+     * @example
+     * // Update or create a ContSheetScene
+     * const contSheetScene = await prisma.contSheetScene.upsert({
+     *   create: {
+     *     // ... data to create a ContSheetScene
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the ContSheetScene we want to update
+     *   }
+     * })
+     */
+    upsert<T extends ContSheetSceneUpsertArgs>(args: SelectSubset<T, ContSheetSceneUpsertArgs<ExtArgs>>): Prisma__ContSheetSceneClient<$Result.GetResult<Prisma.$ContSheetScenePayload<ExtArgs>, T, "upsert">, never, ExtArgs>
+
+
+    /**
+     * Count the number of ContSheetScenes.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetSceneCountArgs} args - Arguments to filter ContSheetScenes to count.
+     * @example
+     * // Count the number of ContSheetScenes
+     * const count = await prisma.contSheetScene.count({
+     *   where: {
+     *     // ... the filter for the ContSheetScenes we want to count
+     *   }
+     * })
+    **/
+    count<T extends ContSheetSceneCountArgs>(
+      args?: Subset<T, ContSheetSceneCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], ContSheetSceneCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a ContSheetScene.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetSceneAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends ContSheetSceneAggregateArgs>(args: Subset<T, ContSheetSceneAggregateArgs>): Prisma.PrismaPromise<GetContSheetSceneAggregateType<T>>
+
+    /**
+     * Group by ContSheetScene.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetSceneGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends ContSheetSceneGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: ContSheetSceneGroupByArgs['orderBy'] }
+        : { orderBy?: ContSheetSceneGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, ContSheetSceneGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetContSheetSceneGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the ContSheetScene model
+   */
+  readonly fields: ContSheetSceneFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for ContSheetScene.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__ContSheetSceneClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    day<T extends ContSheetDayDefaultArgs<ExtArgs> = {}>(args?: Subset<T, ContSheetDayDefaultArgs<ExtArgs>>): Prisma__ContSheetDayClient<$Result.GetResult<Prisma.$ContSheetDayPayload<ExtArgs>, T, "findUniqueOrThrow"> | Null, Null, ExtArgs>
+    projectScene<T extends ContSheetScene$projectSceneArgs<ExtArgs> = {}>(args?: Subset<T, ContSheetScene$projectSceneArgs<ExtArgs>>): Prisma__ProjectSceneClient<$Result.GetResult<Prisma.$ProjectScenePayload<ExtArgs>, T, "findUniqueOrThrow"> | null, null, ExtArgs>
+    takes<T extends ContSheetScene$takesArgs<ExtArgs> = {}>(args?: Subset<T, ContSheetScene$takesArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ContSheetTakePayload<ExtArgs>, T, "findMany"> | Null>
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the ContSheetScene model
+   */ 
+  interface ContSheetSceneFieldRefs {
+    readonly id: FieldRef<"ContSheetScene", 'String'>
+    readonly dayId: FieldRef<"ContSheetScene", 'String'>
+    readonly projectSceneId: FieldRef<"ContSheetScene", 'String'>
+    readonly episode: FieldRef<"ContSheetScene", 'String'>
+    readonly sceneCode: FieldRef<"ContSheetScene", 'String'>
+    readonly dayNight: FieldRef<"ContSheetScene", 'String'>
+    readonly intExt: FieldRef<"ContSheetScene", 'String'>
+    readonly location: FieldRef<"ContSheetScene", 'String'>
+    readonly weather: FieldRef<"ContSheetScene", 'String'>
+    readonly turnoverTime: FieldRef<"ContSheetScene", 'String'>
+    readonly estimatedTiming: FieldRef<"ContSheetScene", 'String'>
+    readonly actualTiming: FieldRef<"ContSheetScene", 'String'>
+    readonly completionStatus: FieldRef<"ContSheetScene", 'String'>
+    readonly sortOrder: FieldRef<"ContSheetScene", 'Int'>
+    readonly createdAt: FieldRef<"ContSheetScene", 'DateTime'>
+    readonly updatedAt: FieldRef<"ContSheetScene", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * ContSheetScene findUnique
+   */
+  export type ContSheetSceneFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetScene
+     */
+    select?: ContSheetSceneSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetSceneInclude<ExtArgs> | null
+    /**
+     * Filter, which ContSheetScene to fetch.
+     */
+    where: ContSheetSceneWhereUniqueInput
+  }
+
+  /**
+   * ContSheetScene findUniqueOrThrow
+   */
+  export type ContSheetSceneFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetScene
+     */
+    select?: ContSheetSceneSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetSceneInclude<ExtArgs> | null
+    /**
+     * Filter, which ContSheetScene to fetch.
+     */
+    where: ContSheetSceneWhereUniqueInput
+  }
+
+  /**
+   * ContSheetScene findFirst
+   */
+  export type ContSheetSceneFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetScene
+     */
+    select?: ContSheetSceneSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetSceneInclude<ExtArgs> | null
+    /**
+     * Filter, which ContSheetScene to fetch.
+     */
+    where?: ContSheetSceneWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ContSheetScenes to fetch.
+     */
+    orderBy?: ContSheetSceneOrderByWithRelationInput | ContSheetSceneOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for ContSheetScenes.
+     */
+    cursor?: ContSheetSceneWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ContSheetScenes from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ContSheetScenes.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of ContSheetScenes.
+     */
+    distinct?: ContSheetSceneScalarFieldEnum | ContSheetSceneScalarFieldEnum[]
+  }
+
+  /**
+   * ContSheetScene findFirstOrThrow
+   */
+  export type ContSheetSceneFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetScene
+     */
+    select?: ContSheetSceneSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetSceneInclude<ExtArgs> | null
+    /**
+     * Filter, which ContSheetScene to fetch.
+     */
+    where?: ContSheetSceneWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ContSheetScenes to fetch.
+     */
+    orderBy?: ContSheetSceneOrderByWithRelationInput | ContSheetSceneOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for ContSheetScenes.
+     */
+    cursor?: ContSheetSceneWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ContSheetScenes from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ContSheetScenes.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of ContSheetScenes.
+     */
+    distinct?: ContSheetSceneScalarFieldEnum | ContSheetSceneScalarFieldEnum[]
+  }
+
+  /**
+   * ContSheetScene findMany
+   */
+  export type ContSheetSceneFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetScene
+     */
+    select?: ContSheetSceneSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetSceneInclude<ExtArgs> | null
+    /**
+     * Filter, which ContSheetScenes to fetch.
+     */
+    where?: ContSheetSceneWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ContSheetScenes to fetch.
+     */
+    orderBy?: ContSheetSceneOrderByWithRelationInput | ContSheetSceneOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing ContSheetScenes.
+     */
+    cursor?: ContSheetSceneWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ContSheetScenes from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ContSheetScenes.
+     */
+    skip?: number
+    distinct?: ContSheetSceneScalarFieldEnum | ContSheetSceneScalarFieldEnum[]
+  }
+
+  /**
+   * ContSheetScene create
+   */
+  export type ContSheetSceneCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetScene
+     */
+    select?: ContSheetSceneSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetSceneInclude<ExtArgs> | null
+    /**
+     * The data needed to create a ContSheetScene.
+     */
+    data: XOR<ContSheetSceneCreateInput, ContSheetSceneUncheckedCreateInput>
+  }
+
+  /**
+   * ContSheetScene createMany
+   */
+  export type ContSheetSceneCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many ContSheetScenes.
+     */
+    data: ContSheetSceneCreateManyInput | ContSheetSceneCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * ContSheetScene createManyAndReturn
+   */
+  export type ContSheetSceneCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetScene
+     */
+    select?: ContSheetSceneSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * The data used to create many ContSheetScenes.
+     */
+    data: ContSheetSceneCreateManyInput | ContSheetSceneCreateManyInput[]
+    skipDuplicates?: boolean
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetSceneIncludeCreateManyAndReturn<ExtArgs> | null
+  }
+
+  /**
+   * ContSheetScene update
+   */
+  export type ContSheetSceneUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetScene
+     */
+    select?: ContSheetSceneSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetSceneInclude<ExtArgs> | null
+    /**
+     * The data needed to update a ContSheetScene.
+     */
+    data: XOR<ContSheetSceneUpdateInput, ContSheetSceneUncheckedUpdateInput>
+    /**
+     * Choose, which ContSheetScene to update.
+     */
+    where: ContSheetSceneWhereUniqueInput
+  }
+
+  /**
+   * ContSheetScene updateMany
+   */
+  export type ContSheetSceneUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update ContSheetScenes.
+     */
+    data: XOR<ContSheetSceneUpdateManyMutationInput, ContSheetSceneUncheckedUpdateManyInput>
+    /**
+     * Filter which ContSheetScenes to update
+     */
+    where?: ContSheetSceneWhereInput
+  }
+
+  /**
+   * ContSheetScene upsert
+   */
+  export type ContSheetSceneUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetScene
+     */
+    select?: ContSheetSceneSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetSceneInclude<ExtArgs> | null
+    /**
+     * The filter to search for the ContSheetScene to update in case it exists.
+     */
+    where: ContSheetSceneWhereUniqueInput
+    /**
+     * In case the ContSheetScene found by the `where` argument doesn't exist, create a new ContSheetScene with this data.
+     */
+    create: XOR<ContSheetSceneCreateInput, ContSheetSceneUncheckedCreateInput>
+    /**
+     * In case the ContSheetScene was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<ContSheetSceneUpdateInput, ContSheetSceneUncheckedUpdateInput>
+  }
+
+  /**
+   * ContSheetScene delete
+   */
+  export type ContSheetSceneDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetScene
+     */
+    select?: ContSheetSceneSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetSceneInclude<ExtArgs> | null
+    /**
+     * Filter which ContSheetScene to delete.
+     */
+    where: ContSheetSceneWhereUniqueInput
+  }
+
+  /**
+   * ContSheetScene deleteMany
+   */
+  export type ContSheetSceneDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which ContSheetScenes to delete
+     */
+    where?: ContSheetSceneWhereInput
+  }
+
+  /**
+   * ContSheetScene.projectScene
+   */
+  export type ContSheetScene$projectSceneArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ProjectScene
+     */
+    select?: ProjectSceneSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ProjectSceneInclude<ExtArgs> | null
+    where?: ProjectSceneWhereInput
+  }
+
+  /**
+   * ContSheetScene.takes
+   */
+  export type ContSheetScene$takesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetTake
+     */
+    select?: ContSheetTakeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetTakeInclude<ExtArgs> | null
+    where?: ContSheetTakeWhereInput
+    orderBy?: ContSheetTakeOrderByWithRelationInput | ContSheetTakeOrderByWithRelationInput[]
+    cursor?: ContSheetTakeWhereUniqueInput
+    take?: number
+    skip?: number
+    distinct?: ContSheetTakeScalarFieldEnum | ContSheetTakeScalarFieldEnum[]
+  }
+
+  /**
+   * ContSheetScene without action
+   */
+  export type ContSheetSceneDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetScene
+     */
+    select?: ContSheetSceneSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetSceneInclude<ExtArgs> | null
+  }
+
+
+  /**
+   * Model ContSheetTake
+   */
+
+  export type AggregateContSheetTake = {
+    _count: ContSheetTakeCountAggregateOutputType | null
+    _avg: ContSheetTakeAvgAggregateOutputType | null
+    _sum: ContSheetTakeSumAggregateOutputType | null
+    _min: ContSheetTakeMinAggregateOutputType | null
+    _max: ContSheetTakeMaxAggregateOutputType | null
+  }
+
+  export type ContSheetTakeAvgAggregateOutputType = {
+    takeNumber: number | null
+    pickup: number | null
+    durationSec: number | null
+    sortOrder: number | null
+  }
+
+  export type ContSheetTakeSumAggregateOutputType = {
+    takeNumber: number | null
+    pickup: number | null
+    durationSec: number | null
+    sortOrder: number | null
+  }
+
+  export type ContSheetTakeMinAggregateOutputType = {
+    id: string | null
+    sceneId: string | null
+    slate: string | null
+    takeNumber: number | null
+    pickup: number | null
+    printStatus: string | null
+    durationSec: number | null
+    description: string | null
+    notes: string | null
+    camera: string | null
+    sortOrder: number | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type ContSheetTakeMaxAggregateOutputType = {
+    id: string | null
+    sceneId: string | null
+    slate: string | null
+    takeNumber: number | null
+    pickup: number | null
+    printStatus: string | null
+    durationSec: number | null
+    description: string | null
+    notes: string | null
+    camera: string | null
+    sortOrder: number | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type ContSheetTakeCountAggregateOutputType = {
+    id: number
+    sceneId: number
+    slate: number
+    takeNumber: number
+    pickup: number
+    printStatus: number
+    durationSec: number
+    description: number
+    notes: number
+    camera: number
+    sortOrder: number
+    createdAt: number
+    updatedAt: number
+    _all: number
+  }
+
+
+  export type ContSheetTakeAvgAggregateInputType = {
+    takeNumber?: true
+    pickup?: true
+    durationSec?: true
+    sortOrder?: true
+  }
+
+  export type ContSheetTakeSumAggregateInputType = {
+    takeNumber?: true
+    pickup?: true
+    durationSec?: true
+    sortOrder?: true
+  }
+
+  export type ContSheetTakeMinAggregateInputType = {
+    id?: true
+    sceneId?: true
+    slate?: true
+    takeNumber?: true
+    pickup?: true
+    printStatus?: true
+    durationSec?: true
+    description?: true
+    notes?: true
+    camera?: true
+    sortOrder?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type ContSheetTakeMaxAggregateInputType = {
+    id?: true
+    sceneId?: true
+    slate?: true
+    takeNumber?: true
+    pickup?: true
+    printStatus?: true
+    durationSec?: true
+    description?: true
+    notes?: true
+    camera?: true
+    sortOrder?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type ContSheetTakeCountAggregateInputType = {
+    id?: true
+    sceneId?: true
+    slate?: true
+    takeNumber?: true
+    pickup?: true
+    printStatus?: true
+    durationSec?: true
+    description?: true
+    notes?: true
+    camera?: true
+    sortOrder?: true
+    createdAt?: true
+    updatedAt?: true
+    _all?: true
+  }
+
+  export type ContSheetTakeAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which ContSheetTake to aggregate.
+     */
+    where?: ContSheetTakeWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ContSheetTakes to fetch.
+     */
+    orderBy?: ContSheetTakeOrderByWithRelationInput | ContSheetTakeOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: ContSheetTakeWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ContSheetTakes from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ContSheetTakes.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned ContSheetTakes
+    **/
+    _count?: true | ContSheetTakeCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to average
+    **/
+    _avg?: ContSheetTakeAvgAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to sum
+    **/
+    _sum?: ContSheetTakeSumAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: ContSheetTakeMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: ContSheetTakeMaxAggregateInputType
+  }
+
+  export type GetContSheetTakeAggregateType<T extends ContSheetTakeAggregateArgs> = {
+        [P in keyof T & keyof AggregateContSheetTake]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateContSheetTake[P]>
+      : GetScalarType<T[P], AggregateContSheetTake[P]>
+  }
+
+
+
+
+  export type ContSheetTakeGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: ContSheetTakeWhereInput
+    orderBy?: ContSheetTakeOrderByWithAggregationInput | ContSheetTakeOrderByWithAggregationInput[]
+    by: ContSheetTakeScalarFieldEnum[] | ContSheetTakeScalarFieldEnum
+    having?: ContSheetTakeScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: ContSheetTakeCountAggregateInputType | true
+    _avg?: ContSheetTakeAvgAggregateInputType
+    _sum?: ContSheetTakeSumAggregateInputType
+    _min?: ContSheetTakeMinAggregateInputType
+    _max?: ContSheetTakeMaxAggregateInputType
+  }
+
+  export type ContSheetTakeGroupByOutputType = {
+    id: string
+    sceneId: string
+    slate: string | null
+    takeNumber: number | null
+    pickup: number | null
+    printStatus: string | null
+    durationSec: number | null
+    description: string | null
+    notes: string | null
+    camera: string | null
+    sortOrder: number
+    createdAt: Date
+    updatedAt: Date
+    _count: ContSheetTakeCountAggregateOutputType | null
+    _avg: ContSheetTakeAvgAggregateOutputType | null
+    _sum: ContSheetTakeSumAggregateOutputType | null
+    _min: ContSheetTakeMinAggregateOutputType | null
+    _max: ContSheetTakeMaxAggregateOutputType | null
+  }
+
+  type GetContSheetTakeGroupByPayload<T extends ContSheetTakeGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<ContSheetTakeGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof ContSheetTakeGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], ContSheetTakeGroupByOutputType[P]>
+            : GetScalarType<T[P], ContSheetTakeGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type ContSheetTakeSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    sceneId?: boolean
+    slate?: boolean
+    takeNumber?: boolean
+    pickup?: boolean
+    printStatus?: boolean
+    durationSec?: boolean
+    description?: boolean
+    notes?: boolean
+    camera?: boolean
+    sortOrder?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+    scene?: boolean | ContSheetSceneDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["contSheetTake"]>
+
+  export type ContSheetTakeSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    sceneId?: boolean
+    slate?: boolean
+    takeNumber?: boolean
+    pickup?: boolean
+    printStatus?: boolean
+    durationSec?: boolean
+    description?: boolean
+    notes?: boolean
+    camera?: boolean
+    sortOrder?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+    scene?: boolean | ContSheetSceneDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["contSheetTake"]>
+
+  export type ContSheetTakeSelectScalar = {
+    id?: boolean
+    sceneId?: boolean
+    slate?: boolean
+    takeNumber?: boolean
+    pickup?: boolean
+    printStatus?: boolean
+    durationSec?: boolean
+    description?: boolean
+    notes?: boolean
+    camera?: boolean
+    sortOrder?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }
+
+  export type ContSheetTakeInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    scene?: boolean | ContSheetSceneDefaultArgs<ExtArgs>
+  }
+  export type ContSheetTakeIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    scene?: boolean | ContSheetSceneDefaultArgs<ExtArgs>
+  }
+
+  export type $ContSheetTakePayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "ContSheetTake"
+    objects: {
+      scene: Prisma.$ContSheetScenePayload<ExtArgs>
+    }
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      sceneId: string
+      slate: string | null
+      takeNumber: number | null
+      pickup: number | null
+      /**
+       * PRINT | NG | empty
+       */
+      printStatus: string | null
+      durationSec: number | null
+      description: string | null
+      notes: string | null
+      camera: string | null
+      sortOrder: number
+      createdAt: Date
+      updatedAt: Date
+    }, ExtArgs["result"]["contSheetTake"]>
+    composites: {}
+  }
+
+  type ContSheetTakeGetPayload<S extends boolean | null | undefined | ContSheetTakeDefaultArgs> = $Result.GetResult<Prisma.$ContSheetTakePayload, S>
+
+  type ContSheetTakeCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = 
+    Omit<ContSheetTakeFindManyArgs, 'select' | 'include' | 'distinct'> & {
+      select?: ContSheetTakeCountAggregateInputType | true
+    }
+
+  export interface ContSheetTakeDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['ContSheetTake'], meta: { name: 'ContSheetTake' } }
+    /**
+     * Find zero or one ContSheetTake that matches the filter.
+     * @param {ContSheetTakeFindUniqueArgs} args - Arguments to find a ContSheetTake
+     * @example
+     * // Get one ContSheetTake
+     * const contSheetTake = await prisma.contSheetTake.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends ContSheetTakeFindUniqueArgs>(args: SelectSubset<T, ContSheetTakeFindUniqueArgs<ExtArgs>>): Prisma__ContSheetTakeClient<$Result.GetResult<Prisma.$ContSheetTakePayload<ExtArgs>, T, "findUnique"> | null, null, ExtArgs>
+
+    /**
+     * Find one ContSheetTake that matches the filter or throw an error with `error.code='P2025'` 
+     * if no matches were found.
+     * @param {ContSheetTakeFindUniqueOrThrowArgs} args - Arguments to find a ContSheetTake
+     * @example
+     * // Get one ContSheetTake
+     * const contSheetTake = await prisma.contSheetTake.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends ContSheetTakeFindUniqueOrThrowArgs>(args: SelectSubset<T, ContSheetTakeFindUniqueOrThrowArgs<ExtArgs>>): Prisma__ContSheetTakeClient<$Result.GetResult<Prisma.$ContSheetTakePayload<ExtArgs>, T, "findUniqueOrThrow">, never, ExtArgs>
+
+    /**
+     * Find the first ContSheetTake that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetTakeFindFirstArgs} args - Arguments to find a ContSheetTake
+     * @example
+     * // Get one ContSheetTake
+     * const contSheetTake = await prisma.contSheetTake.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends ContSheetTakeFindFirstArgs>(args?: SelectSubset<T, ContSheetTakeFindFirstArgs<ExtArgs>>): Prisma__ContSheetTakeClient<$Result.GetResult<Prisma.$ContSheetTakePayload<ExtArgs>, T, "findFirst"> | null, null, ExtArgs>
+
+    /**
+     * Find the first ContSheetTake that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetTakeFindFirstOrThrowArgs} args - Arguments to find a ContSheetTake
+     * @example
+     * // Get one ContSheetTake
+     * const contSheetTake = await prisma.contSheetTake.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends ContSheetTakeFindFirstOrThrowArgs>(args?: SelectSubset<T, ContSheetTakeFindFirstOrThrowArgs<ExtArgs>>): Prisma__ContSheetTakeClient<$Result.GetResult<Prisma.$ContSheetTakePayload<ExtArgs>, T, "findFirstOrThrow">, never, ExtArgs>
+
+    /**
+     * Find zero or more ContSheetTakes that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetTakeFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all ContSheetTakes
+     * const contSheetTakes = await prisma.contSheetTake.findMany()
+     * 
+     * // Get first 10 ContSheetTakes
+     * const contSheetTakes = await prisma.contSheetTake.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const contSheetTakeWithIdOnly = await prisma.contSheetTake.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends ContSheetTakeFindManyArgs>(args?: SelectSubset<T, ContSheetTakeFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ContSheetTakePayload<ExtArgs>, T, "findMany">>
+
+    /**
+     * Create a ContSheetTake.
+     * @param {ContSheetTakeCreateArgs} args - Arguments to create a ContSheetTake.
+     * @example
+     * // Create one ContSheetTake
+     * const ContSheetTake = await prisma.contSheetTake.create({
+     *   data: {
+     *     // ... data to create a ContSheetTake
+     *   }
+     * })
+     * 
+     */
+    create<T extends ContSheetTakeCreateArgs>(args: SelectSubset<T, ContSheetTakeCreateArgs<ExtArgs>>): Prisma__ContSheetTakeClient<$Result.GetResult<Prisma.$ContSheetTakePayload<ExtArgs>, T, "create">, never, ExtArgs>
+
+    /**
+     * Create many ContSheetTakes.
+     * @param {ContSheetTakeCreateManyArgs} args - Arguments to create many ContSheetTakes.
+     * @example
+     * // Create many ContSheetTakes
+     * const contSheetTake = await prisma.contSheetTake.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends ContSheetTakeCreateManyArgs>(args?: SelectSubset<T, ContSheetTakeCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many ContSheetTakes and returns the data saved in the database.
+     * @param {ContSheetTakeCreateManyAndReturnArgs} args - Arguments to create many ContSheetTakes.
+     * @example
+     * // Create many ContSheetTakes
+     * const contSheetTake = await prisma.contSheetTake.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many ContSheetTakes and only return the `id`
+     * const contSheetTakeWithIdOnly = await prisma.contSheetTake.createManyAndReturn({ 
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends ContSheetTakeCreateManyAndReturnArgs>(args?: SelectSubset<T, ContSheetTakeCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ContSheetTakePayload<ExtArgs>, T, "createManyAndReturn">>
+
+    /**
+     * Delete a ContSheetTake.
+     * @param {ContSheetTakeDeleteArgs} args - Arguments to delete one ContSheetTake.
+     * @example
+     * // Delete one ContSheetTake
+     * const ContSheetTake = await prisma.contSheetTake.delete({
+     *   where: {
+     *     // ... filter to delete one ContSheetTake
+     *   }
+     * })
+     * 
+     */
+    delete<T extends ContSheetTakeDeleteArgs>(args: SelectSubset<T, ContSheetTakeDeleteArgs<ExtArgs>>): Prisma__ContSheetTakeClient<$Result.GetResult<Prisma.$ContSheetTakePayload<ExtArgs>, T, "delete">, never, ExtArgs>
+
+    /**
+     * Update one ContSheetTake.
+     * @param {ContSheetTakeUpdateArgs} args - Arguments to update one ContSheetTake.
+     * @example
+     * // Update one ContSheetTake
+     * const contSheetTake = await prisma.contSheetTake.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends ContSheetTakeUpdateArgs>(args: SelectSubset<T, ContSheetTakeUpdateArgs<ExtArgs>>): Prisma__ContSheetTakeClient<$Result.GetResult<Prisma.$ContSheetTakePayload<ExtArgs>, T, "update">, never, ExtArgs>
+
+    /**
+     * Delete zero or more ContSheetTakes.
+     * @param {ContSheetTakeDeleteManyArgs} args - Arguments to filter ContSheetTakes to delete.
+     * @example
+     * // Delete a few ContSheetTakes
+     * const { count } = await prisma.contSheetTake.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends ContSheetTakeDeleteManyArgs>(args?: SelectSubset<T, ContSheetTakeDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more ContSheetTakes.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetTakeUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many ContSheetTakes
+     * const contSheetTake = await prisma.contSheetTake.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends ContSheetTakeUpdateManyArgs>(args: SelectSubset<T, ContSheetTakeUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create or update one ContSheetTake.
+     * @param {ContSheetTakeUpsertArgs} args - Arguments to update or create a ContSheetTake.
+     * @example
+     * // Update or create a ContSheetTake
+     * const contSheetTake = await prisma.contSheetTake.upsert({
+     *   create: {
+     *     // ... data to create a ContSheetTake
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the ContSheetTake we want to update
+     *   }
+     * })
+     */
+    upsert<T extends ContSheetTakeUpsertArgs>(args: SelectSubset<T, ContSheetTakeUpsertArgs<ExtArgs>>): Prisma__ContSheetTakeClient<$Result.GetResult<Prisma.$ContSheetTakePayload<ExtArgs>, T, "upsert">, never, ExtArgs>
+
+
+    /**
+     * Count the number of ContSheetTakes.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetTakeCountArgs} args - Arguments to filter ContSheetTakes to count.
+     * @example
+     * // Count the number of ContSheetTakes
+     * const count = await prisma.contSheetTake.count({
+     *   where: {
+     *     // ... the filter for the ContSheetTakes we want to count
+     *   }
+     * })
+    **/
+    count<T extends ContSheetTakeCountArgs>(
+      args?: Subset<T, ContSheetTakeCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], ContSheetTakeCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a ContSheetTake.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetTakeAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends ContSheetTakeAggregateArgs>(args: Subset<T, ContSheetTakeAggregateArgs>): Prisma.PrismaPromise<GetContSheetTakeAggregateType<T>>
+
+    /**
+     * Group by ContSheetTake.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ContSheetTakeGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends ContSheetTakeGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: ContSheetTakeGroupByArgs['orderBy'] }
+        : { orderBy?: ContSheetTakeGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, ContSheetTakeGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetContSheetTakeGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the ContSheetTake model
+   */
+  readonly fields: ContSheetTakeFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for ContSheetTake.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__ContSheetTakeClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    scene<T extends ContSheetSceneDefaultArgs<ExtArgs> = {}>(args?: Subset<T, ContSheetSceneDefaultArgs<ExtArgs>>): Prisma__ContSheetSceneClient<$Result.GetResult<Prisma.$ContSheetScenePayload<ExtArgs>, T, "findUniqueOrThrow"> | Null, Null, ExtArgs>
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the ContSheetTake model
+   */ 
+  interface ContSheetTakeFieldRefs {
+    readonly id: FieldRef<"ContSheetTake", 'String'>
+    readonly sceneId: FieldRef<"ContSheetTake", 'String'>
+    readonly slate: FieldRef<"ContSheetTake", 'String'>
+    readonly takeNumber: FieldRef<"ContSheetTake", 'Int'>
+    readonly pickup: FieldRef<"ContSheetTake", 'Int'>
+    readonly printStatus: FieldRef<"ContSheetTake", 'String'>
+    readonly durationSec: FieldRef<"ContSheetTake", 'Int'>
+    readonly description: FieldRef<"ContSheetTake", 'String'>
+    readonly notes: FieldRef<"ContSheetTake", 'String'>
+    readonly camera: FieldRef<"ContSheetTake", 'String'>
+    readonly sortOrder: FieldRef<"ContSheetTake", 'Int'>
+    readonly createdAt: FieldRef<"ContSheetTake", 'DateTime'>
+    readonly updatedAt: FieldRef<"ContSheetTake", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * ContSheetTake findUnique
+   */
+  export type ContSheetTakeFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetTake
+     */
+    select?: ContSheetTakeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetTakeInclude<ExtArgs> | null
+    /**
+     * Filter, which ContSheetTake to fetch.
+     */
+    where: ContSheetTakeWhereUniqueInput
+  }
+
+  /**
+   * ContSheetTake findUniqueOrThrow
+   */
+  export type ContSheetTakeFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetTake
+     */
+    select?: ContSheetTakeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetTakeInclude<ExtArgs> | null
+    /**
+     * Filter, which ContSheetTake to fetch.
+     */
+    where: ContSheetTakeWhereUniqueInput
+  }
+
+  /**
+   * ContSheetTake findFirst
+   */
+  export type ContSheetTakeFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetTake
+     */
+    select?: ContSheetTakeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetTakeInclude<ExtArgs> | null
+    /**
+     * Filter, which ContSheetTake to fetch.
+     */
+    where?: ContSheetTakeWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ContSheetTakes to fetch.
+     */
+    orderBy?: ContSheetTakeOrderByWithRelationInput | ContSheetTakeOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for ContSheetTakes.
+     */
+    cursor?: ContSheetTakeWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ContSheetTakes from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ContSheetTakes.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of ContSheetTakes.
+     */
+    distinct?: ContSheetTakeScalarFieldEnum | ContSheetTakeScalarFieldEnum[]
+  }
+
+  /**
+   * ContSheetTake findFirstOrThrow
+   */
+  export type ContSheetTakeFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetTake
+     */
+    select?: ContSheetTakeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetTakeInclude<ExtArgs> | null
+    /**
+     * Filter, which ContSheetTake to fetch.
+     */
+    where?: ContSheetTakeWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ContSheetTakes to fetch.
+     */
+    orderBy?: ContSheetTakeOrderByWithRelationInput | ContSheetTakeOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for ContSheetTakes.
+     */
+    cursor?: ContSheetTakeWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ContSheetTakes from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ContSheetTakes.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of ContSheetTakes.
+     */
+    distinct?: ContSheetTakeScalarFieldEnum | ContSheetTakeScalarFieldEnum[]
+  }
+
+  /**
+   * ContSheetTake findMany
+   */
+  export type ContSheetTakeFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetTake
+     */
+    select?: ContSheetTakeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetTakeInclude<ExtArgs> | null
+    /**
+     * Filter, which ContSheetTakes to fetch.
+     */
+    where?: ContSheetTakeWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ContSheetTakes to fetch.
+     */
+    orderBy?: ContSheetTakeOrderByWithRelationInput | ContSheetTakeOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing ContSheetTakes.
+     */
+    cursor?: ContSheetTakeWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ContSheetTakes from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ContSheetTakes.
+     */
+    skip?: number
+    distinct?: ContSheetTakeScalarFieldEnum | ContSheetTakeScalarFieldEnum[]
+  }
+
+  /**
+   * ContSheetTake create
+   */
+  export type ContSheetTakeCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetTake
+     */
+    select?: ContSheetTakeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetTakeInclude<ExtArgs> | null
+    /**
+     * The data needed to create a ContSheetTake.
+     */
+    data: XOR<ContSheetTakeCreateInput, ContSheetTakeUncheckedCreateInput>
+  }
+
+  /**
+   * ContSheetTake createMany
+   */
+  export type ContSheetTakeCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many ContSheetTakes.
+     */
+    data: ContSheetTakeCreateManyInput | ContSheetTakeCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * ContSheetTake createManyAndReturn
+   */
+  export type ContSheetTakeCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetTake
+     */
+    select?: ContSheetTakeSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * The data used to create many ContSheetTakes.
+     */
+    data: ContSheetTakeCreateManyInput | ContSheetTakeCreateManyInput[]
+    skipDuplicates?: boolean
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetTakeIncludeCreateManyAndReturn<ExtArgs> | null
+  }
+
+  /**
+   * ContSheetTake update
+   */
+  export type ContSheetTakeUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetTake
+     */
+    select?: ContSheetTakeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetTakeInclude<ExtArgs> | null
+    /**
+     * The data needed to update a ContSheetTake.
+     */
+    data: XOR<ContSheetTakeUpdateInput, ContSheetTakeUncheckedUpdateInput>
+    /**
+     * Choose, which ContSheetTake to update.
+     */
+    where: ContSheetTakeWhereUniqueInput
+  }
+
+  /**
+   * ContSheetTake updateMany
+   */
+  export type ContSheetTakeUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update ContSheetTakes.
+     */
+    data: XOR<ContSheetTakeUpdateManyMutationInput, ContSheetTakeUncheckedUpdateManyInput>
+    /**
+     * Filter which ContSheetTakes to update
+     */
+    where?: ContSheetTakeWhereInput
+  }
+
+  /**
+   * ContSheetTake upsert
+   */
+  export type ContSheetTakeUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetTake
+     */
+    select?: ContSheetTakeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetTakeInclude<ExtArgs> | null
+    /**
+     * The filter to search for the ContSheetTake to update in case it exists.
+     */
+    where: ContSheetTakeWhereUniqueInput
+    /**
+     * In case the ContSheetTake found by the `where` argument doesn't exist, create a new ContSheetTake with this data.
+     */
+    create: XOR<ContSheetTakeCreateInput, ContSheetTakeUncheckedCreateInput>
+    /**
+     * In case the ContSheetTake was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<ContSheetTakeUpdateInput, ContSheetTakeUncheckedUpdateInput>
+  }
+
+  /**
+   * ContSheetTake delete
+   */
+  export type ContSheetTakeDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetTake
+     */
+    select?: ContSheetTakeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetTakeInclude<ExtArgs> | null
+    /**
+     * Filter which ContSheetTake to delete.
+     */
+    where: ContSheetTakeWhereUniqueInput
+  }
+
+  /**
+   * ContSheetTake deleteMany
+   */
+  export type ContSheetTakeDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which ContSheetTakes to delete
+     */
+    where?: ContSheetTakeWhereInput
+  }
+
+  /**
+   * ContSheetTake without action
+   */
+  export type ContSheetTakeDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ContSheetTake
+     */
+    select?: ContSheetTakeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: ContSheetTakeInclude<ExtArgs> | null
   }
 
 
@@ -296084,6 +299857,69 @@ export namespace Prisma {
   export type RiskChecklistItemScalarFieldEnum = (typeof RiskChecklistItemScalarFieldEnum)[keyof typeof RiskChecklistItemScalarFieldEnum]
 
 
+  export const ContSheetDayScalarFieldEnum: {
+    id: 'id',
+    projectId: 'projectId',
+    shootDayId: 'shootDayId',
+    version: 'version',
+    showTitle: 'showTitle',
+    productionCompany: 'productionCompany',
+    callSheetNumber: 'callSheetNumber',
+    reportDate: 'reportDate',
+    cameraUnit: 'cameraUnit',
+    crewJson: 'crewJson',
+    dayClockJson: 'dayClockJson',
+    scenesSummaryJson: 'scenesSummaryJson',
+    totalsJson: 'totalsJson',
+    notes: 'notes',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+  };
+
+  export type ContSheetDayScalarFieldEnum = (typeof ContSheetDayScalarFieldEnum)[keyof typeof ContSheetDayScalarFieldEnum]
+
+
+  export const ContSheetSceneScalarFieldEnum: {
+    id: 'id',
+    dayId: 'dayId',
+    projectSceneId: 'projectSceneId',
+    episode: 'episode',
+    sceneCode: 'sceneCode',
+    dayNight: 'dayNight',
+    intExt: 'intExt',
+    location: 'location',
+    weather: 'weather',
+    turnoverTime: 'turnoverTime',
+    estimatedTiming: 'estimatedTiming',
+    actualTiming: 'actualTiming',
+    completionStatus: 'completionStatus',
+    sortOrder: 'sortOrder',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+  };
+
+  export type ContSheetSceneScalarFieldEnum = (typeof ContSheetSceneScalarFieldEnum)[keyof typeof ContSheetSceneScalarFieldEnum]
+
+
+  export const ContSheetTakeScalarFieldEnum: {
+    id: 'id',
+    sceneId: 'sceneId',
+    slate: 'slate',
+    takeNumber: 'takeNumber',
+    pickup: 'pickup',
+    printStatus: 'printStatus',
+    durationSec: 'durationSec',
+    description: 'description',
+    notes: 'notes',
+    camera: 'camera',
+    sortOrder: 'sortOrder',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+  };
+
+  export type ContSheetTakeScalarFieldEnum = (typeof ContSheetTakeScalarFieldEnum)[keyof typeof ContSheetTakeScalarFieldEnum]
+
+
   export const ContinuityNoteScalarFieldEnum: {
     id: 'id',
     projectId: 'projectId',
@@ -301718,6 +305554,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardListRelationFilter
     riskPlan?: XOR<RiskPlanNullableRelationFilter, RiskPlanWhereInput> | null
     continuityNotes?: ContinuityNoteListRelationFilter
+    contSheetDays?: ContSheetDayListRelationFilter
     dailiesBatches?: DailiesBatchListRelationFilter
     dailiesClips?: DailiesClipListRelationFilter
     scriptReviewNotes?: ScriptReviewNoteListRelationFilter
@@ -301808,6 +305645,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardOrderByRelationAggregateInput
     riskPlan?: RiskPlanOrderByWithRelationInput
     continuityNotes?: ContinuityNoteOrderByRelationAggregateInput
+    contSheetDays?: ContSheetDayOrderByRelationAggregateInput
     dailiesBatches?: DailiesBatchOrderByRelationAggregateInput
     dailiesClips?: DailiesClipOrderByRelationAggregateInput
     scriptReviewNotes?: ScriptReviewNoteOrderByRelationAggregateInput
@@ -301901,6 +305739,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardListRelationFilter
     riskPlan?: XOR<RiskPlanNullableRelationFilter, RiskPlanWhereInput> | null
     continuityNotes?: ContinuityNoteListRelationFilter
+    contSheetDays?: ContSheetDayListRelationFilter
     dailiesBatches?: DailiesBatchListRelationFilter
     dailiesClips?: DailiesClipListRelationFilter
     scriptReviewNotes?: ScriptReviewNoteListRelationFilter
@@ -307973,6 +311812,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupListRelationFilter
     shootDayLinks?: ShootDaySceneListRelationFilter
     continuityNotes?: ContinuityNoteListRelationFilter
+    contSheetScenes?: ContSheetSceneListRelationFilter
     dailies?: DailiesBatchListRelationFilter
     dailiesClips?: DailiesClipListRelationFilter
     footageAssets?: FootageAssetListRelationFilter
@@ -308012,6 +311852,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupOrderByRelationAggregateInput
     shootDayLinks?: ShootDaySceneOrderByRelationAggregateInput
     continuityNotes?: ContinuityNoteOrderByRelationAggregateInput
+    contSheetScenes?: ContSheetSceneOrderByRelationAggregateInput
     dailies?: DailiesBatchOrderByRelationAggregateInput
     dailiesClips?: DailiesClipOrderByRelationAggregateInput
     footageAssets?: FootageAssetOrderByRelationAggregateInput
@@ -308054,6 +311895,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupListRelationFilter
     shootDayLinks?: ShootDaySceneListRelationFilter
     continuityNotes?: ContinuityNoteListRelationFilter
+    contSheetScenes?: ContSheetSceneListRelationFilter
     dailies?: DailiesBatchListRelationFilter
     dailiesClips?: DailiesClipListRelationFilter
     footageAssets?: FootageAssetListRelationFilter
@@ -311168,6 +315010,7 @@ export namespace Prisma {
     callSheets?: CallSheetListRelationFilter
     incidents?: IncidentReportListRelationFilter
     continuityNotes?: ContinuityNoteListRelationFilter
+    contSheetDays?: ContSheetDayListRelationFilter
     dailiesBatches?: DailiesBatchListRelationFilter
     dailiesClips?: DailiesClipListRelationFilter
     projectTasks?: ProjectTaskListRelationFilter
@@ -311193,6 +315036,7 @@ export namespace Prisma {
     callSheets?: CallSheetOrderByRelationAggregateInput
     incidents?: IncidentReportOrderByRelationAggregateInput
     continuityNotes?: ContinuityNoteOrderByRelationAggregateInput
+    contSheetDays?: ContSheetDayOrderByRelationAggregateInput
     dailiesBatches?: DailiesBatchOrderByRelationAggregateInput
     dailiesClips?: DailiesClipOrderByRelationAggregateInput
     projectTasks?: ProjectTaskOrderByRelationAggregateInput
@@ -311221,6 +315065,7 @@ export namespace Prisma {
     callSheets?: CallSheetListRelationFilter
     incidents?: IncidentReportListRelationFilter
     continuityNotes?: ContinuityNoteListRelationFilter
+    contSheetDays?: ContSheetDayListRelationFilter
     dailiesBatches?: DailiesBatchListRelationFilter
     dailiesClips?: DailiesClipListRelationFilter
     projectTasks?: ProjectTaskListRelationFilter
@@ -315253,6 +319098,340 @@ export namespace Prisma {
     status?: StringWithAggregatesFilter<"RiskChecklistItem"> | string
     createdAt?: DateTimeWithAggregatesFilter<"RiskChecklistItem"> | Date | string
     updatedAt?: DateTimeWithAggregatesFilter<"RiskChecklistItem"> | Date | string
+  }
+
+  export type ContSheetDayWhereInput = {
+    AND?: ContSheetDayWhereInput | ContSheetDayWhereInput[]
+    OR?: ContSheetDayWhereInput[]
+    NOT?: ContSheetDayWhereInput | ContSheetDayWhereInput[]
+    id?: StringFilter<"ContSheetDay"> | string
+    projectId?: StringFilter<"ContSheetDay"> | string
+    shootDayId?: StringFilter<"ContSheetDay"> | string
+    version?: IntFilter<"ContSheetDay"> | number
+    showTitle?: StringNullableFilter<"ContSheetDay"> | string | null
+    productionCompany?: StringNullableFilter<"ContSheetDay"> | string | null
+    callSheetNumber?: StringNullableFilter<"ContSheetDay"> | string | null
+    reportDate?: StringNullableFilter<"ContSheetDay"> | string | null
+    cameraUnit?: StringNullableFilter<"ContSheetDay"> | string | null
+    crewJson?: JsonNullableFilter<"ContSheetDay">
+    dayClockJson?: JsonNullableFilter<"ContSheetDay">
+    scenesSummaryJson?: JsonNullableFilter<"ContSheetDay">
+    totalsJson?: JsonNullableFilter<"ContSheetDay">
+    notes?: StringNullableFilter<"ContSheetDay"> | string | null
+    createdAt?: DateTimeFilter<"ContSheetDay"> | Date | string
+    updatedAt?: DateTimeFilter<"ContSheetDay"> | Date | string
+    project?: XOR<OriginalProjectRelationFilter, OriginalProjectWhereInput>
+    shootDay?: XOR<ShootDayRelationFilter, ShootDayWhereInput>
+    scenes?: ContSheetSceneListRelationFilter
+  }
+
+  export type ContSheetDayOrderByWithRelationInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    shootDayId?: SortOrder
+    version?: SortOrder
+    showTitle?: SortOrderInput | SortOrder
+    productionCompany?: SortOrderInput | SortOrder
+    callSheetNumber?: SortOrderInput | SortOrder
+    reportDate?: SortOrderInput | SortOrder
+    cameraUnit?: SortOrderInput | SortOrder
+    crewJson?: SortOrderInput | SortOrder
+    dayClockJson?: SortOrderInput | SortOrder
+    scenesSummaryJson?: SortOrderInput | SortOrder
+    totalsJson?: SortOrderInput | SortOrder
+    notes?: SortOrderInput | SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    project?: OriginalProjectOrderByWithRelationInput
+    shootDay?: ShootDayOrderByWithRelationInput
+    scenes?: ContSheetSceneOrderByRelationAggregateInput
+  }
+
+  export type ContSheetDayWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    projectId_shootDayId?: ContSheetDayProjectIdShootDayIdCompoundUniqueInput
+    AND?: ContSheetDayWhereInput | ContSheetDayWhereInput[]
+    OR?: ContSheetDayWhereInput[]
+    NOT?: ContSheetDayWhereInput | ContSheetDayWhereInput[]
+    projectId?: StringFilter<"ContSheetDay"> | string
+    shootDayId?: StringFilter<"ContSheetDay"> | string
+    version?: IntFilter<"ContSheetDay"> | number
+    showTitle?: StringNullableFilter<"ContSheetDay"> | string | null
+    productionCompany?: StringNullableFilter<"ContSheetDay"> | string | null
+    callSheetNumber?: StringNullableFilter<"ContSheetDay"> | string | null
+    reportDate?: StringNullableFilter<"ContSheetDay"> | string | null
+    cameraUnit?: StringNullableFilter<"ContSheetDay"> | string | null
+    crewJson?: JsonNullableFilter<"ContSheetDay">
+    dayClockJson?: JsonNullableFilter<"ContSheetDay">
+    scenesSummaryJson?: JsonNullableFilter<"ContSheetDay">
+    totalsJson?: JsonNullableFilter<"ContSheetDay">
+    notes?: StringNullableFilter<"ContSheetDay"> | string | null
+    createdAt?: DateTimeFilter<"ContSheetDay"> | Date | string
+    updatedAt?: DateTimeFilter<"ContSheetDay"> | Date | string
+    project?: XOR<OriginalProjectRelationFilter, OriginalProjectWhereInput>
+    shootDay?: XOR<ShootDayRelationFilter, ShootDayWhereInput>
+    scenes?: ContSheetSceneListRelationFilter
+  }, "id" | "projectId_shootDayId">
+
+  export type ContSheetDayOrderByWithAggregationInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    shootDayId?: SortOrder
+    version?: SortOrder
+    showTitle?: SortOrderInput | SortOrder
+    productionCompany?: SortOrderInput | SortOrder
+    callSheetNumber?: SortOrderInput | SortOrder
+    reportDate?: SortOrderInput | SortOrder
+    cameraUnit?: SortOrderInput | SortOrder
+    crewJson?: SortOrderInput | SortOrder
+    dayClockJson?: SortOrderInput | SortOrder
+    scenesSummaryJson?: SortOrderInput | SortOrder
+    totalsJson?: SortOrderInput | SortOrder
+    notes?: SortOrderInput | SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    _count?: ContSheetDayCountOrderByAggregateInput
+    _avg?: ContSheetDayAvgOrderByAggregateInput
+    _max?: ContSheetDayMaxOrderByAggregateInput
+    _min?: ContSheetDayMinOrderByAggregateInput
+    _sum?: ContSheetDaySumOrderByAggregateInput
+  }
+
+  export type ContSheetDayScalarWhereWithAggregatesInput = {
+    AND?: ContSheetDayScalarWhereWithAggregatesInput | ContSheetDayScalarWhereWithAggregatesInput[]
+    OR?: ContSheetDayScalarWhereWithAggregatesInput[]
+    NOT?: ContSheetDayScalarWhereWithAggregatesInput | ContSheetDayScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"ContSheetDay"> | string
+    projectId?: StringWithAggregatesFilter<"ContSheetDay"> | string
+    shootDayId?: StringWithAggregatesFilter<"ContSheetDay"> | string
+    version?: IntWithAggregatesFilter<"ContSheetDay"> | number
+    showTitle?: StringNullableWithAggregatesFilter<"ContSheetDay"> | string | null
+    productionCompany?: StringNullableWithAggregatesFilter<"ContSheetDay"> | string | null
+    callSheetNumber?: StringNullableWithAggregatesFilter<"ContSheetDay"> | string | null
+    reportDate?: StringNullableWithAggregatesFilter<"ContSheetDay"> | string | null
+    cameraUnit?: StringNullableWithAggregatesFilter<"ContSheetDay"> | string | null
+    crewJson?: JsonNullableWithAggregatesFilter<"ContSheetDay">
+    dayClockJson?: JsonNullableWithAggregatesFilter<"ContSheetDay">
+    scenesSummaryJson?: JsonNullableWithAggregatesFilter<"ContSheetDay">
+    totalsJson?: JsonNullableWithAggregatesFilter<"ContSheetDay">
+    notes?: StringNullableWithAggregatesFilter<"ContSheetDay"> | string | null
+    createdAt?: DateTimeWithAggregatesFilter<"ContSheetDay"> | Date | string
+    updatedAt?: DateTimeWithAggregatesFilter<"ContSheetDay"> | Date | string
+  }
+
+  export type ContSheetSceneWhereInput = {
+    AND?: ContSheetSceneWhereInput | ContSheetSceneWhereInput[]
+    OR?: ContSheetSceneWhereInput[]
+    NOT?: ContSheetSceneWhereInput | ContSheetSceneWhereInput[]
+    id?: StringFilter<"ContSheetScene"> | string
+    dayId?: StringFilter<"ContSheetScene"> | string
+    projectSceneId?: StringNullableFilter<"ContSheetScene"> | string | null
+    episode?: StringNullableFilter<"ContSheetScene"> | string | null
+    sceneCode?: StringFilter<"ContSheetScene"> | string
+    dayNight?: StringNullableFilter<"ContSheetScene"> | string | null
+    intExt?: StringNullableFilter<"ContSheetScene"> | string | null
+    location?: StringNullableFilter<"ContSheetScene"> | string | null
+    weather?: StringNullableFilter<"ContSheetScene"> | string | null
+    turnoverTime?: StringNullableFilter<"ContSheetScene"> | string | null
+    estimatedTiming?: StringNullableFilter<"ContSheetScene"> | string | null
+    actualTiming?: StringNullableFilter<"ContSheetScene"> | string | null
+    completionStatus?: StringFilter<"ContSheetScene"> | string
+    sortOrder?: IntFilter<"ContSheetScene"> | number
+    createdAt?: DateTimeFilter<"ContSheetScene"> | Date | string
+    updatedAt?: DateTimeFilter<"ContSheetScene"> | Date | string
+    day?: XOR<ContSheetDayRelationFilter, ContSheetDayWhereInput>
+    projectScene?: XOR<ProjectSceneNullableRelationFilter, ProjectSceneWhereInput> | null
+    takes?: ContSheetTakeListRelationFilter
+  }
+
+  export type ContSheetSceneOrderByWithRelationInput = {
+    id?: SortOrder
+    dayId?: SortOrder
+    projectSceneId?: SortOrderInput | SortOrder
+    episode?: SortOrderInput | SortOrder
+    sceneCode?: SortOrder
+    dayNight?: SortOrderInput | SortOrder
+    intExt?: SortOrderInput | SortOrder
+    location?: SortOrderInput | SortOrder
+    weather?: SortOrderInput | SortOrder
+    turnoverTime?: SortOrderInput | SortOrder
+    estimatedTiming?: SortOrderInput | SortOrder
+    actualTiming?: SortOrderInput | SortOrder
+    completionStatus?: SortOrder
+    sortOrder?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    day?: ContSheetDayOrderByWithRelationInput
+    projectScene?: ProjectSceneOrderByWithRelationInput
+    takes?: ContSheetTakeOrderByRelationAggregateInput
+  }
+
+  export type ContSheetSceneWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    AND?: ContSheetSceneWhereInput | ContSheetSceneWhereInput[]
+    OR?: ContSheetSceneWhereInput[]
+    NOT?: ContSheetSceneWhereInput | ContSheetSceneWhereInput[]
+    dayId?: StringFilter<"ContSheetScene"> | string
+    projectSceneId?: StringNullableFilter<"ContSheetScene"> | string | null
+    episode?: StringNullableFilter<"ContSheetScene"> | string | null
+    sceneCode?: StringFilter<"ContSheetScene"> | string
+    dayNight?: StringNullableFilter<"ContSheetScene"> | string | null
+    intExt?: StringNullableFilter<"ContSheetScene"> | string | null
+    location?: StringNullableFilter<"ContSheetScene"> | string | null
+    weather?: StringNullableFilter<"ContSheetScene"> | string | null
+    turnoverTime?: StringNullableFilter<"ContSheetScene"> | string | null
+    estimatedTiming?: StringNullableFilter<"ContSheetScene"> | string | null
+    actualTiming?: StringNullableFilter<"ContSheetScene"> | string | null
+    completionStatus?: StringFilter<"ContSheetScene"> | string
+    sortOrder?: IntFilter<"ContSheetScene"> | number
+    createdAt?: DateTimeFilter<"ContSheetScene"> | Date | string
+    updatedAt?: DateTimeFilter<"ContSheetScene"> | Date | string
+    day?: XOR<ContSheetDayRelationFilter, ContSheetDayWhereInput>
+    projectScene?: XOR<ProjectSceneNullableRelationFilter, ProjectSceneWhereInput> | null
+    takes?: ContSheetTakeListRelationFilter
+  }, "id">
+
+  export type ContSheetSceneOrderByWithAggregationInput = {
+    id?: SortOrder
+    dayId?: SortOrder
+    projectSceneId?: SortOrderInput | SortOrder
+    episode?: SortOrderInput | SortOrder
+    sceneCode?: SortOrder
+    dayNight?: SortOrderInput | SortOrder
+    intExt?: SortOrderInput | SortOrder
+    location?: SortOrderInput | SortOrder
+    weather?: SortOrderInput | SortOrder
+    turnoverTime?: SortOrderInput | SortOrder
+    estimatedTiming?: SortOrderInput | SortOrder
+    actualTiming?: SortOrderInput | SortOrder
+    completionStatus?: SortOrder
+    sortOrder?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    _count?: ContSheetSceneCountOrderByAggregateInput
+    _avg?: ContSheetSceneAvgOrderByAggregateInput
+    _max?: ContSheetSceneMaxOrderByAggregateInput
+    _min?: ContSheetSceneMinOrderByAggregateInput
+    _sum?: ContSheetSceneSumOrderByAggregateInput
+  }
+
+  export type ContSheetSceneScalarWhereWithAggregatesInput = {
+    AND?: ContSheetSceneScalarWhereWithAggregatesInput | ContSheetSceneScalarWhereWithAggregatesInput[]
+    OR?: ContSheetSceneScalarWhereWithAggregatesInput[]
+    NOT?: ContSheetSceneScalarWhereWithAggregatesInput | ContSheetSceneScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"ContSheetScene"> | string
+    dayId?: StringWithAggregatesFilter<"ContSheetScene"> | string
+    projectSceneId?: StringNullableWithAggregatesFilter<"ContSheetScene"> | string | null
+    episode?: StringNullableWithAggregatesFilter<"ContSheetScene"> | string | null
+    sceneCode?: StringWithAggregatesFilter<"ContSheetScene"> | string
+    dayNight?: StringNullableWithAggregatesFilter<"ContSheetScene"> | string | null
+    intExt?: StringNullableWithAggregatesFilter<"ContSheetScene"> | string | null
+    location?: StringNullableWithAggregatesFilter<"ContSheetScene"> | string | null
+    weather?: StringNullableWithAggregatesFilter<"ContSheetScene"> | string | null
+    turnoverTime?: StringNullableWithAggregatesFilter<"ContSheetScene"> | string | null
+    estimatedTiming?: StringNullableWithAggregatesFilter<"ContSheetScene"> | string | null
+    actualTiming?: StringNullableWithAggregatesFilter<"ContSheetScene"> | string | null
+    completionStatus?: StringWithAggregatesFilter<"ContSheetScene"> | string
+    sortOrder?: IntWithAggregatesFilter<"ContSheetScene"> | number
+    createdAt?: DateTimeWithAggregatesFilter<"ContSheetScene"> | Date | string
+    updatedAt?: DateTimeWithAggregatesFilter<"ContSheetScene"> | Date | string
+  }
+
+  export type ContSheetTakeWhereInput = {
+    AND?: ContSheetTakeWhereInput | ContSheetTakeWhereInput[]
+    OR?: ContSheetTakeWhereInput[]
+    NOT?: ContSheetTakeWhereInput | ContSheetTakeWhereInput[]
+    id?: StringFilter<"ContSheetTake"> | string
+    sceneId?: StringFilter<"ContSheetTake"> | string
+    slate?: StringNullableFilter<"ContSheetTake"> | string | null
+    takeNumber?: IntNullableFilter<"ContSheetTake"> | number | null
+    pickup?: IntNullableFilter<"ContSheetTake"> | number | null
+    printStatus?: StringNullableFilter<"ContSheetTake"> | string | null
+    durationSec?: IntNullableFilter<"ContSheetTake"> | number | null
+    description?: StringNullableFilter<"ContSheetTake"> | string | null
+    notes?: StringNullableFilter<"ContSheetTake"> | string | null
+    camera?: StringNullableFilter<"ContSheetTake"> | string | null
+    sortOrder?: IntFilter<"ContSheetTake"> | number
+    createdAt?: DateTimeFilter<"ContSheetTake"> | Date | string
+    updatedAt?: DateTimeFilter<"ContSheetTake"> | Date | string
+    scene?: XOR<ContSheetSceneRelationFilter, ContSheetSceneWhereInput>
+  }
+
+  export type ContSheetTakeOrderByWithRelationInput = {
+    id?: SortOrder
+    sceneId?: SortOrder
+    slate?: SortOrderInput | SortOrder
+    takeNumber?: SortOrderInput | SortOrder
+    pickup?: SortOrderInput | SortOrder
+    printStatus?: SortOrderInput | SortOrder
+    durationSec?: SortOrderInput | SortOrder
+    description?: SortOrderInput | SortOrder
+    notes?: SortOrderInput | SortOrder
+    camera?: SortOrderInput | SortOrder
+    sortOrder?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    scene?: ContSheetSceneOrderByWithRelationInput
+  }
+
+  export type ContSheetTakeWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    AND?: ContSheetTakeWhereInput | ContSheetTakeWhereInput[]
+    OR?: ContSheetTakeWhereInput[]
+    NOT?: ContSheetTakeWhereInput | ContSheetTakeWhereInput[]
+    sceneId?: StringFilter<"ContSheetTake"> | string
+    slate?: StringNullableFilter<"ContSheetTake"> | string | null
+    takeNumber?: IntNullableFilter<"ContSheetTake"> | number | null
+    pickup?: IntNullableFilter<"ContSheetTake"> | number | null
+    printStatus?: StringNullableFilter<"ContSheetTake"> | string | null
+    durationSec?: IntNullableFilter<"ContSheetTake"> | number | null
+    description?: StringNullableFilter<"ContSheetTake"> | string | null
+    notes?: StringNullableFilter<"ContSheetTake"> | string | null
+    camera?: StringNullableFilter<"ContSheetTake"> | string | null
+    sortOrder?: IntFilter<"ContSheetTake"> | number
+    createdAt?: DateTimeFilter<"ContSheetTake"> | Date | string
+    updatedAt?: DateTimeFilter<"ContSheetTake"> | Date | string
+    scene?: XOR<ContSheetSceneRelationFilter, ContSheetSceneWhereInput>
+  }, "id">
+
+  export type ContSheetTakeOrderByWithAggregationInput = {
+    id?: SortOrder
+    sceneId?: SortOrder
+    slate?: SortOrderInput | SortOrder
+    takeNumber?: SortOrderInput | SortOrder
+    pickup?: SortOrderInput | SortOrder
+    printStatus?: SortOrderInput | SortOrder
+    durationSec?: SortOrderInput | SortOrder
+    description?: SortOrderInput | SortOrder
+    notes?: SortOrderInput | SortOrder
+    camera?: SortOrderInput | SortOrder
+    sortOrder?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    _count?: ContSheetTakeCountOrderByAggregateInput
+    _avg?: ContSheetTakeAvgOrderByAggregateInput
+    _max?: ContSheetTakeMaxOrderByAggregateInput
+    _min?: ContSheetTakeMinOrderByAggregateInput
+    _sum?: ContSheetTakeSumOrderByAggregateInput
+  }
+
+  export type ContSheetTakeScalarWhereWithAggregatesInput = {
+    AND?: ContSheetTakeScalarWhereWithAggregatesInput | ContSheetTakeScalarWhereWithAggregatesInput[]
+    OR?: ContSheetTakeScalarWhereWithAggregatesInput[]
+    NOT?: ContSheetTakeScalarWhereWithAggregatesInput | ContSheetTakeScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"ContSheetTake"> | string
+    sceneId?: StringWithAggregatesFilter<"ContSheetTake"> | string
+    slate?: StringNullableWithAggregatesFilter<"ContSheetTake"> | string | null
+    takeNumber?: IntNullableWithAggregatesFilter<"ContSheetTake"> | number | null
+    pickup?: IntNullableWithAggregatesFilter<"ContSheetTake"> | number | null
+    printStatus?: StringNullableWithAggregatesFilter<"ContSheetTake"> | string | null
+    durationSec?: IntNullableWithAggregatesFilter<"ContSheetTake"> | number | null
+    description?: StringNullableWithAggregatesFilter<"ContSheetTake"> | string | null
+    notes?: StringNullableWithAggregatesFilter<"ContSheetTake"> | string | null
+    camera?: StringNullableWithAggregatesFilter<"ContSheetTake"> | string | null
+    sortOrder?: IntWithAggregatesFilter<"ContSheetTake"> | number
+    createdAt?: DateTimeWithAggregatesFilter<"ContSheetTake"> | Date | string
+    updatedAt?: DateTimeWithAggregatesFilter<"ContSheetTake"> | Date | string
   }
 
   export type ContinuityNoteWhereInput = {
@@ -325009,6 +329188,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -325099,6 +329279,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -325189,6 +329370,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -325279,6 +329461,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -331982,6 +336165,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
@@ -332018,6 +336202,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
@@ -332054,6 +336239,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
@@ -332090,6 +336276,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
@@ -335390,6 +339577,7 @@ export namespace Prisma {
     callSheets?: CallSheetCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskCreateNestedManyWithoutShootDayInput
@@ -335414,6 +339602,7 @@ export namespace Prisma {
     callSheets?: CallSheetUncheckedCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportUncheckedCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskUncheckedCreateNestedManyWithoutShootDayInput
@@ -335438,6 +339627,7 @@ export namespace Prisma {
     callSheets?: CallSheetUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUpdateManyWithoutShootDayNestedInput
@@ -335462,6 +339652,7 @@ export namespace Prisma {
     callSheets?: CallSheetUncheckedUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUncheckedUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUncheckedUpdateManyWithoutShootDayNestedInput
@@ -339716,6 +343907,387 @@ export namespace Prisma {
     description?: StringFieldUpdateOperationsInput | string
     ownerId?: NullableStringFieldUpdateOperationsInput | string | null
     status?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ContSheetDayCreateInput = {
+    id?: string
+    version?: number
+    showTitle?: string | null
+    productionCompany?: string | null
+    callSheetNumber?: string | null
+    reportDate?: string | null
+    cameraUnit?: string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    project: OriginalProjectCreateNestedOneWithoutContSheetDaysInput
+    shootDay: ShootDayCreateNestedOneWithoutContSheetDaysInput
+    scenes?: ContSheetSceneCreateNestedManyWithoutDayInput
+  }
+
+  export type ContSheetDayUncheckedCreateInput = {
+    id?: string
+    projectId: string
+    shootDayId: string
+    version?: number
+    showTitle?: string | null
+    productionCompany?: string | null
+    callSheetNumber?: string | null
+    reportDate?: string | null
+    cameraUnit?: string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    scenes?: ContSheetSceneUncheckedCreateNestedManyWithoutDayInput
+  }
+
+  export type ContSheetDayUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    version?: IntFieldUpdateOperationsInput | number
+    showTitle?: NullableStringFieldUpdateOperationsInput | string | null
+    productionCompany?: NullableStringFieldUpdateOperationsInput | string | null
+    callSheetNumber?: NullableStringFieldUpdateOperationsInput | string | null
+    reportDate?: NullableStringFieldUpdateOperationsInput | string | null
+    cameraUnit?: NullableStringFieldUpdateOperationsInput | string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    project?: OriginalProjectUpdateOneRequiredWithoutContSheetDaysNestedInput
+    shootDay?: ShootDayUpdateOneRequiredWithoutContSheetDaysNestedInput
+    scenes?: ContSheetSceneUpdateManyWithoutDayNestedInput
+  }
+
+  export type ContSheetDayUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    shootDayId?: StringFieldUpdateOperationsInput | string
+    version?: IntFieldUpdateOperationsInput | number
+    showTitle?: NullableStringFieldUpdateOperationsInput | string | null
+    productionCompany?: NullableStringFieldUpdateOperationsInput | string | null
+    callSheetNumber?: NullableStringFieldUpdateOperationsInput | string | null
+    reportDate?: NullableStringFieldUpdateOperationsInput | string | null
+    cameraUnit?: NullableStringFieldUpdateOperationsInput | string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    scenes?: ContSheetSceneUncheckedUpdateManyWithoutDayNestedInput
+  }
+
+  export type ContSheetDayCreateManyInput = {
+    id?: string
+    projectId: string
+    shootDayId: string
+    version?: number
+    showTitle?: string | null
+    productionCompany?: string | null
+    callSheetNumber?: string | null
+    reportDate?: string | null
+    cameraUnit?: string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type ContSheetDayUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    version?: IntFieldUpdateOperationsInput | number
+    showTitle?: NullableStringFieldUpdateOperationsInput | string | null
+    productionCompany?: NullableStringFieldUpdateOperationsInput | string | null
+    callSheetNumber?: NullableStringFieldUpdateOperationsInput | string | null
+    reportDate?: NullableStringFieldUpdateOperationsInput | string | null
+    cameraUnit?: NullableStringFieldUpdateOperationsInput | string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ContSheetDayUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    shootDayId?: StringFieldUpdateOperationsInput | string
+    version?: IntFieldUpdateOperationsInput | number
+    showTitle?: NullableStringFieldUpdateOperationsInput | string | null
+    productionCompany?: NullableStringFieldUpdateOperationsInput | string | null
+    callSheetNumber?: NullableStringFieldUpdateOperationsInput | string | null
+    reportDate?: NullableStringFieldUpdateOperationsInput | string | null
+    cameraUnit?: NullableStringFieldUpdateOperationsInput | string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ContSheetSceneCreateInput = {
+    id?: string
+    episode?: string | null
+    sceneCode: string
+    dayNight?: string | null
+    intExt?: string | null
+    location?: string | null
+    weather?: string | null
+    turnoverTime?: string | null
+    estimatedTiming?: string | null
+    actualTiming?: string | null
+    completionStatus?: string
+    sortOrder?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    day: ContSheetDayCreateNestedOneWithoutScenesInput
+    projectScene?: ProjectSceneCreateNestedOneWithoutContSheetScenesInput
+    takes?: ContSheetTakeCreateNestedManyWithoutSceneInput
+  }
+
+  export type ContSheetSceneUncheckedCreateInput = {
+    id?: string
+    dayId: string
+    projectSceneId?: string | null
+    episode?: string | null
+    sceneCode: string
+    dayNight?: string | null
+    intExt?: string | null
+    location?: string | null
+    weather?: string | null
+    turnoverTime?: string | null
+    estimatedTiming?: string | null
+    actualTiming?: string | null
+    completionStatus?: string
+    sortOrder?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    takes?: ContSheetTakeUncheckedCreateNestedManyWithoutSceneInput
+  }
+
+  export type ContSheetSceneUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    episode?: NullableStringFieldUpdateOperationsInput | string | null
+    sceneCode?: StringFieldUpdateOperationsInput | string
+    dayNight?: NullableStringFieldUpdateOperationsInput | string | null
+    intExt?: NullableStringFieldUpdateOperationsInput | string | null
+    location?: NullableStringFieldUpdateOperationsInput | string | null
+    weather?: NullableStringFieldUpdateOperationsInput | string | null
+    turnoverTime?: NullableStringFieldUpdateOperationsInput | string | null
+    estimatedTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    actualTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    completionStatus?: StringFieldUpdateOperationsInput | string
+    sortOrder?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    day?: ContSheetDayUpdateOneRequiredWithoutScenesNestedInput
+    projectScene?: ProjectSceneUpdateOneWithoutContSheetScenesNestedInput
+    takes?: ContSheetTakeUpdateManyWithoutSceneNestedInput
+  }
+
+  export type ContSheetSceneUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    dayId?: StringFieldUpdateOperationsInput | string
+    projectSceneId?: NullableStringFieldUpdateOperationsInput | string | null
+    episode?: NullableStringFieldUpdateOperationsInput | string | null
+    sceneCode?: StringFieldUpdateOperationsInput | string
+    dayNight?: NullableStringFieldUpdateOperationsInput | string | null
+    intExt?: NullableStringFieldUpdateOperationsInput | string | null
+    location?: NullableStringFieldUpdateOperationsInput | string | null
+    weather?: NullableStringFieldUpdateOperationsInput | string | null
+    turnoverTime?: NullableStringFieldUpdateOperationsInput | string | null
+    estimatedTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    actualTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    completionStatus?: StringFieldUpdateOperationsInput | string
+    sortOrder?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    takes?: ContSheetTakeUncheckedUpdateManyWithoutSceneNestedInput
+  }
+
+  export type ContSheetSceneCreateManyInput = {
+    id?: string
+    dayId: string
+    projectSceneId?: string | null
+    episode?: string | null
+    sceneCode: string
+    dayNight?: string | null
+    intExt?: string | null
+    location?: string | null
+    weather?: string | null
+    turnoverTime?: string | null
+    estimatedTiming?: string | null
+    actualTiming?: string | null
+    completionStatus?: string
+    sortOrder?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type ContSheetSceneUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    episode?: NullableStringFieldUpdateOperationsInput | string | null
+    sceneCode?: StringFieldUpdateOperationsInput | string
+    dayNight?: NullableStringFieldUpdateOperationsInput | string | null
+    intExt?: NullableStringFieldUpdateOperationsInput | string | null
+    location?: NullableStringFieldUpdateOperationsInput | string | null
+    weather?: NullableStringFieldUpdateOperationsInput | string | null
+    turnoverTime?: NullableStringFieldUpdateOperationsInput | string | null
+    estimatedTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    actualTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    completionStatus?: StringFieldUpdateOperationsInput | string
+    sortOrder?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ContSheetSceneUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    dayId?: StringFieldUpdateOperationsInput | string
+    projectSceneId?: NullableStringFieldUpdateOperationsInput | string | null
+    episode?: NullableStringFieldUpdateOperationsInput | string | null
+    sceneCode?: StringFieldUpdateOperationsInput | string
+    dayNight?: NullableStringFieldUpdateOperationsInput | string | null
+    intExt?: NullableStringFieldUpdateOperationsInput | string | null
+    location?: NullableStringFieldUpdateOperationsInput | string | null
+    weather?: NullableStringFieldUpdateOperationsInput | string | null
+    turnoverTime?: NullableStringFieldUpdateOperationsInput | string | null
+    estimatedTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    actualTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    completionStatus?: StringFieldUpdateOperationsInput | string
+    sortOrder?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ContSheetTakeCreateInput = {
+    id?: string
+    slate?: string | null
+    takeNumber?: number | null
+    pickup?: number | null
+    printStatus?: string | null
+    durationSec?: number | null
+    description?: string | null
+    notes?: string | null
+    camera?: string | null
+    sortOrder?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    scene: ContSheetSceneCreateNestedOneWithoutTakesInput
+  }
+
+  export type ContSheetTakeUncheckedCreateInput = {
+    id?: string
+    sceneId: string
+    slate?: string | null
+    takeNumber?: number | null
+    pickup?: number | null
+    printStatus?: string | null
+    durationSec?: number | null
+    description?: string | null
+    notes?: string | null
+    camera?: string | null
+    sortOrder?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type ContSheetTakeUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    slate?: NullableStringFieldUpdateOperationsInput | string | null
+    takeNumber?: NullableIntFieldUpdateOperationsInput | number | null
+    pickup?: NullableIntFieldUpdateOperationsInput | number | null
+    printStatus?: NullableStringFieldUpdateOperationsInput | string | null
+    durationSec?: NullableIntFieldUpdateOperationsInput | number | null
+    description?: NullableStringFieldUpdateOperationsInput | string | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    camera?: NullableStringFieldUpdateOperationsInput | string | null
+    sortOrder?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    scene?: ContSheetSceneUpdateOneRequiredWithoutTakesNestedInput
+  }
+
+  export type ContSheetTakeUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    sceneId?: StringFieldUpdateOperationsInput | string
+    slate?: NullableStringFieldUpdateOperationsInput | string | null
+    takeNumber?: NullableIntFieldUpdateOperationsInput | number | null
+    pickup?: NullableIntFieldUpdateOperationsInput | number | null
+    printStatus?: NullableStringFieldUpdateOperationsInput | string | null
+    durationSec?: NullableIntFieldUpdateOperationsInput | number | null
+    description?: NullableStringFieldUpdateOperationsInput | string | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    camera?: NullableStringFieldUpdateOperationsInput | string | null
+    sortOrder?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ContSheetTakeCreateManyInput = {
+    id?: string
+    sceneId: string
+    slate?: string | null
+    takeNumber?: number | null
+    pickup?: number | null
+    printStatus?: string | null
+    durationSec?: number | null
+    description?: string | null
+    notes?: string | null
+    camera?: string | null
+    sortOrder?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type ContSheetTakeUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    slate?: NullableStringFieldUpdateOperationsInput | string | null
+    takeNumber?: NullableIntFieldUpdateOperationsInput | number | null
+    pickup?: NullableIntFieldUpdateOperationsInput | number | null
+    printStatus?: NullableStringFieldUpdateOperationsInput | string | null
+    durationSec?: NullableIntFieldUpdateOperationsInput | number | null
+    description?: NullableStringFieldUpdateOperationsInput | string | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    camera?: NullableStringFieldUpdateOperationsInput | string | null
+    sortOrder?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ContSheetTakeUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    sceneId?: StringFieldUpdateOperationsInput | string
+    slate?: NullableStringFieldUpdateOperationsInput | string | null
+    takeNumber?: NullableIntFieldUpdateOperationsInput | number | null
+    pickup?: NullableIntFieldUpdateOperationsInput | number | null
+    printStatus?: NullableStringFieldUpdateOperationsInput | string | null
+    durationSec?: NullableIntFieldUpdateOperationsInput | number | null
+    description?: NullableStringFieldUpdateOperationsInput | string | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    camera?: NullableStringFieldUpdateOperationsInput | string | null
+    sortOrder?: IntFieldUpdateOperationsInput | number
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -348939,6 +353511,12 @@ export namespace Prisma {
     isNot?: RiskPlanWhereInput | null
   }
 
+  export type ContSheetDayListRelationFilter = {
+    every?: ContSheetDayWhereInput
+    some?: ContSheetDayWhereInput
+    none?: ContSheetDayWhereInput
+  }
+
   export type DailiesBatchListRelationFilter = {
     every?: DailiesBatchWhereInput
     some?: DailiesBatchWhereInput
@@ -349065,6 +353643,10 @@ export namespace Prisma {
   }
 
   export type ProjectVisualAssetOrderByRelationAggregateInput = {
+    _count?: SortOrder
+  }
+
+  export type ContSheetDayOrderByRelationAggregateInput = {
     _count?: SortOrder
   }
 
@@ -352496,7 +357078,17 @@ export namespace Prisma {
     none?: ShootDaySceneWhereInput
   }
 
+  export type ContSheetSceneListRelationFilter = {
+    every?: ContSheetSceneWhereInput
+    some?: ContSheetSceneWhereInput
+    none?: ContSheetSceneWhereInput
+  }
+
   export type ShootDaySceneOrderByRelationAggregateInput = {
+    _count?: SortOrder
+  }
+
+  export type ContSheetSceneOrderByRelationAggregateInput = {
     _count?: SortOrder
   }
 
@@ -356481,6 +361073,215 @@ export namespace Prisma {
     status?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
+  }
+
+  export type ContSheetDayProjectIdShootDayIdCompoundUniqueInput = {
+    projectId: string
+    shootDayId: string
+  }
+
+  export type ContSheetDayCountOrderByAggregateInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    shootDayId?: SortOrder
+    version?: SortOrder
+    showTitle?: SortOrder
+    productionCompany?: SortOrder
+    callSheetNumber?: SortOrder
+    reportDate?: SortOrder
+    cameraUnit?: SortOrder
+    crewJson?: SortOrder
+    dayClockJson?: SortOrder
+    scenesSummaryJson?: SortOrder
+    totalsJson?: SortOrder
+    notes?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type ContSheetDayAvgOrderByAggregateInput = {
+    version?: SortOrder
+  }
+
+  export type ContSheetDayMaxOrderByAggregateInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    shootDayId?: SortOrder
+    version?: SortOrder
+    showTitle?: SortOrder
+    productionCompany?: SortOrder
+    callSheetNumber?: SortOrder
+    reportDate?: SortOrder
+    cameraUnit?: SortOrder
+    notes?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type ContSheetDayMinOrderByAggregateInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    shootDayId?: SortOrder
+    version?: SortOrder
+    showTitle?: SortOrder
+    productionCompany?: SortOrder
+    callSheetNumber?: SortOrder
+    reportDate?: SortOrder
+    cameraUnit?: SortOrder
+    notes?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type ContSheetDaySumOrderByAggregateInput = {
+    version?: SortOrder
+  }
+
+  export type ContSheetDayRelationFilter = {
+    is?: ContSheetDayWhereInput
+    isNot?: ContSheetDayWhereInput
+  }
+
+  export type ContSheetTakeListRelationFilter = {
+    every?: ContSheetTakeWhereInput
+    some?: ContSheetTakeWhereInput
+    none?: ContSheetTakeWhereInput
+  }
+
+  export type ContSheetTakeOrderByRelationAggregateInput = {
+    _count?: SortOrder
+  }
+
+  export type ContSheetSceneCountOrderByAggregateInput = {
+    id?: SortOrder
+    dayId?: SortOrder
+    projectSceneId?: SortOrder
+    episode?: SortOrder
+    sceneCode?: SortOrder
+    dayNight?: SortOrder
+    intExt?: SortOrder
+    location?: SortOrder
+    weather?: SortOrder
+    turnoverTime?: SortOrder
+    estimatedTiming?: SortOrder
+    actualTiming?: SortOrder
+    completionStatus?: SortOrder
+    sortOrder?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type ContSheetSceneAvgOrderByAggregateInput = {
+    sortOrder?: SortOrder
+  }
+
+  export type ContSheetSceneMaxOrderByAggregateInput = {
+    id?: SortOrder
+    dayId?: SortOrder
+    projectSceneId?: SortOrder
+    episode?: SortOrder
+    sceneCode?: SortOrder
+    dayNight?: SortOrder
+    intExt?: SortOrder
+    location?: SortOrder
+    weather?: SortOrder
+    turnoverTime?: SortOrder
+    estimatedTiming?: SortOrder
+    actualTiming?: SortOrder
+    completionStatus?: SortOrder
+    sortOrder?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type ContSheetSceneMinOrderByAggregateInput = {
+    id?: SortOrder
+    dayId?: SortOrder
+    projectSceneId?: SortOrder
+    episode?: SortOrder
+    sceneCode?: SortOrder
+    dayNight?: SortOrder
+    intExt?: SortOrder
+    location?: SortOrder
+    weather?: SortOrder
+    turnoverTime?: SortOrder
+    estimatedTiming?: SortOrder
+    actualTiming?: SortOrder
+    completionStatus?: SortOrder
+    sortOrder?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type ContSheetSceneSumOrderByAggregateInput = {
+    sortOrder?: SortOrder
+  }
+
+  export type ContSheetSceneRelationFilter = {
+    is?: ContSheetSceneWhereInput
+    isNot?: ContSheetSceneWhereInput
+  }
+
+  export type ContSheetTakeCountOrderByAggregateInput = {
+    id?: SortOrder
+    sceneId?: SortOrder
+    slate?: SortOrder
+    takeNumber?: SortOrder
+    pickup?: SortOrder
+    printStatus?: SortOrder
+    durationSec?: SortOrder
+    description?: SortOrder
+    notes?: SortOrder
+    camera?: SortOrder
+    sortOrder?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type ContSheetTakeAvgOrderByAggregateInput = {
+    takeNumber?: SortOrder
+    pickup?: SortOrder
+    durationSec?: SortOrder
+    sortOrder?: SortOrder
+  }
+
+  export type ContSheetTakeMaxOrderByAggregateInput = {
+    id?: SortOrder
+    sceneId?: SortOrder
+    slate?: SortOrder
+    takeNumber?: SortOrder
+    pickup?: SortOrder
+    printStatus?: SortOrder
+    durationSec?: SortOrder
+    description?: SortOrder
+    notes?: SortOrder
+    camera?: SortOrder
+    sortOrder?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type ContSheetTakeMinOrderByAggregateInput = {
+    id?: SortOrder
+    sceneId?: SortOrder
+    slate?: SortOrder
+    takeNumber?: SortOrder
+    pickup?: SortOrder
+    printStatus?: SortOrder
+    durationSec?: SortOrder
+    description?: SortOrder
+    notes?: SortOrder
+    camera?: SortOrder
+    sortOrder?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type ContSheetTakeSumOrderByAggregateInput = {
+    takeNumber?: SortOrder
+    pickup?: SortOrder
+    durationSec?: SortOrder
+    sortOrder?: SortOrder
   }
 
   export type ContinuityNoteCountOrderByAggregateInput = {
@@ -369243,6 +374044,13 @@ export namespace Prisma {
     connect?: ContinuityNoteWhereUniqueInput | ContinuityNoteWhereUniqueInput[]
   }
 
+  export type ContSheetDayCreateNestedManyWithoutProjectInput = {
+    create?: XOR<ContSheetDayCreateWithoutProjectInput, ContSheetDayUncheckedCreateWithoutProjectInput> | ContSheetDayCreateWithoutProjectInput[] | ContSheetDayUncheckedCreateWithoutProjectInput[]
+    connectOrCreate?: ContSheetDayCreateOrConnectWithoutProjectInput | ContSheetDayCreateOrConnectWithoutProjectInput[]
+    createMany?: ContSheetDayCreateManyProjectInputEnvelope
+    connect?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
+  }
+
   export type DailiesBatchCreateNestedManyWithoutProjectInput = {
     create?: XOR<DailiesBatchCreateWithoutProjectInput, DailiesBatchUncheckedCreateWithoutProjectInput> | DailiesBatchCreateWithoutProjectInput[] | DailiesBatchUncheckedCreateWithoutProjectInput[]
     connectOrCreate?: DailiesBatchCreateOrConnectWithoutProjectInput | DailiesBatchCreateOrConnectWithoutProjectInput[]
@@ -369748,6 +374556,13 @@ export namespace Prisma {
     connectOrCreate?: ContinuityNoteCreateOrConnectWithoutProjectInput | ContinuityNoteCreateOrConnectWithoutProjectInput[]
     createMany?: ContinuityNoteCreateManyProjectInputEnvelope
     connect?: ContinuityNoteWhereUniqueInput | ContinuityNoteWhereUniqueInput[]
+  }
+
+  export type ContSheetDayUncheckedCreateNestedManyWithoutProjectInput = {
+    create?: XOR<ContSheetDayCreateWithoutProjectInput, ContSheetDayUncheckedCreateWithoutProjectInput> | ContSheetDayCreateWithoutProjectInput[] | ContSheetDayUncheckedCreateWithoutProjectInput[]
+    connectOrCreate?: ContSheetDayCreateOrConnectWithoutProjectInput | ContSheetDayCreateOrConnectWithoutProjectInput[]
+    createMany?: ContSheetDayCreateManyProjectInputEnvelope
+    connect?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
   }
 
   export type DailiesBatchUncheckedCreateNestedManyWithoutProjectInput = {
@@ -370645,6 +375460,20 @@ export namespace Prisma {
     update?: ContinuityNoteUpdateWithWhereUniqueWithoutProjectInput | ContinuityNoteUpdateWithWhereUniqueWithoutProjectInput[]
     updateMany?: ContinuityNoteUpdateManyWithWhereWithoutProjectInput | ContinuityNoteUpdateManyWithWhereWithoutProjectInput[]
     deleteMany?: ContinuityNoteScalarWhereInput | ContinuityNoteScalarWhereInput[]
+  }
+
+  export type ContSheetDayUpdateManyWithoutProjectNestedInput = {
+    create?: XOR<ContSheetDayCreateWithoutProjectInput, ContSheetDayUncheckedCreateWithoutProjectInput> | ContSheetDayCreateWithoutProjectInput[] | ContSheetDayUncheckedCreateWithoutProjectInput[]
+    connectOrCreate?: ContSheetDayCreateOrConnectWithoutProjectInput | ContSheetDayCreateOrConnectWithoutProjectInput[]
+    upsert?: ContSheetDayUpsertWithWhereUniqueWithoutProjectInput | ContSheetDayUpsertWithWhereUniqueWithoutProjectInput[]
+    createMany?: ContSheetDayCreateManyProjectInputEnvelope
+    set?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
+    disconnect?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
+    delete?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
+    connect?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
+    update?: ContSheetDayUpdateWithWhereUniqueWithoutProjectInput | ContSheetDayUpdateWithWhereUniqueWithoutProjectInput[]
+    updateMany?: ContSheetDayUpdateManyWithWhereWithoutProjectInput | ContSheetDayUpdateManyWithWhereWithoutProjectInput[]
+    deleteMany?: ContSheetDayScalarWhereInput | ContSheetDayScalarWhereInput[]
   }
 
   export type DailiesBatchUpdateManyWithoutProjectNestedInput = {
@@ -371651,6 +376480,20 @@ export namespace Prisma {
     update?: ContinuityNoteUpdateWithWhereUniqueWithoutProjectInput | ContinuityNoteUpdateWithWhereUniqueWithoutProjectInput[]
     updateMany?: ContinuityNoteUpdateManyWithWhereWithoutProjectInput | ContinuityNoteUpdateManyWithWhereWithoutProjectInput[]
     deleteMany?: ContinuityNoteScalarWhereInput | ContinuityNoteScalarWhereInput[]
+  }
+
+  export type ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput = {
+    create?: XOR<ContSheetDayCreateWithoutProjectInput, ContSheetDayUncheckedCreateWithoutProjectInput> | ContSheetDayCreateWithoutProjectInput[] | ContSheetDayUncheckedCreateWithoutProjectInput[]
+    connectOrCreate?: ContSheetDayCreateOrConnectWithoutProjectInput | ContSheetDayCreateOrConnectWithoutProjectInput[]
+    upsert?: ContSheetDayUpsertWithWhereUniqueWithoutProjectInput | ContSheetDayUpsertWithWhereUniqueWithoutProjectInput[]
+    createMany?: ContSheetDayCreateManyProjectInputEnvelope
+    set?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
+    disconnect?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
+    delete?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
+    connect?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
+    update?: ContSheetDayUpdateWithWhereUniqueWithoutProjectInput | ContSheetDayUpdateWithWhereUniqueWithoutProjectInput[]
+    updateMany?: ContSheetDayUpdateManyWithWhereWithoutProjectInput | ContSheetDayUpdateManyWithWhereWithoutProjectInput[]
+    deleteMany?: ContSheetDayScalarWhereInput | ContSheetDayScalarWhereInput[]
   }
 
   export type DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput = {
@@ -375654,6 +380497,13 @@ export namespace Prisma {
     connect?: ContinuityNoteWhereUniqueInput | ContinuityNoteWhereUniqueInput[]
   }
 
+  export type ContSheetSceneCreateNestedManyWithoutProjectSceneInput = {
+    create?: XOR<ContSheetSceneCreateWithoutProjectSceneInput, ContSheetSceneUncheckedCreateWithoutProjectSceneInput> | ContSheetSceneCreateWithoutProjectSceneInput[] | ContSheetSceneUncheckedCreateWithoutProjectSceneInput[]
+    connectOrCreate?: ContSheetSceneCreateOrConnectWithoutProjectSceneInput | ContSheetSceneCreateOrConnectWithoutProjectSceneInput[]
+    createMany?: ContSheetSceneCreateManyProjectSceneInputEnvelope
+    connect?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
+  }
+
   export type DailiesBatchCreateNestedManyWithoutSceneInput = {
     create?: XOR<DailiesBatchCreateWithoutSceneInput, DailiesBatchUncheckedCreateWithoutSceneInput> | DailiesBatchCreateWithoutSceneInput[] | DailiesBatchUncheckedCreateWithoutSceneInput[]
     connectOrCreate?: DailiesBatchCreateOrConnectWithoutSceneInput | DailiesBatchCreateOrConnectWithoutSceneInput[]
@@ -375778,6 +380628,13 @@ export namespace Prisma {
     connectOrCreate?: ContinuityNoteCreateOrConnectWithoutSceneInput | ContinuityNoteCreateOrConnectWithoutSceneInput[]
     createMany?: ContinuityNoteCreateManySceneInputEnvelope
     connect?: ContinuityNoteWhereUniqueInput | ContinuityNoteWhereUniqueInput[]
+  }
+
+  export type ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput = {
+    create?: XOR<ContSheetSceneCreateWithoutProjectSceneInput, ContSheetSceneUncheckedCreateWithoutProjectSceneInput> | ContSheetSceneCreateWithoutProjectSceneInput[] | ContSheetSceneUncheckedCreateWithoutProjectSceneInput[]
+    connectOrCreate?: ContSheetSceneCreateOrConnectWithoutProjectSceneInput | ContSheetSceneCreateOrConnectWithoutProjectSceneInput[]
+    createMany?: ContSheetSceneCreateManyProjectSceneInputEnvelope
+    connect?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
   }
 
   export type DailiesBatchUncheckedCreateNestedManyWithoutSceneInput = {
@@ -376009,6 +380866,20 @@ export namespace Prisma {
     update?: ContinuityNoteUpdateWithWhereUniqueWithoutSceneInput | ContinuityNoteUpdateWithWhereUniqueWithoutSceneInput[]
     updateMany?: ContinuityNoteUpdateManyWithWhereWithoutSceneInput | ContinuityNoteUpdateManyWithWhereWithoutSceneInput[]
     deleteMany?: ContinuityNoteScalarWhereInput | ContinuityNoteScalarWhereInput[]
+  }
+
+  export type ContSheetSceneUpdateManyWithoutProjectSceneNestedInput = {
+    create?: XOR<ContSheetSceneCreateWithoutProjectSceneInput, ContSheetSceneUncheckedCreateWithoutProjectSceneInput> | ContSheetSceneCreateWithoutProjectSceneInput[] | ContSheetSceneUncheckedCreateWithoutProjectSceneInput[]
+    connectOrCreate?: ContSheetSceneCreateOrConnectWithoutProjectSceneInput | ContSheetSceneCreateOrConnectWithoutProjectSceneInput[]
+    upsert?: ContSheetSceneUpsertWithWhereUniqueWithoutProjectSceneInput | ContSheetSceneUpsertWithWhereUniqueWithoutProjectSceneInput[]
+    createMany?: ContSheetSceneCreateManyProjectSceneInputEnvelope
+    set?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
+    disconnect?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
+    delete?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
+    connect?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
+    update?: ContSheetSceneUpdateWithWhereUniqueWithoutProjectSceneInput | ContSheetSceneUpdateWithWhereUniqueWithoutProjectSceneInput[]
+    updateMany?: ContSheetSceneUpdateManyWithWhereWithoutProjectSceneInput | ContSheetSceneUpdateManyWithWhereWithoutProjectSceneInput[]
+    deleteMany?: ContSheetSceneScalarWhereInput | ContSheetSceneScalarWhereInput[]
   }
 
   export type DailiesBatchUpdateManyWithoutSceneNestedInput = {
@@ -376261,6 +381132,20 @@ export namespace Prisma {
     update?: ContinuityNoteUpdateWithWhereUniqueWithoutSceneInput | ContinuityNoteUpdateWithWhereUniqueWithoutSceneInput[]
     updateMany?: ContinuityNoteUpdateManyWithWhereWithoutSceneInput | ContinuityNoteUpdateManyWithWhereWithoutSceneInput[]
     deleteMany?: ContinuityNoteScalarWhereInput | ContinuityNoteScalarWhereInput[]
+  }
+
+  export type ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput = {
+    create?: XOR<ContSheetSceneCreateWithoutProjectSceneInput, ContSheetSceneUncheckedCreateWithoutProjectSceneInput> | ContSheetSceneCreateWithoutProjectSceneInput[] | ContSheetSceneUncheckedCreateWithoutProjectSceneInput[]
+    connectOrCreate?: ContSheetSceneCreateOrConnectWithoutProjectSceneInput | ContSheetSceneCreateOrConnectWithoutProjectSceneInput[]
+    upsert?: ContSheetSceneUpsertWithWhereUniqueWithoutProjectSceneInput | ContSheetSceneUpsertWithWhereUniqueWithoutProjectSceneInput[]
+    createMany?: ContSheetSceneCreateManyProjectSceneInputEnvelope
+    set?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
+    disconnect?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
+    delete?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
+    connect?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
+    update?: ContSheetSceneUpdateWithWhereUniqueWithoutProjectSceneInput | ContSheetSceneUpdateWithWhereUniqueWithoutProjectSceneInput[]
+    updateMany?: ContSheetSceneUpdateManyWithWhereWithoutProjectSceneInput | ContSheetSceneUpdateManyWithWhereWithoutProjectSceneInput[]
+    deleteMany?: ContSheetSceneScalarWhereInput | ContSheetSceneScalarWhereInput[]
   }
 
   export type DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput = {
@@ -378667,6 +383552,13 @@ export namespace Prisma {
     connect?: ContinuityNoteWhereUniqueInput | ContinuityNoteWhereUniqueInput[]
   }
 
+  export type ContSheetDayCreateNestedManyWithoutShootDayInput = {
+    create?: XOR<ContSheetDayCreateWithoutShootDayInput, ContSheetDayUncheckedCreateWithoutShootDayInput> | ContSheetDayCreateWithoutShootDayInput[] | ContSheetDayUncheckedCreateWithoutShootDayInput[]
+    connectOrCreate?: ContSheetDayCreateOrConnectWithoutShootDayInput | ContSheetDayCreateOrConnectWithoutShootDayInput[]
+    createMany?: ContSheetDayCreateManyShootDayInputEnvelope
+    connect?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
+  }
+
   export type DailiesBatchCreateNestedManyWithoutShootDayInput = {
     create?: XOR<DailiesBatchCreateWithoutShootDayInput, DailiesBatchUncheckedCreateWithoutShootDayInput> | DailiesBatchCreateWithoutShootDayInput[] | DailiesBatchUncheckedCreateWithoutShootDayInput[]
     connectOrCreate?: DailiesBatchCreateOrConnectWithoutShootDayInput | DailiesBatchCreateOrConnectWithoutShootDayInput[]
@@ -378727,6 +383619,13 @@ export namespace Prisma {
     connectOrCreate?: ContinuityNoteCreateOrConnectWithoutShootDayInput | ContinuityNoteCreateOrConnectWithoutShootDayInput[]
     createMany?: ContinuityNoteCreateManyShootDayInputEnvelope
     connect?: ContinuityNoteWhereUniqueInput | ContinuityNoteWhereUniqueInput[]
+  }
+
+  export type ContSheetDayUncheckedCreateNestedManyWithoutShootDayInput = {
+    create?: XOR<ContSheetDayCreateWithoutShootDayInput, ContSheetDayUncheckedCreateWithoutShootDayInput> | ContSheetDayCreateWithoutShootDayInput[] | ContSheetDayUncheckedCreateWithoutShootDayInput[]
+    connectOrCreate?: ContSheetDayCreateOrConnectWithoutShootDayInput | ContSheetDayCreateOrConnectWithoutShootDayInput[]
+    createMany?: ContSheetDayCreateManyShootDayInputEnvelope
+    connect?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
   }
 
   export type DailiesBatchUncheckedCreateNestedManyWithoutShootDayInput = {
@@ -378825,6 +383724,20 @@ export namespace Prisma {
     update?: ContinuityNoteUpdateWithWhereUniqueWithoutShootDayInput | ContinuityNoteUpdateWithWhereUniqueWithoutShootDayInput[]
     updateMany?: ContinuityNoteUpdateManyWithWhereWithoutShootDayInput | ContinuityNoteUpdateManyWithWhereWithoutShootDayInput[]
     deleteMany?: ContinuityNoteScalarWhereInput | ContinuityNoteScalarWhereInput[]
+  }
+
+  export type ContSheetDayUpdateManyWithoutShootDayNestedInput = {
+    create?: XOR<ContSheetDayCreateWithoutShootDayInput, ContSheetDayUncheckedCreateWithoutShootDayInput> | ContSheetDayCreateWithoutShootDayInput[] | ContSheetDayUncheckedCreateWithoutShootDayInput[]
+    connectOrCreate?: ContSheetDayCreateOrConnectWithoutShootDayInput | ContSheetDayCreateOrConnectWithoutShootDayInput[]
+    upsert?: ContSheetDayUpsertWithWhereUniqueWithoutShootDayInput | ContSheetDayUpsertWithWhereUniqueWithoutShootDayInput[]
+    createMany?: ContSheetDayCreateManyShootDayInputEnvelope
+    set?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
+    disconnect?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
+    delete?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
+    connect?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
+    update?: ContSheetDayUpdateWithWhereUniqueWithoutShootDayInput | ContSheetDayUpdateWithWhereUniqueWithoutShootDayInput[]
+    updateMany?: ContSheetDayUpdateManyWithWhereWithoutShootDayInput | ContSheetDayUpdateManyWithWhereWithoutShootDayInput[]
+    deleteMany?: ContSheetDayScalarWhereInput | ContSheetDayScalarWhereInput[]
   }
 
   export type DailiesBatchUpdateManyWithoutShootDayNestedInput = {
@@ -378947,6 +383860,20 @@ export namespace Prisma {
     update?: ContinuityNoteUpdateWithWhereUniqueWithoutShootDayInput | ContinuityNoteUpdateWithWhereUniqueWithoutShootDayInput[]
     updateMany?: ContinuityNoteUpdateManyWithWhereWithoutShootDayInput | ContinuityNoteUpdateManyWithWhereWithoutShootDayInput[]
     deleteMany?: ContinuityNoteScalarWhereInput | ContinuityNoteScalarWhereInput[]
+  }
+
+  export type ContSheetDayUncheckedUpdateManyWithoutShootDayNestedInput = {
+    create?: XOR<ContSheetDayCreateWithoutShootDayInput, ContSheetDayUncheckedCreateWithoutShootDayInput> | ContSheetDayCreateWithoutShootDayInput[] | ContSheetDayUncheckedCreateWithoutShootDayInput[]
+    connectOrCreate?: ContSheetDayCreateOrConnectWithoutShootDayInput | ContSheetDayCreateOrConnectWithoutShootDayInput[]
+    upsert?: ContSheetDayUpsertWithWhereUniqueWithoutShootDayInput | ContSheetDayUpsertWithWhereUniqueWithoutShootDayInput[]
+    createMany?: ContSheetDayCreateManyShootDayInputEnvelope
+    set?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
+    disconnect?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
+    delete?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
+    connect?: ContSheetDayWhereUniqueInput | ContSheetDayWhereUniqueInput[]
+    update?: ContSheetDayUpdateWithWhereUniqueWithoutShootDayInput | ContSheetDayUpdateWithWhereUniqueWithoutShootDayInput[]
+    updateMany?: ContSheetDayUpdateManyWithWhereWithoutShootDayInput | ContSheetDayUpdateManyWithWhereWithoutShootDayInput[]
+    deleteMany?: ContSheetDayScalarWhereInput | ContSheetDayScalarWhereInput[]
   }
 
   export type DailiesBatchUncheckedUpdateManyWithoutShootDayNestedInput = {
@@ -382038,6 +386965,162 @@ export namespace Prisma {
     delete?: UserWhereInput | boolean
     connect?: UserWhereUniqueInput
     update?: XOR<XOR<UserUpdateToOneWithWhereWithoutRiskChecklistItemsInput, UserUpdateWithoutRiskChecklistItemsInput>, UserUncheckedUpdateWithoutRiskChecklistItemsInput>
+  }
+
+  export type OriginalProjectCreateNestedOneWithoutContSheetDaysInput = {
+    create?: XOR<OriginalProjectCreateWithoutContSheetDaysInput, OriginalProjectUncheckedCreateWithoutContSheetDaysInput>
+    connectOrCreate?: OriginalProjectCreateOrConnectWithoutContSheetDaysInput
+    connect?: OriginalProjectWhereUniqueInput
+  }
+
+  export type ShootDayCreateNestedOneWithoutContSheetDaysInput = {
+    create?: XOR<ShootDayCreateWithoutContSheetDaysInput, ShootDayUncheckedCreateWithoutContSheetDaysInput>
+    connectOrCreate?: ShootDayCreateOrConnectWithoutContSheetDaysInput
+    connect?: ShootDayWhereUniqueInput
+  }
+
+  export type ContSheetSceneCreateNestedManyWithoutDayInput = {
+    create?: XOR<ContSheetSceneCreateWithoutDayInput, ContSheetSceneUncheckedCreateWithoutDayInput> | ContSheetSceneCreateWithoutDayInput[] | ContSheetSceneUncheckedCreateWithoutDayInput[]
+    connectOrCreate?: ContSheetSceneCreateOrConnectWithoutDayInput | ContSheetSceneCreateOrConnectWithoutDayInput[]
+    createMany?: ContSheetSceneCreateManyDayInputEnvelope
+    connect?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
+  }
+
+  export type ContSheetSceneUncheckedCreateNestedManyWithoutDayInput = {
+    create?: XOR<ContSheetSceneCreateWithoutDayInput, ContSheetSceneUncheckedCreateWithoutDayInput> | ContSheetSceneCreateWithoutDayInput[] | ContSheetSceneUncheckedCreateWithoutDayInput[]
+    connectOrCreate?: ContSheetSceneCreateOrConnectWithoutDayInput | ContSheetSceneCreateOrConnectWithoutDayInput[]
+    createMany?: ContSheetSceneCreateManyDayInputEnvelope
+    connect?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
+  }
+
+  export type OriginalProjectUpdateOneRequiredWithoutContSheetDaysNestedInput = {
+    create?: XOR<OriginalProjectCreateWithoutContSheetDaysInput, OriginalProjectUncheckedCreateWithoutContSheetDaysInput>
+    connectOrCreate?: OriginalProjectCreateOrConnectWithoutContSheetDaysInput
+    upsert?: OriginalProjectUpsertWithoutContSheetDaysInput
+    connect?: OriginalProjectWhereUniqueInput
+    update?: XOR<XOR<OriginalProjectUpdateToOneWithWhereWithoutContSheetDaysInput, OriginalProjectUpdateWithoutContSheetDaysInput>, OriginalProjectUncheckedUpdateWithoutContSheetDaysInput>
+  }
+
+  export type ShootDayUpdateOneRequiredWithoutContSheetDaysNestedInput = {
+    create?: XOR<ShootDayCreateWithoutContSheetDaysInput, ShootDayUncheckedCreateWithoutContSheetDaysInput>
+    connectOrCreate?: ShootDayCreateOrConnectWithoutContSheetDaysInput
+    upsert?: ShootDayUpsertWithoutContSheetDaysInput
+    connect?: ShootDayWhereUniqueInput
+    update?: XOR<XOR<ShootDayUpdateToOneWithWhereWithoutContSheetDaysInput, ShootDayUpdateWithoutContSheetDaysInput>, ShootDayUncheckedUpdateWithoutContSheetDaysInput>
+  }
+
+  export type ContSheetSceneUpdateManyWithoutDayNestedInput = {
+    create?: XOR<ContSheetSceneCreateWithoutDayInput, ContSheetSceneUncheckedCreateWithoutDayInput> | ContSheetSceneCreateWithoutDayInput[] | ContSheetSceneUncheckedCreateWithoutDayInput[]
+    connectOrCreate?: ContSheetSceneCreateOrConnectWithoutDayInput | ContSheetSceneCreateOrConnectWithoutDayInput[]
+    upsert?: ContSheetSceneUpsertWithWhereUniqueWithoutDayInput | ContSheetSceneUpsertWithWhereUniqueWithoutDayInput[]
+    createMany?: ContSheetSceneCreateManyDayInputEnvelope
+    set?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
+    disconnect?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
+    delete?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
+    connect?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
+    update?: ContSheetSceneUpdateWithWhereUniqueWithoutDayInput | ContSheetSceneUpdateWithWhereUniqueWithoutDayInput[]
+    updateMany?: ContSheetSceneUpdateManyWithWhereWithoutDayInput | ContSheetSceneUpdateManyWithWhereWithoutDayInput[]
+    deleteMany?: ContSheetSceneScalarWhereInput | ContSheetSceneScalarWhereInput[]
+  }
+
+  export type ContSheetSceneUncheckedUpdateManyWithoutDayNestedInput = {
+    create?: XOR<ContSheetSceneCreateWithoutDayInput, ContSheetSceneUncheckedCreateWithoutDayInput> | ContSheetSceneCreateWithoutDayInput[] | ContSheetSceneUncheckedCreateWithoutDayInput[]
+    connectOrCreate?: ContSheetSceneCreateOrConnectWithoutDayInput | ContSheetSceneCreateOrConnectWithoutDayInput[]
+    upsert?: ContSheetSceneUpsertWithWhereUniqueWithoutDayInput | ContSheetSceneUpsertWithWhereUniqueWithoutDayInput[]
+    createMany?: ContSheetSceneCreateManyDayInputEnvelope
+    set?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
+    disconnect?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
+    delete?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
+    connect?: ContSheetSceneWhereUniqueInput | ContSheetSceneWhereUniqueInput[]
+    update?: ContSheetSceneUpdateWithWhereUniqueWithoutDayInput | ContSheetSceneUpdateWithWhereUniqueWithoutDayInput[]
+    updateMany?: ContSheetSceneUpdateManyWithWhereWithoutDayInput | ContSheetSceneUpdateManyWithWhereWithoutDayInput[]
+    deleteMany?: ContSheetSceneScalarWhereInput | ContSheetSceneScalarWhereInput[]
+  }
+
+  export type ContSheetDayCreateNestedOneWithoutScenesInput = {
+    create?: XOR<ContSheetDayCreateWithoutScenesInput, ContSheetDayUncheckedCreateWithoutScenesInput>
+    connectOrCreate?: ContSheetDayCreateOrConnectWithoutScenesInput
+    connect?: ContSheetDayWhereUniqueInput
+  }
+
+  export type ProjectSceneCreateNestedOneWithoutContSheetScenesInput = {
+    create?: XOR<ProjectSceneCreateWithoutContSheetScenesInput, ProjectSceneUncheckedCreateWithoutContSheetScenesInput>
+    connectOrCreate?: ProjectSceneCreateOrConnectWithoutContSheetScenesInput
+    connect?: ProjectSceneWhereUniqueInput
+  }
+
+  export type ContSheetTakeCreateNestedManyWithoutSceneInput = {
+    create?: XOR<ContSheetTakeCreateWithoutSceneInput, ContSheetTakeUncheckedCreateWithoutSceneInput> | ContSheetTakeCreateWithoutSceneInput[] | ContSheetTakeUncheckedCreateWithoutSceneInput[]
+    connectOrCreate?: ContSheetTakeCreateOrConnectWithoutSceneInput | ContSheetTakeCreateOrConnectWithoutSceneInput[]
+    createMany?: ContSheetTakeCreateManySceneInputEnvelope
+    connect?: ContSheetTakeWhereUniqueInput | ContSheetTakeWhereUniqueInput[]
+  }
+
+  export type ContSheetTakeUncheckedCreateNestedManyWithoutSceneInput = {
+    create?: XOR<ContSheetTakeCreateWithoutSceneInput, ContSheetTakeUncheckedCreateWithoutSceneInput> | ContSheetTakeCreateWithoutSceneInput[] | ContSheetTakeUncheckedCreateWithoutSceneInput[]
+    connectOrCreate?: ContSheetTakeCreateOrConnectWithoutSceneInput | ContSheetTakeCreateOrConnectWithoutSceneInput[]
+    createMany?: ContSheetTakeCreateManySceneInputEnvelope
+    connect?: ContSheetTakeWhereUniqueInput | ContSheetTakeWhereUniqueInput[]
+  }
+
+  export type ContSheetDayUpdateOneRequiredWithoutScenesNestedInput = {
+    create?: XOR<ContSheetDayCreateWithoutScenesInput, ContSheetDayUncheckedCreateWithoutScenesInput>
+    connectOrCreate?: ContSheetDayCreateOrConnectWithoutScenesInput
+    upsert?: ContSheetDayUpsertWithoutScenesInput
+    connect?: ContSheetDayWhereUniqueInput
+    update?: XOR<XOR<ContSheetDayUpdateToOneWithWhereWithoutScenesInput, ContSheetDayUpdateWithoutScenesInput>, ContSheetDayUncheckedUpdateWithoutScenesInput>
+  }
+
+  export type ProjectSceneUpdateOneWithoutContSheetScenesNestedInput = {
+    create?: XOR<ProjectSceneCreateWithoutContSheetScenesInput, ProjectSceneUncheckedCreateWithoutContSheetScenesInput>
+    connectOrCreate?: ProjectSceneCreateOrConnectWithoutContSheetScenesInput
+    upsert?: ProjectSceneUpsertWithoutContSheetScenesInput
+    disconnect?: ProjectSceneWhereInput | boolean
+    delete?: ProjectSceneWhereInput | boolean
+    connect?: ProjectSceneWhereUniqueInput
+    update?: XOR<XOR<ProjectSceneUpdateToOneWithWhereWithoutContSheetScenesInput, ProjectSceneUpdateWithoutContSheetScenesInput>, ProjectSceneUncheckedUpdateWithoutContSheetScenesInput>
+  }
+
+  export type ContSheetTakeUpdateManyWithoutSceneNestedInput = {
+    create?: XOR<ContSheetTakeCreateWithoutSceneInput, ContSheetTakeUncheckedCreateWithoutSceneInput> | ContSheetTakeCreateWithoutSceneInput[] | ContSheetTakeUncheckedCreateWithoutSceneInput[]
+    connectOrCreate?: ContSheetTakeCreateOrConnectWithoutSceneInput | ContSheetTakeCreateOrConnectWithoutSceneInput[]
+    upsert?: ContSheetTakeUpsertWithWhereUniqueWithoutSceneInput | ContSheetTakeUpsertWithWhereUniqueWithoutSceneInput[]
+    createMany?: ContSheetTakeCreateManySceneInputEnvelope
+    set?: ContSheetTakeWhereUniqueInput | ContSheetTakeWhereUniqueInput[]
+    disconnect?: ContSheetTakeWhereUniqueInput | ContSheetTakeWhereUniqueInput[]
+    delete?: ContSheetTakeWhereUniqueInput | ContSheetTakeWhereUniqueInput[]
+    connect?: ContSheetTakeWhereUniqueInput | ContSheetTakeWhereUniqueInput[]
+    update?: ContSheetTakeUpdateWithWhereUniqueWithoutSceneInput | ContSheetTakeUpdateWithWhereUniqueWithoutSceneInput[]
+    updateMany?: ContSheetTakeUpdateManyWithWhereWithoutSceneInput | ContSheetTakeUpdateManyWithWhereWithoutSceneInput[]
+    deleteMany?: ContSheetTakeScalarWhereInput | ContSheetTakeScalarWhereInput[]
+  }
+
+  export type ContSheetTakeUncheckedUpdateManyWithoutSceneNestedInput = {
+    create?: XOR<ContSheetTakeCreateWithoutSceneInput, ContSheetTakeUncheckedCreateWithoutSceneInput> | ContSheetTakeCreateWithoutSceneInput[] | ContSheetTakeUncheckedCreateWithoutSceneInput[]
+    connectOrCreate?: ContSheetTakeCreateOrConnectWithoutSceneInput | ContSheetTakeCreateOrConnectWithoutSceneInput[]
+    upsert?: ContSheetTakeUpsertWithWhereUniqueWithoutSceneInput | ContSheetTakeUpsertWithWhereUniqueWithoutSceneInput[]
+    createMany?: ContSheetTakeCreateManySceneInputEnvelope
+    set?: ContSheetTakeWhereUniqueInput | ContSheetTakeWhereUniqueInput[]
+    disconnect?: ContSheetTakeWhereUniqueInput | ContSheetTakeWhereUniqueInput[]
+    delete?: ContSheetTakeWhereUniqueInput | ContSheetTakeWhereUniqueInput[]
+    connect?: ContSheetTakeWhereUniqueInput | ContSheetTakeWhereUniqueInput[]
+    update?: ContSheetTakeUpdateWithWhereUniqueWithoutSceneInput | ContSheetTakeUpdateWithWhereUniqueWithoutSceneInput[]
+    updateMany?: ContSheetTakeUpdateManyWithWhereWithoutSceneInput | ContSheetTakeUpdateManyWithWhereWithoutSceneInput[]
+    deleteMany?: ContSheetTakeScalarWhereInput | ContSheetTakeScalarWhereInput[]
+  }
+
+  export type ContSheetSceneCreateNestedOneWithoutTakesInput = {
+    create?: XOR<ContSheetSceneCreateWithoutTakesInput, ContSheetSceneUncheckedCreateWithoutTakesInput>
+    connectOrCreate?: ContSheetSceneCreateOrConnectWithoutTakesInput
+    connect?: ContSheetSceneWhereUniqueInput
+  }
+
+  export type ContSheetSceneUpdateOneRequiredWithoutTakesNestedInput = {
+    create?: XOR<ContSheetSceneCreateWithoutTakesInput, ContSheetSceneUncheckedCreateWithoutTakesInput>
+    connectOrCreate?: ContSheetSceneCreateOrConnectWithoutTakesInput
+    upsert?: ContSheetSceneUpsertWithoutTakesInput
+    connect?: ContSheetSceneWhereUniqueInput
+    update?: XOR<XOR<ContSheetSceneUpdateToOneWithWhereWithoutTakesInput, ContSheetSceneUpdateWithoutTakesInput>, ContSheetSceneUncheckedUpdateWithoutTakesInput>
   }
 
   export type OriginalProjectCreateNestedOneWithoutContinuityNotesInput = {
@@ -410647,6 +415730,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -410736,6 +415820,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -411907,6 +416992,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -411996,6 +417082,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -433269,6 +438356,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
@@ -433304,6 +438392,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
@@ -434051,6 +439140,7 @@ export namespace Prisma {
     callSheets?: CallSheetCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskCreateNestedManyWithoutShootDayInput
@@ -434074,6 +439164,7 @@ export namespace Prisma {
     callSheets?: CallSheetUncheckedCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportUncheckedCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskUncheckedCreateNestedManyWithoutShootDayInput
@@ -434845,6 +439936,54 @@ export namespace Prisma {
 
   export type ContinuityNoteCreateManyProjectInputEnvelope = {
     data: ContinuityNoteCreateManyProjectInput | ContinuityNoteCreateManyProjectInput[]
+    skipDuplicates?: boolean
+  }
+
+  export type ContSheetDayCreateWithoutProjectInput = {
+    id?: string
+    version?: number
+    showTitle?: string | null
+    productionCompany?: string | null
+    callSheetNumber?: string | null
+    reportDate?: string | null
+    cameraUnit?: string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    shootDay: ShootDayCreateNestedOneWithoutContSheetDaysInput
+    scenes?: ContSheetSceneCreateNestedManyWithoutDayInput
+  }
+
+  export type ContSheetDayUncheckedCreateWithoutProjectInput = {
+    id?: string
+    shootDayId: string
+    version?: number
+    showTitle?: string | null
+    productionCompany?: string | null
+    callSheetNumber?: string | null
+    reportDate?: string | null
+    cameraUnit?: string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    scenes?: ContSheetSceneUncheckedCreateNestedManyWithoutDayInput
+  }
+
+  export type ContSheetDayCreateOrConnectWithoutProjectInput = {
+    where: ContSheetDayWhereUniqueInput
+    create: XOR<ContSheetDayCreateWithoutProjectInput, ContSheetDayUncheckedCreateWithoutProjectInput>
+  }
+
+  export type ContSheetDayCreateManyProjectInputEnvelope = {
+    data: ContSheetDayCreateManyProjectInput | ContSheetDayCreateManyProjectInput[]
     skipDuplicates?: boolean
   }
 
@@ -436886,6 +442025,44 @@ export namespace Prisma {
     data: XOR<ContinuityNoteUpdateManyMutationInput, ContinuityNoteUncheckedUpdateManyWithoutProjectInput>
   }
 
+  export type ContSheetDayUpsertWithWhereUniqueWithoutProjectInput = {
+    where: ContSheetDayWhereUniqueInput
+    update: XOR<ContSheetDayUpdateWithoutProjectInput, ContSheetDayUncheckedUpdateWithoutProjectInput>
+    create: XOR<ContSheetDayCreateWithoutProjectInput, ContSheetDayUncheckedCreateWithoutProjectInput>
+  }
+
+  export type ContSheetDayUpdateWithWhereUniqueWithoutProjectInput = {
+    where: ContSheetDayWhereUniqueInput
+    data: XOR<ContSheetDayUpdateWithoutProjectInput, ContSheetDayUncheckedUpdateWithoutProjectInput>
+  }
+
+  export type ContSheetDayUpdateManyWithWhereWithoutProjectInput = {
+    where: ContSheetDayScalarWhereInput
+    data: XOR<ContSheetDayUpdateManyMutationInput, ContSheetDayUncheckedUpdateManyWithoutProjectInput>
+  }
+
+  export type ContSheetDayScalarWhereInput = {
+    AND?: ContSheetDayScalarWhereInput | ContSheetDayScalarWhereInput[]
+    OR?: ContSheetDayScalarWhereInput[]
+    NOT?: ContSheetDayScalarWhereInput | ContSheetDayScalarWhereInput[]
+    id?: StringFilter<"ContSheetDay"> | string
+    projectId?: StringFilter<"ContSheetDay"> | string
+    shootDayId?: StringFilter<"ContSheetDay"> | string
+    version?: IntFilter<"ContSheetDay"> | number
+    showTitle?: StringNullableFilter<"ContSheetDay"> | string | null
+    productionCompany?: StringNullableFilter<"ContSheetDay"> | string | null
+    callSheetNumber?: StringNullableFilter<"ContSheetDay"> | string | null
+    reportDate?: StringNullableFilter<"ContSheetDay"> | string | null
+    cameraUnit?: StringNullableFilter<"ContSheetDay"> | string | null
+    crewJson?: JsonNullableFilter<"ContSheetDay">
+    dayClockJson?: JsonNullableFilter<"ContSheetDay">
+    scenesSummaryJson?: JsonNullableFilter<"ContSheetDay">
+    totalsJson?: JsonNullableFilter<"ContSheetDay">
+    notes?: StringNullableFilter<"ContSheetDay"> | string | null
+    createdAt?: DateTimeFilter<"ContSheetDay"> | Date | string
+    updatedAt?: DateTimeFilter<"ContSheetDay"> | Date | string
+  }
+
   export type DailiesBatchUpsertWithWhereUniqueWithoutProjectInput = {
     where: DailiesBatchWhereUniqueInput
     update: XOR<DailiesBatchUpdateWithoutProjectInput, DailiesBatchUncheckedUpdateWithoutProjectInput>
@@ -437795,6 +442972,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -437884,6 +443062,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -439369,6 +444548,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -439458,6 +444638,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -440899,6 +446080,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -440988,6 +446170,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -441546,6 +446729,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -441635,6 +446819,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -442171,6 +447356,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -442260,6 +447446,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -442818,6 +448005,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -442907,6 +448095,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -442996,6 +448185,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -443085,6 +448275,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -444084,6 +449275,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -444173,6 +449365,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -482309,6 +487502,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
@@ -482344,6 +487538,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
@@ -482980,6 +488175,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -483069,6 +488265,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -483226,6 +488423,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
@@ -483261,6 +488459,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
@@ -483915,6 +489114,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -484004,6 +489204,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -484604,6 +489805,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -484693,6 +489895,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -484743,6 +489946,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
@@ -484778,6 +489982,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
@@ -485326,6 +490531,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -485415,6 +490621,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -485471,6 +490678,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
@@ -485506,6 +490714,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
@@ -491519,6 +496728,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -491608,6 +496818,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -491658,6 +496869,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
@@ -491693,6 +496905,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
@@ -491788,6 +497001,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -491877,6 +497091,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -491933,6 +497148,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
@@ -491968,6 +497184,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
@@ -492047,6 +497264,7 @@ export namespace Prisma {
     visualAssets?: ProjectVisualAssetCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -492136,6 +497354,7 @@ export namespace Prisma {
     visualAssets?: ProjectVisualAssetUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -492776,6 +497995,7 @@ export namespace Prisma {
     visualAssets?: ProjectVisualAssetUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -492865,6 +498085,7 @@ export namespace Prisma {
     visualAssets?: ProjectVisualAssetUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -494663,6 +499884,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -494752,6 +499974,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -495304,6 +500527,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -495393,6 +500617,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -495935,6 +501160,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -496024,6 +501250,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -496105,6 +501332,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
@@ -496140,6 +501368,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
@@ -496241,6 +501470,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -496330,6 +501560,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -497515,6 +502746,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -497604,6 +502836,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -498007,6 +503240,54 @@ export namespace Prisma {
     skipDuplicates?: boolean
   }
 
+  export type ContSheetSceneCreateWithoutProjectSceneInput = {
+    id?: string
+    episode?: string | null
+    sceneCode: string
+    dayNight?: string | null
+    intExt?: string | null
+    location?: string | null
+    weather?: string | null
+    turnoverTime?: string | null
+    estimatedTiming?: string | null
+    actualTiming?: string | null
+    completionStatus?: string
+    sortOrder?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    day: ContSheetDayCreateNestedOneWithoutScenesInput
+    takes?: ContSheetTakeCreateNestedManyWithoutSceneInput
+  }
+
+  export type ContSheetSceneUncheckedCreateWithoutProjectSceneInput = {
+    id?: string
+    dayId: string
+    episode?: string | null
+    sceneCode: string
+    dayNight?: string | null
+    intExt?: string | null
+    location?: string | null
+    weather?: string | null
+    turnoverTime?: string | null
+    estimatedTiming?: string | null
+    actualTiming?: string | null
+    completionStatus?: string
+    sortOrder?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    takes?: ContSheetTakeUncheckedCreateNestedManyWithoutSceneInput
+  }
+
+  export type ContSheetSceneCreateOrConnectWithoutProjectSceneInput = {
+    where: ContSheetSceneWhereUniqueInput
+    create: XOR<ContSheetSceneCreateWithoutProjectSceneInput, ContSheetSceneUncheckedCreateWithoutProjectSceneInput>
+  }
+
+  export type ContSheetSceneCreateManyProjectSceneInputEnvelope = {
+    data: ContSheetSceneCreateManyProjectSceneInput | ContSheetSceneCreateManyProjectSceneInput[]
+    skipDuplicates?: boolean
+  }
+
   export type DailiesBatchCreateWithoutSceneInput = {
     id?: string
     title?: string | null
@@ -498399,6 +503680,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -498488,6 +503770,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -498762,6 +504045,44 @@ export namespace Prisma {
     data: XOR<ContinuityNoteUpdateManyMutationInput, ContinuityNoteUncheckedUpdateManyWithoutSceneInput>
   }
 
+  export type ContSheetSceneUpsertWithWhereUniqueWithoutProjectSceneInput = {
+    where: ContSheetSceneWhereUniqueInput
+    update: XOR<ContSheetSceneUpdateWithoutProjectSceneInput, ContSheetSceneUncheckedUpdateWithoutProjectSceneInput>
+    create: XOR<ContSheetSceneCreateWithoutProjectSceneInput, ContSheetSceneUncheckedCreateWithoutProjectSceneInput>
+  }
+
+  export type ContSheetSceneUpdateWithWhereUniqueWithoutProjectSceneInput = {
+    where: ContSheetSceneWhereUniqueInput
+    data: XOR<ContSheetSceneUpdateWithoutProjectSceneInput, ContSheetSceneUncheckedUpdateWithoutProjectSceneInput>
+  }
+
+  export type ContSheetSceneUpdateManyWithWhereWithoutProjectSceneInput = {
+    where: ContSheetSceneScalarWhereInput
+    data: XOR<ContSheetSceneUpdateManyMutationInput, ContSheetSceneUncheckedUpdateManyWithoutProjectSceneInput>
+  }
+
+  export type ContSheetSceneScalarWhereInput = {
+    AND?: ContSheetSceneScalarWhereInput | ContSheetSceneScalarWhereInput[]
+    OR?: ContSheetSceneScalarWhereInput[]
+    NOT?: ContSheetSceneScalarWhereInput | ContSheetSceneScalarWhereInput[]
+    id?: StringFilter<"ContSheetScene"> | string
+    dayId?: StringFilter<"ContSheetScene"> | string
+    projectSceneId?: StringNullableFilter<"ContSheetScene"> | string | null
+    episode?: StringNullableFilter<"ContSheetScene"> | string | null
+    sceneCode?: StringFilter<"ContSheetScene"> | string
+    dayNight?: StringNullableFilter<"ContSheetScene"> | string | null
+    intExt?: StringNullableFilter<"ContSheetScene"> | string | null
+    location?: StringNullableFilter<"ContSheetScene"> | string | null
+    weather?: StringNullableFilter<"ContSheetScene"> | string | null
+    turnoverTime?: StringNullableFilter<"ContSheetScene"> | string | null
+    estimatedTiming?: StringNullableFilter<"ContSheetScene"> | string | null
+    actualTiming?: StringNullableFilter<"ContSheetScene"> | string | null
+    completionStatus?: StringFilter<"ContSheetScene"> | string
+    sortOrder?: IntFilter<"ContSheetScene"> | number
+    createdAt?: DateTimeFilter<"ContSheetScene"> | Date | string
+    updatedAt?: DateTimeFilter<"ContSheetScene"> | Date | string
+  }
+
   export type DailiesBatchUpsertWithWhereUniqueWithoutSceneInput = {
     where: DailiesBatchWhereUniqueInput
     update: XOR<DailiesBatchUpdateWithoutSceneInput, DailiesBatchUncheckedUpdateWithoutSceneInput>
@@ -498945,6 +504266,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -499034,6 +504356,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -499586,6 +504909,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -499675,6 +504999,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -500217,6 +505542,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -500306,6 +505632,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -501365,6 +506692,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -501454,6 +506782,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -502521,6 +507850,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -502610,6 +507940,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -502840,6 +508171,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -502929,6 +508261,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -505335,6 +510668,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -505424,6 +510758,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -505473,6 +510808,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
@@ -505508,6 +510844,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
@@ -505640,6 +510977,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -505729,6 +511067,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -505784,6 +511123,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
@@ -505819,6 +511159,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
@@ -505915,6 +511256,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -506004,6 +511346,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -506053,6 +511396,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
@@ -506088,6 +511432,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
@@ -506184,6 +511529,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -506273,6 +511619,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -506328,6 +511675,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
@@ -506363,6 +511711,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
@@ -506443,6 +511792,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -506532,6 +511882,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -506581,6 +511932,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
@@ -506616,6 +511968,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
@@ -506656,6 +512009,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
@@ -506691,6 +512045,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
@@ -506842,6 +512197,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -506931,6 +512287,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -506986,6 +512343,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
@@ -507021,6 +512379,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
@@ -507067,6 +512426,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
@@ -507102,6 +512462,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
@@ -507243,6 +512604,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -507332,6 +512694,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -507381,6 +512744,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
@@ -507416,6 +512780,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
@@ -507512,6 +512877,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -507601,6 +512967,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -507656,6 +513023,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
@@ -507691,6 +513059,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
@@ -507771,6 +513140,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -507860,6 +513230,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -507909,6 +513280,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
@@ -507944,6 +513316,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
@@ -508040,6 +513413,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -508129,6 +513503,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -508184,6 +513559,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
@@ -508219,6 +513595,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
@@ -508299,6 +513676,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -508388,6 +513766,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -508437,6 +513816,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
@@ -508472,6 +513852,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
@@ -508568,6 +513949,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -508657,6 +514039,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -508712,6 +514095,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
@@ -508747,6 +514131,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
@@ -508827,6 +514212,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -508916,6 +514302,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -508965,6 +514352,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
@@ -509000,6 +514388,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
@@ -509096,6 +514485,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -509185,6 +514575,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -509240,6 +514631,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
@@ -509275,6 +514667,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
@@ -509355,6 +514748,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -509444,6 +514838,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -509493,6 +514888,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
@@ -509528,6 +514924,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
@@ -509624,6 +515021,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -509713,6 +515111,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -509768,6 +515167,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
@@ -509803,6 +515203,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
@@ -509883,6 +515284,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -509972,6 +515374,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -510021,6 +515424,7 @@ export namespace Prisma {
     breakdownSfxs?: BreakdownSfxCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
@@ -510056,6 +515460,7 @@ export namespace Prisma {
     breakdownSfxs?: BreakdownSfxUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
@@ -510152,6 +515557,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -510241,6 +515647,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -510296,6 +515703,7 @@ export namespace Prisma {
     breakdownSfxs?: BreakdownSfxUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
@@ -510331,6 +515739,7 @@ export namespace Prisma {
     breakdownSfxs?: BreakdownSfxUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
@@ -510411,6 +515820,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -510500,6 +515910,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -511199,6 +516610,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -511288,6 +516700,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -511936,6 +517349,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -512025,6 +517439,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -512130,6 +517545,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -512219,6 +517635,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -512308,6 +517725,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -512397,6 +517815,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -512547,6 +517966,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -512636,6 +518056,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -513011,6 +518432,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -513100,6 +518522,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -513907,6 +519330,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -513996,6 +519420,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -514819,6 +520244,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -514908,6 +520334,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -516240,6 +521667,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -516329,6 +521757,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -517611,6 +523040,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -517700,6 +523130,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -518923,6 +524354,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -519012,6 +524444,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -521328,6 +526761,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -521417,6 +526851,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -522017,6 +527452,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -522106,6 +527542,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -522675,6 +528112,7 @@ export namespace Prisma {
     callSheets?: CallSheetCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskCreateNestedManyWithoutShootDayInput
@@ -522698,6 +528136,7 @@ export namespace Prisma {
     callSheets?: CallSheetUncheckedCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportUncheckedCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskUncheckedCreateNestedManyWithoutShootDayInput
@@ -522891,6 +528330,7 @@ export namespace Prisma {
     callSheets?: CallSheetUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUpdateManyWithoutShootDayNestedInput
@@ -522914,6 +528354,7 @@ export namespace Prisma {
     callSheets?: CallSheetUncheckedUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUncheckedUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUncheckedUpdateManyWithoutShootDayNestedInput
@@ -524316,6 +529757,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -524405,6 +529847,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -525001,6 +530444,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -525090,6 +530534,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -526622,6 +532067,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -526711,6 +532157,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -527301,6 +532748,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -527390,6 +532838,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -528220,6 +533669,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -528309,6 +533759,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -528457,6 +533908,54 @@ export namespace Prisma {
 
   export type ContinuityNoteCreateManyShootDayInputEnvelope = {
     data: ContinuityNoteCreateManyShootDayInput | ContinuityNoteCreateManyShootDayInput[]
+    skipDuplicates?: boolean
+  }
+
+  export type ContSheetDayCreateWithoutShootDayInput = {
+    id?: string
+    version?: number
+    showTitle?: string | null
+    productionCompany?: string | null
+    callSheetNumber?: string | null
+    reportDate?: string | null
+    cameraUnit?: string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    project: OriginalProjectCreateNestedOneWithoutContSheetDaysInput
+    scenes?: ContSheetSceneCreateNestedManyWithoutDayInput
+  }
+
+  export type ContSheetDayUncheckedCreateWithoutShootDayInput = {
+    id?: string
+    projectId: string
+    version?: number
+    showTitle?: string | null
+    productionCompany?: string | null
+    callSheetNumber?: string | null
+    reportDate?: string | null
+    cameraUnit?: string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    scenes?: ContSheetSceneUncheckedCreateNestedManyWithoutDayInput
+  }
+
+  export type ContSheetDayCreateOrConnectWithoutShootDayInput = {
+    where: ContSheetDayWhereUniqueInput
+    create: XOR<ContSheetDayCreateWithoutShootDayInput, ContSheetDayUncheckedCreateWithoutShootDayInput>
+  }
+
+  export type ContSheetDayCreateManyShootDayInputEnvelope = {
+    data: ContSheetDayCreateManyShootDayInput | ContSheetDayCreateManyShootDayInput[]
     skipDuplicates?: boolean
   }
 
@@ -528779,6 +534278,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -528868,6 +534368,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -528948,6 +534449,22 @@ export namespace Prisma {
   export type ContinuityNoteUpdateManyWithWhereWithoutShootDayInput = {
     where: ContinuityNoteScalarWhereInput
     data: XOR<ContinuityNoteUpdateManyMutationInput, ContinuityNoteUncheckedUpdateManyWithoutShootDayInput>
+  }
+
+  export type ContSheetDayUpsertWithWhereUniqueWithoutShootDayInput = {
+    where: ContSheetDayWhereUniqueInput
+    update: XOR<ContSheetDayUpdateWithoutShootDayInput, ContSheetDayUncheckedUpdateWithoutShootDayInput>
+    create: XOR<ContSheetDayCreateWithoutShootDayInput, ContSheetDayUncheckedCreateWithoutShootDayInput>
+  }
+
+  export type ContSheetDayUpdateWithWhereUniqueWithoutShootDayInput = {
+    where: ContSheetDayWhereUniqueInput
+    data: XOR<ContSheetDayUpdateWithoutShootDayInput, ContSheetDayUncheckedUpdateWithoutShootDayInput>
+  }
+
+  export type ContSheetDayUpdateManyWithWhereWithoutShootDayInput = {
+    where: ContSheetDayScalarWhereInput
+    data: XOR<ContSheetDayUpdateManyMutationInput, ContSheetDayUncheckedUpdateManyWithoutShootDayInput>
   }
 
   export type DailiesBatchUpsertWithWhereUniqueWithoutShootDayInput = {
@@ -529068,6 +534585,7 @@ export namespace Prisma {
     callSheets?: CallSheetCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskCreateNestedManyWithoutShootDayInput
@@ -529091,6 +534609,7 @@ export namespace Prisma {
     callSheets?: CallSheetUncheckedCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportUncheckedCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskUncheckedCreateNestedManyWithoutShootDayInput
@@ -529174,6 +534693,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -529263,6 +534783,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -529313,6 +534834,7 @@ export namespace Prisma {
     callSheets?: CallSheetUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUpdateManyWithoutShootDayNestedInput
@@ -529336,6 +534858,7 @@ export namespace Prisma {
     callSheets?: CallSheetUncheckedUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUncheckedUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUncheckedUpdateManyWithoutShootDayNestedInput
@@ -529425,6 +534948,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -529514,6 +535038,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -529547,6 +535072,7 @@ export namespace Prisma {
     callSheets?: CallSheetCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskCreateNestedManyWithoutShootDayInput
@@ -529570,6 +535096,7 @@ export namespace Prisma {
     callSheets?: CallSheetUncheckedCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportUncheckedCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskUncheckedCreateNestedManyWithoutShootDayInput
@@ -529608,6 +535135,7 @@ export namespace Prisma {
     breakdownSfxs?: BreakdownSfxCreateNestedManyWithoutSceneInput
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
@@ -529643,6 +535171,7 @@ export namespace Prisma {
     breakdownSfxs?: BreakdownSfxUncheckedCreateNestedManyWithoutSceneInput
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
@@ -529684,6 +535213,7 @@ export namespace Prisma {
     callSheets?: CallSheetUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUpdateManyWithoutShootDayNestedInput
@@ -529707,6 +535237,7 @@ export namespace Prisma {
     callSheets?: CallSheetUncheckedUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUncheckedUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUncheckedUpdateManyWithoutShootDayNestedInput
@@ -529751,6 +535282,7 @@ export namespace Prisma {
     breakdownSfxs?: BreakdownSfxUpdateManyWithoutSceneNestedInput
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
@@ -529786,6 +535318,7 @@ export namespace Prisma {
     breakdownSfxs?: BreakdownSfxUncheckedUpdateManyWithoutSceneNestedInput
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
@@ -529866,6 +535399,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -529955,6 +535489,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -529994,6 +535529,7 @@ export namespace Prisma {
     scenes?: ShootDaySceneCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskCreateNestedManyWithoutShootDayInput
@@ -530017,6 +535553,7 @@ export namespace Prisma {
     scenes?: ShootDaySceneUncheckedCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportUncheckedCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskUncheckedCreateNestedManyWithoutShootDayInput
@@ -530111,6 +535648,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -530200,6 +535738,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -530245,6 +535784,7 @@ export namespace Prisma {
     scenes?: ShootDaySceneUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUpdateManyWithoutShootDayNestedInput
@@ -530268,6 +535808,7 @@ export namespace Prisma {
     scenes?: ShootDaySceneUncheckedUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUncheckedUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUncheckedUpdateManyWithoutShootDayNestedInput
@@ -530346,6 +535887,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -530435,6 +535977,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -530607,6 +536150,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -530696,6 +536240,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -530836,6 +536381,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -530925,6 +536471,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -531656,6 +537203,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -531745,6 +537293,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -532452,6 +538001,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -532541,6 +538091,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -532684,6 +538235,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -532773,6 +538325,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -532878,6 +538431,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -532967,6 +538521,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -533688,6 +539243,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -533777,6 +539333,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -534474,6 +540031,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -534563,6 +540121,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -535943,6 +541502,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -536032,6 +541592,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -540679,6 +546240,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -540768,6 +546330,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -541320,6 +546883,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -541409,6 +546973,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -544569,6 +550134,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -544658,6 +550224,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -544763,6 +550330,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -544852,6 +550420,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -546060,6 +551629,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -546149,6 +551719,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -546758,6 +552329,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -546847,6 +552419,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -553238,6 +558811,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -553327,6 +558901,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -554015,6 +559590,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -554104,6 +559680,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -555819,6 +561396,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -555908,6 +561486,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -557174,6 +562753,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -557263,6 +562843,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -562616,6 +568197,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -562705,6 +568287,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -563302,6 +568885,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -563391,6 +568975,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -563984,6 +569569,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -564073,6 +569659,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -564661,6 +570248,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -564750,6 +570338,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -565308,6 +570897,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -565397,6 +570987,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -566023,6 +571614,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -566112,6 +571704,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -566739,6 +572332,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -566828,6 +572422,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -567406,6 +573001,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -567495,6 +573091,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -568121,6 +573718,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -568210,6 +573808,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -568788,6 +574387,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -568877,6 +574477,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -569458,6 +575059,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -569547,6 +575149,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -570128,6 +575731,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -570217,6 +575821,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -570759,6 +576364,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -570848,6 +576454,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -571335,6 +576942,7 @@ export namespace Prisma {
     callSheets?: CallSheetCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutShootDayInput
     controlBoard?: ShootDayControlBoardCreateNestedOneWithoutShootDayInput
@@ -571358,6 +576966,7 @@ export namespace Prisma {
     callSheets?: CallSheetUncheckedCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportUncheckedCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutShootDayInput
     controlBoard?: ShootDayControlBoardUncheckedCreateNestedOneWithoutShootDayInput
@@ -571396,6 +577005,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
@@ -571431,6 +577041,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
@@ -571973,6 +577584,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -572062,6 +577674,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -572561,6 +578174,7 @@ export namespace Prisma {
     callSheets?: CallSheetUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutShootDayNestedInput
     controlBoard?: ShootDayControlBoardUpdateOneWithoutShootDayNestedInput
@@ -572584,6 +578198,7 @@ export namespace Prisma {
     callSheets?: CallSheetUncheckedUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUncheckedUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutShootDayNestedInput
     controlBoard?: ShootDayControlBoardUncheckedUpdateOneWithoutShootDayNestedInput
@@ -572628,6 +578243,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
@@ -572663,6 +578279,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
@@ -573195,6 +578812,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -573284,6 +578902,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -573911,6 +579530,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -574000,6 +579620,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -576543,6 +582164,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -576632,6 +582254,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -576776,6 +582399,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -576865,6 +582489,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -576999,6 +582624,7 @@ export namespace Prisma {
     visualAssets?: ProjectVisualAssetCreateNestedManyWithoutProjectInput
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -577088,6 +582714,7 @@ export namespace Prisma {
     visualAssets?: ProjectVisualAssetUncheckedCreateNestedManyWithoutProjectInput
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -577223,6 +582850,7 @@ export namespace Prisma {
     visualAssets?: ProjectVisualAssetUpdateManyWithoutProjectNestedInput
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -577312,6 +582940,7 @@ export namespace Prisma {
     visualAssets?: ProjectVisualAssetUncheckedUpdateManyWithoutProjectNestedInput
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -578294,6 +583923,977 @@ export namespace Prisma {
     festivalStage2Reviews?: FestivalStage2ReviewUncheckedUpdateManyWithoutReviewerNestedInput
   }
 
+  export type OriginalProjectCreateWithoutContSheetDaysInput = {
+    id?: string
+    title: string
+    logline?: string | null
+    synopsis?: string | null
+    type: string
+    genre?: string | null
+    status?: string
+    phase?: string
+    budget?: number | null
+    targetDate?: string | null
+    posterUrl?: string | null
+    adminNote?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    pitches?: OriginalPitchCreateNestedManyWithoutProjectInput
+    members?: OriginalMemberCreateNestedManyWithoutProjectInput
+    collaboratorInvites?: ProjectCollaboratorInviteCreateNestedManyWithoutProjectInput
+    networkPosts?: NetworkPostCreateNestedManyWithoutProjectInput
+    networkPortfolioItems?: NetworkPortfolioItemCreateNestedManyWithoutProjectInput
+    ideas?: ProjectIdeaCreateNestedManyWithoutProjectInput
+    workspaceLinks?: ProjectWorkspaceLinkCreateNestedManyWithoutProjectInput
+    toolProgress?: ProjectToolProgressCreateNestedManyWithoutProjectInput
+    distributionSubmissions?: DistributionSubmissionCreateNestedManyWithoutProjectInput
+    finalDeliveries?: FinalDeliveryCreateNestedManyWithoutProjectInput
+    postProductionReviews?: PostProductionReviewCreateNestedManyWithoutProjectInput
+    musicSelections?: MusicSelectionCreateNestedManyWithoutProjectInput
+    footageAssets?: FootageAssetCreateNestedManyWithoutProjectInput
+    incidentReports?: IncidentReportCreateNestedManyWithoutProjectInput
+    scripts?: ProjectScriptCreateNestedManyWithoutProjectInput
+    scenes?: ProjectSceneCreateNestedManyWithoutProjectInput
+    projectActivities?: ProjectActivityCreateNestedManyWithoutProjectInput
+    scriptReviewRequests?: ScriptReviewRequestCreateNestedManyWithoutProjectInput
+    scriptReviewSessions?: ScriptReviewSessionCreateNestedManyWithoutProjectInput
+    breakdownCharacters?: BreakdownCharacterCreateNestedManyWithoutProjectInput
+    breakdownProps?: BreakdownPropCreateNestedManyWithoutProjectInput
+    breakdownLocations?: BreakdownLocationCreateNestedManyWithoutProjectInput
+    breakdownWardrobes?: BreakdownWardrobeCreateNestedManyWithoutProjectInput
+    breakdownExtras?: BreakdownExtraCreateNestedManyWithoutProjectInput
+    breakdownVehicles?: BreakdownVehicleCreateNestedManyWithoutProjectInput
+    breakdownStunts?: BreakdownStuntCreateNestedManyWithoutProjectInput
+    breakdownSfxs?: BreakdownSfxCreateNestedManyWithoutProjectInput
+    breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutProjectInput
+    projectBudgets?: ProjectBudgetCreateNestedManyWithoutProjectInput
+    productionExpenses?: ProductionExpenseCreateNestedManyWithoutProjectInput
+    projectVendors?: ProjectVendorCreateNestedManyWithoutProjectInput
+    purchaseOrders?: PurchaseOrderCreateNestedManyWithoutProjectInput
+    payrollRuns?: PayrollRunCreateNestedManyWithoutProjectInput
+    pettyCashFunds?: PettyCashFundCreateNestedManyWithoutProjectInput
+    bankImportBatches?: BankImportBatchCreateNestedManyWithoutProjectInput
+    shootDays?: ShootDayCreateNestedManyWithoutProjectInput
+    cateringMealForecasts?: CateringMealForecastCreateNestedManyWithoutProjectInput
+    stakeholderSyncEvents?: StakeholderSyncEventCreateNestedManyWithoutProjectInput
+    callSheets?: CallSheetCreateNestedManyWithoutProjectInput
+    castingRoles?: CastingRoleCreateNestedManyWithoutProjectInput
+    castingInvitations?: CastingInvitationCreateNestedManyWithoutProjectInput
+    crewRoleNeeds?: CrewRoleNeedCreateNestedManyWithoutProjectInput
+    crewInvitations?: CrewInvitationCreateNestedManyWithoutProjectInput
+    projectContracts?: ProjectContractCreateNestedManyWithoutProjectInput
+    contractClauses?: ContractClauseCreateNestedManyWithoutProjectInput
+    fundingRequest?: FundingRequestCreateNestedOneWithoutProjectInput
+    fundingProgramApplications?: FundingProgramApplicationCreateNestedManyWithoutProjectInput
+    pitchDeck?: PitchDeckCreateNestedOneWithoutProjectInput
+    chatThreads?: ProjectChatThreadCreateNestedManyWithoutProjectInput
+    chatMessages?: ProjectChatMessageCreateNestedManyWithoutProjectInput
+    projectTasks?: ProjectTaskCreateNestedManyWithoutProjectInput
+    tableReadSessions?: TableReadSessionCreateNestedManyWithoutProjectInput
+    equipmentPlanItems?: EquipmentPlanItemCreateNestedManyWithoutProjectInput
+    visualAssets?: ProjectVisualAssetCreateNestedManyWithoutProjectInput
+    storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
+    riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
+    continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
+    dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
+    scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
+    creatorScripts?: CreatorScriptCreateNestedManyWithoutProjectInput
+    creatorTreatments?: CreatorTreatmentCreateNestedManyWithoutProjectInput
+    creatorScriptImports?: CreatorScriptImportCreateNestedManyWithoutProjectInput
+    linkedCatalogueContent?: ContentCreateNestedManyWithoutLinkedProjectInput
+    shootDayControlBoards?: ShootDayControlBoardCreateNestedManyWithoutProjectInput
+    investmentOpportunities?: InvestmentOpportunityCreateNestedManyWithoutProjectInput
+    investmentDeals?: InvestmentDealCreateNestedManyWithoutProjectInput
+    capTableEntries?: CapTableEntryCreateNestedManyWithoutProjectInput
+    revenueEvents?: ProjectRevenueEventCreateNestedManyWithoutProjectInput
+    stakeholderPayouts?: StakeholderPayoutCreateNestedManyWithoutProjectInput
+    calendarEvents?: CreatorCalendarEventCreateNestedManyWithoutProjectInput
+    productionContext?: ProjectProductionContextCreateNestedOneWithoutProjectInput
+    budgetAssumptions?: ProjectBudgetAssumptionCreateNestedManyWithoutProjectInput
+  }
+
+  export type OriginalProjectUncheckedCreateWithoutContSheetDaysInput = {
+    id?: string
+    title: string
+    logline?: string | null
+    synopsis?: string | null
+    type: string
+    genre?: string | null
+    status?: string
+    phase?: string
+    budget?: number | null
+    targetDate?: string | null
+    posterUrl?: string | null
+    adminNote?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    pitches?: OriginalPitchUncheckedCreateNestedManyWithoutProjectInput
+    members?: OriginalMemberUncheckedCreateNestedManyWithoutProjectInput
+    collaboratorInvites?: ProjectCollaboratorInviteUncheckedCreateNestedManyWithoutProjectInput
+    networkPosts?: NetworkPostUncheckedCreateNestedManyWithoutProjectInput
+    networkPortfolioItems?: NetworkPortfolioItemUncheckedCreateNestedManyWithoutProjectInput
+    ideas?: ProjectIdeaUncheckedCreateNestedManyWithoutProjectInput
+    workspaceLinks?: ProjectWorkspaceLinkUncheckedCreateNestedManyWithoutProjectInput
+    toolProgress?: ProjectToolProgressUncheckedCreateNestedManyWithoutProjectInput
+    distributionSubmissions?: DistributionSubmissionUncheckedCreateNestedManyWithoutProjectInput
+    finalDeliveries?: FinalDeliveryUncheckedCreateNestedManyWithoutProjectInput
+    postProductionReviews?: PostProductionReviewUncheckedCreateNestedManyWithoutProjectInput
+    musicSelections?: MusicSelectionUncheckedCreateNestedManyWithoutProjectInput
+    footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutProjectInput
+    incidentReports?: IncidentReportUncheckedCreateNestedManyWithoutProjectInput
+    scripts?: ProjectScriptUncheckedCreateNestedManyWithoutProjectInput
+    scenes?: ProjectSceneUncheckedCreateNestedManyWithoutProjectInput
+    projectActivities?: ProjectActivityUncheckedCreateNestedManyWithoutProjectInput
+    scriptReviewRequests?: ScriptReviewRequestUncheckedCreateNestedManyWithoutProjectInput
+    scriptReviewSessions?: ScriptReviewSessionUncheckedCreateNestedManyWithoutProjectInput
+    breakdownCharacters?: BreakdownCharacterUncheckedCreateNestedManyWithoutProjectInput
+    breakdownProps?: BreakdownPropUncheckedCreateNestedManyWithoutProjectInput
+    breakdownLocations?: BreakdownLocationUncheckedCreateNestedManyWithoutProjectInput
+    breakdownWardrobes?: BreakdownWardrobeUncheckedCreateNestedManyWithoutProjectInput
+    breakdownExtras?: BreakdownExtraUncheckedCreateNestedManyWithoutProjectInput
+    breakdownVehicles?: BreakdownVehicleUncheckedCreateNestedManyWithoutProjectInput
+    breakdownStunts?: BreakdownStuntUncheckedCreateNestedManyWithoutProjectInput
+    breakdownSfxs?: BreakdownSfxUncheckedCreateNestedManyWithoutProjectInput
+    breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutProjectInput
+    projectBudgets?: ProjectBudgetUncheckedCreateNestedManyWithoutProjectInput
+    productionExpenses?: ProductionExpenseUncheckedCreateNestedManyWithoutProjectInput
+    projectVendors?: ProjectVendorUncheckedCreateNestedManyWithoutProjectInput
+    purchaseOrders?: PurchaseOrderUncheckedCreateNestedManyWithoutProjectInput
+    payrollRuns?: PayrollRunUncheckedCreateNestedManyWithoutProjectInput
+    pettyCashFunds?: PettyCashFundUncheckedCreateNestedManyWithoutProjectInput
+    bankImportBatches?: BankImportBatchUncheckedCreateNestedManyWithoutProjectInput
+    shootDays?: ShootDayUncheckedCreateNestedManyWithoutProjectInput
+    cateringMealForecasts?: CateringMealForecastUncheckedCreateNestedManyWithoutProjectInput
+    stakeholderSyncEvents?: StakeholderSyncEventUncheckedCreateNestedManyWithoutProjectInput
+    callSheets?: CallSheetUncheckedCreateNestedManyWithoutProjectInput
+    castingRoles?: CastingRoleUncheckedCreateNestedManyWithoutProjectInput
+    castingInvitations?: CastingInvitationUncheckedCreateNestedManyWithoutProjectInput
+    crewRoleNeeds?: CrewRoleNeedUncheckedCreateNestedManyWithoutProjectInput
+    crewInvitations?: CrewInvitationUncheckedCreateNestedManyWithoutProjectInput
+    projectContracts?: ProjectContractUncheckedCreateNestedManyWithoutProjectInput
+    contractClauses?: ContractClauseUncheckedCreateNestedManyWithoutProjectInput
+    fundingRequest?: FundingRequestUncheckedCreateNestedOneWithoutProjectInput
+    fundingProgramApplications?: FundingProgramApplicationUncheckedCreateNestedManyWithoutProjectInput
+    pitchDeck?: PitchDeckUncheckedCreateNestedOneWithoutProjectInput
+    chatThreads?: ProjectChatThreadUncheckedCreateNestedManyWithoutProjectInput
+    chatMessages?: ProjectChatMessageUncheckedCreateNestedManyWithoutProjectInput
+    projectTasks?: ProjectTaskUncheckedCreateNestedManyWithoutProjectInput
+    tableReadSessions?: TableReadSessionUncheckedCreateNestedManyWithoutProjectInput
+    equipmentPlanItems?: EquipmentPlanItemUncheckedCreateNestedManyWithoutProjectInput
+    visualAssets?: ProjectVisualAssetUncheckedCreateNestedManyWithoutProjectInput
+    storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
+    riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
+    continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
+    dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
+    scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
+    creatorScripts?: CreatorScriptUncheckedCreateNestedManyWithoutProjectInput
+    creatorTreatments?: CreatorTreatmentUncheckedCreateNestedManyWithoutProjectInput
+    creatorScriptImports?: CreatorScriptImportUncheckedCreateNestedManyWithoutProjectInput
+    linkedCatalogueContent?: ContentUncheckedCreateNestedManyWithoutLinkedProjectInput
+    shootDayControlBoards?: ShootDayControlBoardUncheckedCreateNestedManyWithoutProjectInput
+    investmentOpportunities?: InvestmentOpportunityUncheckedCreateNestedManyWithoutProjectInput
+    investmentDeals?: InvestmentDealUncheckedCreateNestedManyWithoutProjectInput
+    capTableEntries?: CapTableEntryUncheckedCreateNestedManyWithoutProjectInput
+    revenueEvents?: ProjectRevenueEventUncheckedCreateNestedManyWithoutProjectInput
+    stakeholderPayouts?: StakeholderPayoutUncheckedCreateNestedManyWithoutProjectInput
+    calendarEvents?: CreatorCalendarEventUncheckedCreateNestedManyWithoutProjectInput
+    productionContext?: ProjectProductionContextUncheckedCreateNestedOneWithoutProjectInput
+    budgetAssumptions?: ProjectBudgetAssumptionUncheckedCreateNestedManyWithoutProjectInput
+  }
+
+  export type OriginalProjectCreateOrConnectWithoutContSheetDaysInput = {
+    where: OriginalProjectWhereUniqueInput
+    create: XOR<OriginalProjectCreateWithoutContSheetDaysInput, OriginalProjectUncheckedCreateWithoutContSheetDaysInput>
+  }
+
+  export type ShootDayCreateWithoutContSheetDaysInput = {
+    id?: string
+    date: Date | string
+    unit?: string | null
+    callTime?: string | null
+    wrapTime?: string | null
+    status?: string
+    locationSummary?: string | null
+    scenesBeingShot?: string | null
+    dayNotes?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    project: OriginalProjectCreateNestedOneWithoutShootDaysInput
+    scenes?: ShootDaySceneCreateNestedManyWithoutShootDayInput
+    callSheets?: CallSheetCreateNestedManyWithoutShootDayInput
+    incidents?: IncidentReportCreateNestedManyWithoutShootDayInput
+    continuityNotes?: ContinuityNoteCreateNestedManyWithoutShootDayInput
+    dailiesBatches?: DailiesBatchCreateNestedManyWithoutShootDayInput
+    dailiesClips?: DailiesClipCreateNestedManyWithoutShootDayInput
+    projectTasks?: ProjectTaskCreateNestedManyWithoutShootDayInput
+    controlBoard?: ShootDayControlBoardCreateNestedOneWithoutShootDayInput
+    payrollLineItems?: PayrollLineItemCreateNestedManyWithoutShootDayInput
+  }
+
+  export type ShootDayUncheckedCreateWithoutContSheetDaysInput = {
+    id?: string
+    projectId: string
+    date: Date | string
+    unit?: string | null
+    callTime?: string | null
+    wrapTime?: string | null
+    status?: string
+    locationSummary?: string | null
+    scenesBeingShot?: string | null
+    dayNotes?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    scenes?: ShootDaySceneUncheckedCreateNestedManyWithoutShootDayInput
+    callSheets?: CallSheetUncheckedCreateNestedManyWithoutShootDayInput
+    incidents?: IncidentReportUncheckedCreateNestedManyWithoutShootDayInput
+    continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutShootDayInput
+    dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutShootDayInput
+    dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutShootDayInput
+    projectTasks?: ProjectTaskUncheckedCreateNestedManyWithoutShootDayInput
+    controlBoard?: ShootDayControlBoardUncheckedCreateNestedOneWithoutShootDayInput
+    payrollLineItems?: PayrollLineItemUncheckedCreateNestedManyWithoutShootDayInput
+  }
+
+  export type ShootDayCreateOrConnectWithoutContSheetDaysInput = {
+    where: ShootDayWhereUniqueInput
+    create: XOR<ShootDayCreateWithoutContSheetDaysInput, ShootDayUncheckedCreateWithoutContSheetDaysInput>
+  }
+
+  export type ContSheetSceneCreateWithoutDayInput = {
+    id?: string
+    episode?: string | null
+    sceneCode: string
+    dayNight?: string | null
+    intExt?: string | null
+    location?: string | null
+    weather?: string | null
+    turnoverTime?: string | null
+    estimatedTiming?: string | null
+    actualTiming?: string | null
+    completionStatus?: string
+    sortOrder?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    projectScene?: ProjectSceneCreateNestedOneWithoutContSheetScenesInput
+    takes?: ContSheetTakeCreateNestedManyWithoutSceneInput
+  }
+
+  export type ContSheetSceneUncheckedCreateWithoutDayInput = {
+    id?: string
+    projectSceneId?: string | null
+    episode?: string | null
+    sceneCode: string
+    dayNight?: string | null
+    intExt?: string | null
+    location?: string | null
+    weather?: string | null
+    turnoverTime?: string | null
+    estimatedTiming?: string | null
+    actualTiming?: string | null
+    completionStatus?: string
+    sortOrder?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    takes?: ContSheetTakeUncheckedCreateNestedManyWithoutSceneInput
+  }
+
+  export type ContSheetSceneCreateOrConnectWithoutDayInput = {
+    where: ContSheetSceneWhereUniqueInput
+    create: XOR<ContSheetSceneCreateWithoutDayInput, ContSheetSceneUncheckedCreateWithoutDayInput>
+  }
+
+  export type ContSheetSceneCreateManyDayInputEnvelope = {
+    data: ContSheetSceneCreateManyDayInput | ContSheetSceneCreateManyDayInput[]
+    skipDuplicates?: boolean
+  }
+
+  export type OriginalProjectUpsertWithoutContSheetDaysInput = {
+    update: XOR<OriginalProjectUpdateWithoutContSheetDaysInput, OriginalProjectUncheckedUpdateWithoutContSheetDaysInput>
+    create: XOR<OriginalProjectCreateWithoutContSheetDaysInput, OriginalProjectUncheckedCreateWithoutContSheetDaysInput>
+    where?: OriginalProjectWhereInput
+  }
+
+  export type OriginalProjectUpdateToOneWithWhereWithoutContSheetDaysInput = {
+    where?: OriginalProjectWhereInput
+    data: XOR<OriginalProjectUpdateWithoutContSheetDaysInput, OriginalProjectUncheckedUpdateWithoutContSheetDaysInput>
+  }
+
+  export type OriginalProjectUpdateWithoutContSheetDaysInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    title?: StringFieldUpdateOperationsInput | string
+    logline?: NullableStringFieldUpdateOperationsInput | string | null
+    synopsis?: NullableStringFieldUpdateOperationsInput | string | null
+    type?: StringFieldUpdateOperationsInput | string
+    genre?: NullableStringFieldUpdateOperationsInput | string | null
+    status?: StringFieldUpdateOperationsInput | string
+    phase?: StringFieldUpdateOperationsInput | string
+    budget?: NullableFloatFieldUpdateOperationsInput | number | null
+    targetDate?: NullableStringFieldUpdateOperationsInput | string | null
+    posterUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    adminNote?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    pitches?: OriginalPitchUpdateManyWithoutProjectNestedInput
+    members?: OriginalMemberUpdateManyWithoutProjectNestedInput
+    collaboratorInvites?: ProjectCollaboratorInviteUpdateManyWithoutProjectNestedInput
+    networkPosts?: NetworkPostUpdateManyWithoutProjectNestedInput
+    networkPortfolioItems?: NetworkPortfolioItemUpdateManyWithoutProjectNestedInput
+    ideas?: ProjectIdeaUpdateManyWithoutProjectNestedInput
+    workspaceLinks?: ProjectWorkspaceLinkUpdateManyWithoutProjectNestedInput
+    toolProgress?: ProjectToolProgressUpdateManyWithoutProjectNestedInput
+    distributionSubmissions?: DistributionSubmissionUpdateManyWithoutProjectNestedInput
+    finalDeliveries?: FinalDeliveryUpdateManyWithoutProjectNestedInput
+    postProductionReviews?: PostProductionReviewUpdateManyWithoutProjectNestedInput
+    musicSelections?: MusicSelectionUpdateManyWithoutProjectNestedInput
+    footageAssets?: FootageAssetUpdateManyWithoutProjectNestedInput
+    incidentReports?: IncidentReportUpdateManyWithoutProjectNestedInput
+    scripts?: ProjectScriptUpdateManyWithoutProjectNestedInput
+    scenes?: ProjectSceneUpdateManyWithoutProjectNestedInput
+    projectActivities?: ProjectActivityUpdateManyWithoutProjectNestedInput
+    scriptReviewRequests?: ScriptReviewRequestUpdateManyWithoutProjectNestedInput
+    scriptReviewSessions?: ScriptReviewSessionUpdateManyWithoutProjectNestedInput
+    breakdownCharacters?: BreakdownCharacterUpdateManyWithoutProjectNestedInput
+    breakdownProps?: BreakdownPropUpdateManyWithoutProjectNestedInput
+    breakdownLocations?: BreakdownLocationUpdateManyWithoutProjectNestedInput
+    breakdownWardrobes?: BreakdownWardrobeUpdateManyWithoutProjectNestedInput
+    breakdownExtras?: BreakdownExtraUpdateManyWithoutProjectNestedInput
+    breakdownVehicles?: BreakdownVehicleUpdateManyWithoutProjectNestedInput
+    breakdownStunts?: BreakdownStuntUpdateManyWithoutProjectNestedInput
+    breakdownSfxs?: BreakdownSfxUpdateManyWithoutProjectNestedInput
+    breakdownMakeups?: BreakdownMakeupUpdateManyWithoutProjectNestedInput
+    projectBudgets?: ProjectBudgetUpdateManyWithoutProjectNestedInput
+    productionExpenses?: ProductionExpenseUpdateManyWithoutProjectNestedInput
+    projectVendors?: ProjectVendorUpdateManyWithoutProjectNestedInput
+    purchaseOrders?: PurchaseOrderUpdateManyWithoutProjectNestedInput
+    payrollRuns?: PayrollRunUpdateManyWithoutProjectNestedInput
+    pettyCashFunds?: PettyCashFundUpdateManyWithoutProjectNestedInput
+    bankImportBatches?: BankImportBatchUpdateManyWithoutProjectNestedInput
+    shootDays?: ShootDayUpdateManyWithoutProjectNestedInput
+    cateringMealForecasts?: CateringMealForecastUpdateManyWithoutProjectNestedInput
+    stakeholderSyncEvents?: StakeholderSyncEventUpdateManyWithoutProjectNestedInput
+    callSheets?: CallSheetUpdateManyWithoutProjectNestedInput
+    castingRoles?: CastingRoleUpdateManyWithoutProjectNestedInput
+    castingInvitations?: CastingInvitationUpdateManyWithoutProjectNestedInput
+    crewRoleNeeds?: CrewRoleNeedUpdateManyWithoutProjectNestedInput
+    crewInvitations?: CrewInvitationUpdateManyWithoutProjectNestedInput
+    projectContracts?: ProjectContractUpdateManyWithoutProjectNestedInput
+    contractClauses?: ContractClauseUpdateManyWithoutProjectNestedInput
+    fundingRequest?: FundingRequestUpdateOneWithoutProjectNestedInput
+    fundingProgramApplications?: FundingProgramApplicationUpdateManyWithoutProjectNestedInput
+    pitchDeck?: PitchDeckUpdateOneWithoutProjectNestedInput
+    chatThreads?: ProjectChatThreadUpdateManyWithoutProjectNestedInput
+    chatMessages?: ProjectChatMessageUpdateManyWithoutProjectNestedInput
+    projectTasks?: ProjectTaskUpdateManyWithoutProjectNestedInput
+    tableReadSessions?: TableReadSessionUpdateManyWithoutProjectNestedInput
+    equipmentPlanItems?: EquipmentPlanItemUpdateManyWithoutProjectNestedInput
+    visualAssets?: ProjectVisualAssetUpdateManyWithoutProjectNestedInput
+    storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
+    riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
+    continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
+    dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
+    scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
+    creatorScripts?: CreatorScriptUpdateManyWithoutProjectNestedInput
+    creatorTreatments?: CreatorTreatmentUpdateManyWithoutProjectNestedInput
+    creatorScriptImports?: CreatorScriptImportUpdateManyWithoutProjectNestedInput
+    linkedCatalogueContent?: ContentUpdateManyWithoutLinkedProjectNestedInput
+    shootDayControlBoards?: ShootDayControlBoardUpdateManyWithoutProjectNestedInput
+    investmentOpportunities?: InvestmentOpportunityUpdateManyWithoutProjectNestedInput
+    investmentDeals?: InvestmentDealUpdateManyWithoutProjectNestedInput
+    capTableEntries?: CapTableEntryUpdateManyWithoutProjectNestedInput
+    revenueEvents?: ProjectRevenueEventUpdateManyWithoutProjectNestedInput
+    stakeholderPayouts?: StakeholderPayoutUpdateManyWithoutProjectNestedInput
+    calendarEvents?: CreatorCalendarEventUpdateManyWithoutProjectNestedInput
+    productionContext?: ProjectProductionContextUpdateOneWithoutProjectNestedInput
+    budgetAssumptions?: ProjectBudgetAssumptionUpdateManyWithoutProjectNestedInput
+  }
+
+  export type OriginalProjectUncheckedUpdateWithoutContSheetDaysInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    title?: StringFieldUpdateOperationsInput | string
+    logline?: NullableStringFieldUpdateOperationsInput | string | null
+    synopsis?: NullableStringFieldUpdateOperationsInput | string | null
+    type?: StringFieldUpdateOperationsInput | string
+    genre?: NullableStringFieldUpdateOperationsInput | string | null
+    status?: StringFieldUpdateOperationsInput | string
+    phase?: StringFieldUpdateOperationsInput | string
+    budget?: NullableFloatFieldUpdateOperationsInput | number | null
+    targetDate?: NullableStringFieldUpdateOperationsInput | string | null
+    posterUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    adminNote?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    pitches?: OriginalPitchUncheckedUpdateManyWithoutProjectNestedInput
+    members?: OriginalMemberUncheckedUpdateManyWithoutProjectNestedInput
+    collaboratorInvites?: ProjectCollaboratorInviteUncheckedUpdateManyWithoutProjectNestedInput
+    networkPosts?: NetworkPostUncheckedUpdateManyWithoutProjectNestedInput
+    networkPortfolioItems?: NetworkPortfolioItemUncheckedUpdateManyWithoutProjectNestedInput
+    ideas?: ProjectIdeaUncheckedUpdateManyWithoutProjectNestedInput
+    workspaceLinks?: ProjectWorkspaceLinkUncheckedUpdateManyWithoutProjectNestedInput
+    toolProgress?: ProjectToolProgressUncheckedUpdateManyWithoutProjectNestedInput
+    distributionSubmissions?: DistributionSubmissionUncheckedUpdateManyWithoutProjectNestedInput
+    finalDeliveries?: FinalDeliveryUncheckedUpdateManyWithoutProjectNestedInput
+    postProductionReviews?: PostProductionReviewUncheckedUpdateManyWithoutProjectNestedInput
+    musicSelections?: MusicSelectionUncheckedUpdateManyWithoutProjectNestedInput
+    footageAssets?: FootageAssetUncheckedUpdateManyWithoutProjectNestedInput
+    incidentReports?: IncidentReportUncheckedUpdateManyWithoutProjectNestedInput
+    scripts?: ProjectScriptUncheckedUpdateManyWithoutProjectNestedInput
+    scenes?: ProjectSceneUncheckedUpdateManyWithoutProjectNestedInput
+    projectActivities?: ProjectActivityUncheckedUpdateManyWithoutProjectNestedInput
+    scriptReviewRequests?: ScriptReviewRequestUncheckedUpdateManyWithoutProjectNestedInput
+    scriptReviewSessions?: ScriptReviewSessionUncheckedUpdateManyWithoutProjectNestedInput
+    breakdownCharacters?: BreakdownCharacterUncheckedUpdateManyWithoutProjectNestedInput
+    breakdownProps?: BreakdownPropUncheckedUpdateManyWithoutProjectNestedInput
+    breakdownLocations?: BreakdownLocationUncheckedUpdateManyWithoutProjectNestedInput
+    breakdownWardrobes?: BreakdownWardrobeUncheckedUpdateManyWithoutProjectNestedInput
+    breakdownExtras?: BreakdownExtraUncheckedUpdateManyWithoutProjectNestedInput
+    breakdownVehicles?: BreakdownVehicleUncheckedUpdateManyWithoutProjectNestedInput
+    breakdownStunts?: BreakdownStuntUncheckedUpdateManyWithoutProjectNestedInput
+    breakdownSfxs?: BreakdownSfxUncheckedUpdateManyWithoutProjectNestedInput
+    breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutProjectNestedInput
+    projectBudgets?: ProjectBudgetUncheckedUpdateManyWithoutProjectNestedInput
+    productionExpenses?: ProductionExpenseUncheckedUpdateManyWithoutProjectNestedInput
+    projectVendors?: ProjectVendorUncheckedUpdateManyWithoutProjectNestedInput
+    purchaseOrders?: PurchaseOrderUncheckedUpdateManyWithoutProjectNestedInput
+    payrollRuns?: PayrollRunUncheckedUpdateManyWithoutProjectNestedInput
+    pettyCashFunds?: PettyCashFundUncheckedUpdateManyWithoutProjectNestedInput
+    bankImportBatches?: BankImportBatchUncheckedUpdateManyWithoutProjectNestedInput
+    shootDays?: ShootDayUncheckedUpdateManyWithoutProjectNestedInput
+    cateringMealForecasts?: CateringMealForecastUncheckedUpdateManyWithoutProjectNestedInput
+    stakeholderSyncEvents?: StakeholderSyncEventUncheckedUpdateManyWithoutProjectNestedInput
+    callSheets?: CallSheetUncheckedUpdateManyWithoutProjectNestedInput
+    castingRoles?: CastingRoleUncheckedUpdateManyWithoutProjectNestedInput
+    castingInvitations?: CastingInvitationUncheckedUpdateManyWithoutProjectNestedInput
+    crewRoleNeeds?: CrewRoleNeedUncheckedUpdateManyWithoutProjectNestedInput
+    crewInvitations?: CrewInvitationUncheckedUpdateManyWithoutProjectNestedInput
+    projectContracts?: ProjectContractUncheckedUpdateManyWithoutProjectNestedInput
+    contractClauses?: ContractClauseUncheckedUpdateManyWithoutProjectNestedInput
+    fundingRequest?: FundingRequestUncheckedUpdateOneWithoutProjectNestedInput
+    fundingProgramApplications?: FundingProgramApplicationUncheckedUpdateManyWithoutProjectNestedInput
+    pitchDeck?: PitchDeckUncheckedUpdateOneWithoutProjectNestedInput
+    chatThreads?: ProjectChatThreadUncheckedUpdateManyWithoutProjectNestedInput
+    chatMessages?: ProjectChatMessageUncheckedUpdateManyWithoutProjectNestedInput
+    projectTasks?: ProjectTaskUncheckedUpdateManyWithoutProjectNestedInput
+    tableReadSessions?: TableReadSessionUncheckedUpdateManyWithoutProjectNestedInput
+    equipmentPlanItems?: EquipmentPlanItemUncheckedUpdateManyWithoutProjectNestedInput
+    visualAssets?: ProjectVisualAssetUncheckedUpdateManyWithoutProjectNestedInput
+    storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
+    riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
+    continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
+    dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
+    scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
+    creatorScripts?: CreatorScriptUncheckedUpdateManyWithoutProjectNestedInput
+    creatorTreatments?: CreatorTreatmentUncheckedUpdateManyWithoutProjectNestedInput
+    creatorScriptImports?: CreatorScriptImportUncheckedUpdateManyWithoutProjectNestedInput
+    linkedCatalogueContent?: ContentUncheckedUpdateManyWithoutLinkedProjectNestedInput
+    shootDayControlBoards?: ShootDayControlBoardUncheckedUpdateManyWithoutProjectNestedInput
+    investmentOpportunities?: InvestmentOpportunityUncheckedUpdateManyWithoutProjectNestedInput
+    investmentDeals?: InvestmentDealUncheckedUpdateManyWithoutProjectNestedInput
+    capTableEntries?: CapTableEntryUncheckedUpdateManyWithoutProjectNestedInput
+    revenueEvents?: ProjectRevenueEventUncheckedUpdateManyWithoutProjectNestedInput
+    stakeholderPayouts?: StakeholderPayoutUncheckedUpdateManyWithoutProjectNestedInput
+    calendarEvents?: CreatorCalendarEventUncheckedUpdateManyWithoutProjectNestedInput
+    productionContext?: ProjectProductionContextUncheckedUpdateOneWithoutProjectNestedInput
+    budgetAssumptions?: ProjectBudgetAssumptionUncheckedUpdateManyWithoutProjectNestedInput
+  }
+
+  export type ShootDayUpsertWithoutContSheetDaysInput = {
+    update: XOR<ShootDayUpdateWithoutContSheetDaysInput, ShootDayUncheckedUpdateWithoutContSheetDaysInput>
+    create: XOR<ShootDayCreateWithoutContSheetDaysInput, ShootDayUncheckedCreateWithoutContSheetDaysInput>
+    where?: ShootDayWhereInput
+  }
+
+  export type ShootDayUpdateToOneWithWhereWithoutContSheetDaysInput = {
+    where?: ShootDayWhereInput
+    data: XOR<ShootDayUpdateWithoutContSheetDaysInput, ShootDayUncheckedUpdateWithoutContSheetDaysInput>
+  }
+
+  export type ShootDayUpdateWithoutContSheetDaysInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    unit?: NullableStringFieldUpdateOperationsInput | string | null
+    callTime?: NullableStringFieldUpdateOperationsInput | string | null
+    wrapTime?: NullableStringFieldUpdateOperationsInput | string | null
+    status?: StringFieldUpdateOperationsInput | string
+    locationSummary?: NullableStringFieldUpdateOperationsInput | string | null
+    scenesBeingShot?: NullableStringFieldUpdateOperationsInput | string | null
+    dayNotes?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    project?: OriginalProjectUpdateOneRequiredWithoutShootDaysNestedInput
+    scenes?: ShootDaySceneUpdateManyWithoutShootDayNestedInput
+    callSheets?: CallSheetUpdateManyWithoutShootDayNestedInput
+    incidents?: IncidentReportUpdateManyWithoutShootDayNestedInput
+    continuityNotes?: ContinuityNoteUpdateManyWithoutShootDayNestedInput
+    dailiesBatches?: DailiesBatchUpdateManyWithoutShootDayNestedInput
+    dailiesClips?: DailiesClipUpdateManyWithoutShootDayNestedInput
+    projectTasks?: ProjectTaskUpdateManyWithoutShootDayNestedInput
+    controlBoard?: ShootDayControlBoardUpdateOneWithoutShootDayNestedInput
+    payrollLineItems?: PayrollLineItemUpdateManyWithoutShootDayNestedInput
+  }
+
+  export type ShootDayUncheckedUpdateWithoutContSheetDaysInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    unit?: NullableStringFieldUpdateOperationsInput | string | null
+    callTime?: NullableStringFieldUpdateOperationsInput | string | null
+    wrapTime?: NullableStringFieldUpdateOperationsInput | string | null
+    status?: StringFieldUpdateOperationsInput | string
+    locationSummary?: NullableStringFieldUpdateOperationsInput | string | null
+    scenesBeingShot?: NullableStringFieldUpdateOperationsInput | string | null
+    dayNotes?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    scenes?: ShootDaySceneUncheckedUpdateManyWithoutShootDayNestedInput
+    callSheets?: CallSheetUncheckedUpdateManyWithoutShootDayNestedInput
+    incidents?: IncidentReportUncheckedUpdateManyWithoutShootDayNestedInput
+    continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutShootDayNestedInput
+    dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutShootDayNestedInput
+    dailiesClips?: DailiesClipUncheckedUpdateManyWithoutShootDayNestedInput
+    projectTasks?: ProjectTaskUncheckedUpdateManyWithoutShootDayNestedInput
+    controlBoard?: ShootDayControlBoardUncheckedUpdateOneWithoutShootDayNestedInput
+    payrollLineItems?: PayrollLineItemUncheckedUpdateManyWithoutShootDayNestedInput
+  }
+
+  export type ContSheetSceneUpsertWithWhereUniqueWithoutDayInput = {
+    where: ContSheetSceneWhereUniqueInput
+    update: XOR<ContSheetSceneUpdateWithoutDayInput, ContSheetSceneUncheckedUpdateWithoutDayInput>
+    create: XOR<ContSheetSceneCreateWithoutDayInput, ContSheetSceneUncheckedCreateWithoutDayInput>
+  }
+
+  export type ContSheetSceneUpdateWithWhereUniqueWithoutDayInput = {
+    where: ContSheetSceneWhereUniqueInput
+    data: XOR<ContSheetSceneUpdateWithoutDayInput, ContSheetSceneUncheckedUpdateWithoutDayInput>
+  }
+
+  export type ContSheetSceneUpdateManyWithWhereWithoutDayInput = {
+    where: ContSheetSceneScalarWhereInput
+    data: XOR<ContSheetSceneUpdateManyMutationInput, ContSheetSceneUncheckedUpdateManyWithoutDayInput>
+  }
+
+  export type ContSheetDayCreateWithoutScenesInput = {
+    id?: string
+    version?: number
+    showTitle?: string | null
+    productionCompany?: string | null
+    callSheetNumber?: string | null
+    reportDate?: string | null
+    cameraUnit?: string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    project: OriginalProjectCreateNestedOneWithoutContSheetDaysInput
+    shootDay: ShootDayCreateNestedOneWithoutContSheetDaysInput
+  }
+
+  export type ContSheetDayUncheckedCreateWithoutScenesInput = {
+    id?: string
+    projectId: string
+    shootDayId: string
+    version?: number
+    showTitle?: string | null
+    productionCompany?: string | null
+    callSheetNumber?: string | null
+    reportDate?: string | null
+    cameraUnit?: string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type ContSheetDayCreateOrConnectWithoutScenesInput = {
+    where: ContSheetDayWhereUniqueInput
+    create: XOR<ContSheetDayCreateWithoutScenesInput, ContSheetDayUncheckedCreateWithoutScenesInput>
+  }
+
+  export type ProjectSceneCreateWithoutContSheetScenesInput = {
+    id?: string
+    number: string
+    heading?: string | null
+    storyDay?: number | null
+    intExt?: string | null
+    timeOfDay?: string | null
+    summary?: string | null
+    pageCount?: number | null
+    breakdownAnalysis?: NullableJsonNullValueInput | InputJsonValue
+    status?: string
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    project: OriginalProjectCreateNestedOneWithoutScenesInput
+    script?: ProjectScriptCreateNestedOneWithoutScenesInput
+    primaryLocation?: BreakdownLocationCreateNestedOneWithoutPrimaryForSceneInput
+    breakdownCharacters?: BreakdownCharacterCreateNestedManyWithoutSceneInput
+    breakdownProps?: BreakdownPropCreateNestedManyWithoutSceneInput
+    breakdownLocations?: BreakdownLocationCreateNestedManyWithoutSceneInput
+    breakdownWardrobes?: BreakdownWardrobeCreateNestedManyWithoutSceneInput
+    breakdownExtras?: BreakdownExtraCreateNestedManyWithoutSceneInput
+    breakdownVehicles?: BreakdownVehicleCreateNestedManyWithoutSceneInput
+    breakdownStunts?: BreakdownStuntCreateNestedManyWithoutSceneInput
+    breakdownSfxs?: BreakdownSfxCreateNestedManyWithoutSceneInput
+    breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
+    shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
+    continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
+    dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
+    footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
+    projectTasks?: ProjectTaskCreateNestedManyWithoutSceneInput
+    networkPosts?: NetworkPostCreateNestedManyWithoutSceneInput
+    networkPortfolioItems?: NetworkPortfolioItemCreateNestedManyWithoutSceneInput
+    visualAssets?: ProjectVisualAssetCreateNestedManyWithoutSceneInput
+  }
+
+  export type ProjectSceneUncheckedCreateWithoutContSheetScenesInput = {
+    id?: string
+    projectId: string
+    scriptId?: string | null
+    number: string
+    heading?: string | null
+    storyDay?: number | null
+    intExt?: string | null
+    timeOfDay?: string | null
+    summary?: string | null
+    pageCount?: number | null
+    breakdownAnalysis?: NullableJsonNullValueInput | InputJsonValue
+    status?: string
+    primaryLocationId?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    breakdownCharacters?: BreakdownCharacterUncheckedCreateNestedManyWithoutSceneInput
+    breakdownProps?: BreakdownPropUncheckedCreateNestedManyWithoutSceneInput
+    breakdownLocations?: BreakdownLocationUncheckedCreateNestedManyWithoutSceneInput
+    breakdownWardrobes?: BreakdownWardrobeUncheckedCreateNestedManyWithoutSceneInput
+    breakdownExtras?: BreakdownExtraUncheckedCreateNestedManyWithoutSceneInput
+    breakdownVehicles?: BreakdownVehicleUncheckedCreateNestedManyWithoutSceneInput
+    breakdownStunts?: BreakdownStuntUncheckedCreateNestedManyWithoutSceneInput
+    breakdownSfxs?: BreakdownSfxUncheckedCreateNestedManyWithoutSceneInput
+    breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
+    shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
+    continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
+    dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
+    footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
+    projectTasks?: ProjectTaskUncheckedCreateNestedManyWithoutSceneInput
+    networkPosts?: NetworkPostUncheckedCreateNestedManyWithoutSceneInput
+    networkPortfolioItems?: NetworkPortfolioItemUncheckedCreateNestedManyWithoutSceneInput
+    visualAssets?: ProjectVisualAssetUncheckedCreateNestedManyWithoutSceneInput
+  }
+
+  export type ProjectSceneCreateOrConnectWithoutContSheetScenesInput = {
+    where: ProjectSceneWhereUniqueInput
+    create: XOR<ProjectSceneCreateWithoutContSheetScenesInput, ProjectSceneUncheckedCreateWithoutContSheetScenesInput>
+  }
+
+  export type ContSheetTakeCreateWithoutSceneInput = {
+    id?: string
+    slate?: string | null
+    takeNumber?: number | null
+    pickup?: number | null
+    printStatus?: string | null
+    durationSec?: number | null
+    description?: string | null
+    notes?: string | null
+    camera?: string | null
+    sortOrder?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type ContSheetTakeUncheckedCreateWithoutSceneInput = {
+    id?: string
+    slate?: string | null
+    takeNumber?: number | null
+    pickup?: number | null
+    printStatus?: string | null
+    durationSec?: number | null
+    description?: string | null
+    notes?: string | null
+    camera?: string | null
+    sortOrder?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type ContSheetTakeCreateOrConnectWithoutSceneInput = {
+    where: ContSheetTakeWhereUniqueInput
+    create: XOR<ContSheetTakeCreateWithoutSceneInput, ContSheetTakeUncheckedCreateWithoutSceneInput>
+  }
+
+  export type ContSheetTakeCreateManySceneInputEnvelope = {
+    data: ContSheetTakeCreateManySceneInput | ContSheetTakeCreateManySceneInput[]
+    skipDuplicates?: boolean
+  }
+
+  export type ContSheetDayUpsertWithoutScenesInput = {
+    update: XOR<ContSheetDayUpdateWithoutScenesInput, ContSheetDayUncheckedUpdateWithoutScenesInput>
+    create: XOR<ContSheetDayCreateWithoutScenesInput, ContSheetDayUncheckedCreateWithoutScenesInput>
+    where?: ContSheetDayWhereInput
+  }
+
+  export type ContSheetDayUpdateToOneWithWhereWithoutScenesInput = {
+    where?: ContSheetDayWhereInput
+    data: XOR<ContSheetDayUpdateWithoutScenesInput, ContSheetDayUncheckedUpdateWithoutScenesInput>
+  }
+
+  export type ContSheetDayUpdateWithoutScenesInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    version?: IntFieldUpdateOperationsInput | number
+    showTitle?: NullableStringFieldUpdateOperationsInput | string | null
+    productionCompany?: NullableStringFieldUpdateOperationsInput | string | null
+    callSheetNumber?: NullableStringFieldUpdateOperationsInput | string | null
+    reportDate?: NullableStringFieldUpdateOperationsInput | string | null
+    cameraUnit?: NullableStringFieldUpdateOperationsInput | string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    project?: OriginalProjectUpdateOneRequiredWithoutContSheetDaysNestedInput
+    shootDay?: ShootDayUpdateOneRequiredWithoutContSheetDaysNestedInput
+  }
+
+  export type ContSheetDayUncheckedUpdateWithoutScenesInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    shootDayId?: StringFieldUpdateOperationsInput | string
+    version?: IntFieldUpdateOperationsInput | number
+    showTitle?: NullableStringFieldUpdateOperationsInput | string | null
+    productionCompany?: NullableStringFieldUpdateOperationsInput | string | null
+    callSheetNumber?: NullableStringFieldUpdateOperationsInput | string | null
+    reportDate?: NullableStringFieldUpdateOperationsInput | string | null
+    cameraUnit?: NullableStringFieldUpdateOperationsInput | string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ProjectSceneUpsertWithoutContSheetScenesInput = {
+    update: XOR<ProjectSceneUpdateWithoutContSheetScenesInput, ProjectSceneUncheckedUpdateWithoutContSheetScenesInput>
+    create: XOR<ProjectSceneCreateWithoutContSheetScenesInput, ProjectSceneUncheckedCreateWithoutContSheetScenesInput>
+    where?: ProjectSceneWhereInput
+  }
+
+  export type ProjectSceneUpdateToOneWithWhereWithoutContSheetScenesInput = {
+    where?: ProjectSceneWhereInput
+    data: XOR<ProjectSceneUpdateWithoutContSheetScenesInput, ProjectSceneUncheckedUpdateWithoutContSheetScenesInput>
+  }
+
+  export type ProjectSceneUpdateWithoutContSheetScenesInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    number?: StringFieldUpdateOperationsInput | string
+    heading?: NullableStringFieldUpdateOperationsInput | string | null
+    storyDay?: NullableIntFieldUpdateOperationsInput | number | null
+    intExt?: NullableStringFieldUpdateOperationsInput | string | null
+    timeOfDay?: NullableStringFieldUpdateOperationsInput | string | null
+    summary?: NullableStringFieldUpdateOperationsInput | string | null
+    pageCount?: NullableFloatFieldUpdateOperationsInput | number | null
+    breakdownAnalysis?: NullableJsonNullValueInput | InputJsonValue
+    status?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    project?: OriginalProjectUpdateOneRequiredWithoutScenesNestedInput
+    script?: ProjectScriptUpdateOneWithoutScenesNestedInput
+    primaryLocation?: BreakdownLocationUpdateOneWithoutPrimaryForSceneNestedInput
+    breakdownCharacters?: BreakdownCharacterUpdateManyWithoutSceneNestedInput
+    breakdownProps?: BreakdownPropUpdateManyWithoutSceneNestedInput
+    breakdownLocations?: BreakdownLocationUpdateManyWithoutSceneNestedInput
+    breakdownWardrobes?: BreakdownWardrobeUpdateManyWithoutSceneNestedInput
+    breakdownExtras?: BreakdownExtraUpdateManyWithoutSceneNestedInput
+    breakdownVehicles?: BreakdownVehicleUpdateManyWithoutSceneNestedInput
+    breakdownStunts?: BreakdownStuntUpdateManyWithoutSceneNestedInput
+    breakdownSfxs?: BreakdownSfxUpdateManyWithoutSceneNestedInput
+    breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
+    shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
+    continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
+    dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
+    footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
+    projectTasks?: ProjectTaskUpdateManyWithoutSceneNestedInput
+    networkPosts?: NetworkPostUpdateManyWithoutSceneNestedInput
+    networkPortfolioItems?: NetworkPortfolioItemUpdateManyWithoutSceneNestedInput
+    visualAssets?: ProjectVisualAssetUpdateManyWithoutSceneNestedInput
+  }
+
+  export type ProjectSceneUncheckedUpdateWithoutContSheetScenesInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    scriptId?: NullableStringFieldUpdateOperationsInput | string | null
+    number?: StringFieldUpdateOperationsInput | string
+    heading?: NullableStringFieldUpdateOperationsInput | string | null
+    storyDay?: NullableIntFieldUpdateOperationsInput | number | null
+    intExt?: NullableStringFieldUpdateOperationsInput | string | null
+    timeOfDay?: NullableStringFieldUpdateOperationsInput | string | null
+    summary?: NullableStringFieldUpdateOperationsInput | string | null
+    pageCount?: NullableFloatFieldUpdateOperationsInput | number | null
+    breakdownAnalysis?: NullableJsonNullValueInput | InputJsonValue
+    status?: StringFieldUpdateOperationsInput | string
+    primaryLocationId?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    breakdownCharacters?: BreakdownCharacterUncheckedUpdateManyWithoutSceneNestedInput
+    breakdownProps?: BreakdownPropUncheckedUpdateManyWithoutSceneNestedInput
+    breakdownLocations?: BreakdownLocationUncheckedUpdateManyWithoutSceneNestedInput
+    breakdownWardrobes?: BreakdownWardrobeUncheckedUpdateManyWithoutSceneNestedInput
+    breakdownExtras?: BreakdownExtraUncheckedUpdateManyWithoutSceneNestedInput
+    breakdownVehicles?: BreakdownVehicleUncheckedUpdateManyWithoutSceneNestedInput
+    breakdownStunts?: BreakdownStuntUncheckedUpdateManyWithoutSceneNestedInput
+    breakdownSfxs?: BreakdownSfxUncheckedUpdateManyWithoutSceneNestedInput
+    breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
+    shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
+    continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
+    dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
+    footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
+    projectTasks?: ProjectTaskUncheckedUpdateManyWithoutSceneNestedInput
+    networkPosts?: NetworkPostUncheckedUpdateManyWithoutSceneNestedInput
+    networkPortfolioItems?: NetworkPortfolioItemUncheckedUpdateManyWithoutSceneNestedInput
+    visualAssets?: ProjectVisualAssetUncheckedUpdateManyWithoutSceneNestedInput
+  }
+
+  export type ContSheetTakeUpsertWithWhereUniqueWithoutSceneInput = {
+    where: ContSheetTakeWhereUniqueInput
+    update: XOR<ContSheetTakeUpdateWithoutSceneInput, ContSheetTakeUncheckedUpdateWithoutSceneInput>
+    create: XOR<ContSheetTakeCreateWithoutSceneInput, ContSheetTakeUncheckedCreateWithoutSceneInput>
+  }
+
+  export type ContSheetTakeUpdateWithWhereUniqueWithoutSceneInput = {
+    where: ContSheetTakeWhereUniqueInput
+    data: XOR<ContSheetTakeUpdateWithoutSceneInput, ContSheetTakeUncheckedUpdateWithoutSceneInput>
+  }
+
+  export type ContSheetTakeUpdateManyWithWhereWithoutSceneInput = {
+    where: ContSheetTakeScalarWhereInput
+    data: XOR<ContSheetTakeUpdateManyMutationInput, ContSheetTakeUncheckedUpdateManyWithoutSceneInput>
+  }
+
+  export type ContSheetTakeScalarWhereInput = {
+    AND?: ContSheetTakeScalarWhereInput | ContSheetTakeScalarWhereInput[]
+    OR?: ContSheetTakeScalarWhereInput[]
+    NOT?: ContSheetTakeScalarWhereInput | ContSheetTakeScalarWhereInput[]
+    id?: StringFilter<"ContSheetTake"> | string
+    sceneId?: StringFilter<"ContSheetTake"> | string
+    slate?: StringNullableFilter<"ContSheetTake"> | string | null
+    takeNumber?: IntNullableFilter<"ContSheetTake"> | number | null
+    pickup?: IntNullableFilter<"ContSheetTake"> | number | null
+    printStatus?: StringNullableFilter<"ContSheetTake"> | string | null
+    durationSec?: IntNullableFilter<"ContSheetTake"> | number | null
+    description?: StringNullableFilter<"ContSheetTake"> | string | null
+    notes?: StringNullableFilter<"ContSheetTake"> | string | null
+    camera?: StringNullableFilter<"ContSheetTake"> | string | null
+    sortOrder?: IntFilter<"ContSheetTake"> | number
+    createdAt?: DateTimeFilter<"ContSheetTake"> | Date | string
+    updatedAt?: DateTimeFilter<"ContSheetTake"> | Date | string
+  }
+
+  export type ContSheetSceneCreateWithoutTakesInput = {
+    id?: string
+    episode?: string | null
+    sceneCode: string
+    dayNight?: string | null
+    intExt?: string | null
+    location?: string | null
+    weather?: string | null
+    turnoverTime?: string | null
+    estimatedTiming?: string | null
+    actualTiming?: string | null
+    completionStatus?: string
+    sortOrder?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    day: ContSheetDayCreateNestedOneWithoutScenesInput
+    projectScene?: ProjectSceneCreateNestedOneWithoutContSheetScenesInput
+  }
+
+  export type ContSheetSceneUncheckedCreateWithoutTakesInput = {
+    id?: string
+    dayId: string
+    projectSceneId?: string | null
+    episode?: string | null
+    sceneCode: string
+    dayNight?: string | null
+    intExt?: string | null
+    location?: string | null
+    weather?: string | null
+    turnoverTime?: string | null
+    estimatedTiming?: string | null
+    actualTiming?: string | null
+    completionStatus?: string
+    sortOrder?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type ContSheetSceneCreateOrConnectWithoutTakesInput = {
+    where: ContSheetSceneWhereUniqueInput
+    create: XOR<ContSheetSceneCreateWithoutTakesInput, ContSheetSceneUncheckedCreateWithoutTakesInput>
+  }
+
+  export type ContSheetSceneUpsertWithoutTakesInput = {
+    update: XOR<ContSheetSceneUpdateWithoutTakesInput, ContSheetSceneUncheckedUpdateWithoutTakesInput>
+    create: XOR<ContSheetSceneCreateWithoutTakesInput, ContSheetSceneUncheckedCreateWithoutTakesInput>
+    where?: ContSheetSceneWhereInput
+  }
+
+  export type ContSheetSceneUpdateToOneWithWhereWithoutTakesInput = {
+    where?: ContSheetSceneWhereInput
+    data: XOR<ContSheetSceneUpdateWithoutTakesInput, ContSheetSceneUncheckedUpdateWithoutTakesInput>
+  }
+
+  export type ContSheetSceneUpdateWithoutTakesInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    episode?: NullableStringFieldUpdateOperationsInput | string | null
+    sceneCode?: StringFieldUpdateOperationsInput | string
+    dayNight?: NullableStringFieldUpdateOperationsInput | string | null
+    intExt?: NullableStringFieldUpdateOperationsInput | string | null
+    location?: NullableStringFieldUpdateOperationsInput | string | null
+    weather?: NullableStringFieldUpdateOperationsInput | string | null
+    turnoverTime?: NullableStringFieldUpdateOperationsInput | string | null
+    estimatedTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    actualTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    completionStatus?: StringFieldUpdateOperationsInput | string
+    sortOrder?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    day?: ContSheetDayUpdateOneRequiredWithoutScenesNestedInput
+    projectScene?: ProjectSceneUpdateOneWithoutContSheetScenesNestedInput
+  }
+
+  export type ContSheetSceneUncheckedUpdateWithoutTakesInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    dayId?: StringFieldUpdateOperationsInput | string
+    projectSceneId?: NullableStringFieldUpdateOperationsInput | string | null
+    episode?: NullableStringFieldUpdateOperationsInput | string | null
+    sceneCode?: StringFieldUpdateOperationsInput | string
+    dayNight?: NullableStringFieldUpdateOperationsInput | string | null
+    intExt?: NullableStringFieldUpdateOperationsInput | string | null
+    location?: NullableStringFieldUpdateOperationsInput | string | null
+    weather?: NullableStringFieldUpdateOperationsInput | string | null
+    turnoverTime?: NullableStringFieldUpdateOperationsInput | string | null
+    estimatedTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    actualTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    completionStatus?: StringFieldUpdateOperationsInput | string
+    sortOrder?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
   export type OriginalProjectCreateWithoutContinuityNotesInput = {
     id?: string
     title: string
@@ -578365,6 +584965,7 @@ export namespace Prisma {
     visualAssets?: ProjectVisualAssetCreateNestedManyWithoutProjectInput
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -578454,6 +585055,7 @@ export namespace Prisma {
     visualAssets?: ProjectVisualAssetUncheckedCreateNestedManyWithoutProjectInput
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -578503,6 +585105,7 @@ export namespace Prisma {
     breakdownSfxs?: BreakdownSfxCreateNestedManyWithoutSceneInput
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
@@ -578538,6 +585141,7 @@ export namespace Prisma {
     breakdownSfxs?: BreakdownSfxUncheckedCreateNestedManyWithoutSceneInput
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
@@ -578568,6 +585172,7 @@ export namespace Prisma {
     scenes?: ShootDaySceneCreateNestedManyWithoutShootDayInput
     callSheets?: CallSheetCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskCreateNestedManyWithoutShootDayInput
@@ -578591,6 +585196,7 @@ export namespace Prisma {
     scenes?: ShootDaySceneUncheckedCreateNestedManyWithoutShootDayInput
     callSheets?: CallSheetUncheckedCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportUncheckedCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskUncheckedCreateNestedManyWithoutShootDayInput
@@ -579132,6 +585738,7 @@ export namespace Prisma {
     visualAssets?: ProjectVisualAssetUpdateManyWithoutProjectNestedInput
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -579221,6 +585828,7 @@ export namespace Prisma {
     visualAssets?: ProjectVisualAssetUncheckedUpdateManyWithoutProjectNestedInput
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -579276,6 +585884,7 @@ export namespace Prisma {
     breakdownSfxs?: BreakdownSfxUpdateManyWithoutSceneNestedInput
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
@@ -579311,6 +585920,7 @@ export namespace Prisma {
     breakdownSfxs?: BreakdownSfxUncheckedUpdateManyWithoutSceneNestedInput
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
@@ -579347,6 +585957,7 @@ export namespace Prisma {
     scenes?: ShootDaySceneUpdateManyWithoutShootDayNestedInput
     callSheets?: CallSheetUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUpdateManyWithoutShootDayNestedInput
@@ -579370,6 +585981,7 @@ export namespace Prisma {
     scenes?: ShootDaySceneUncheckedUpdateManyWithoutShootDayNestedInput
     callSheets?: CallSheetUncheckedUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUncheckedUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUncheckedUpdateManyWithoutShootDayNestedInput
@@ -579902,6 +586514,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
     creatorScripts?: CreatorScriptCreateNestedManyWithoutProjectInput
@@ -579991,6 +586604,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
     creatorScripts?: CreatorScriptUncheckedCreateNestedManyWithoutProjectInput
@@ -580040,6 +586654,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
     projectTasks?: ProjectTaskCreateNestedManyWithoutSceneInput
@@ -580075,6 +586690,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
     projectTasks?: ProjectTaskUncheckedCreateNestedManyWithoutSceneInput
@@ -580105,6 +586721,7 @@ export namespace Prisma {
     callSheets?: CallSheetCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskCreateNestedManyWithoutShootDayInput
     controlBoard?: ShootDayControlBoardCreateNestedOneWithoutShootDayInput
@@ -580128,6 +586745,7 @@ export namespace Prisma {
     callSheets?: CallSheetUncheckedCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportUncheckedCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskUncheckedCreateNestedManyWithoutShootDayInput
     controlBoard?: ShootDayControlBoardUncheckedCreateNestedOneWithoutShootDayInput
@@ -580340,6 +586958,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
     creatorScripts?: CreatorScriptUpdateManyWithoutProjectNestedInput
@@ -580429,6 +587048,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
     creatorScripts?: CreatorScriptUncheckedUpdateManyWithoutProjectNestedInput
@@ -580484,6 +587104,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
     projectTasks?: ProjectTaskUpdateManyWithoutSceneNestedInput
@@ -580519,6 +587140,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
     projectTasks?: ProjectTaskUncheckedUpdateManyWithoutSceneNestedInput
@@ -580555,6 +587177,7 @@ export namespace Prisma {
     callSheets?: CallSheetUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUpdateManyWithoutShootDayNestedInput
     controlBoard?: ShootDayControlBoardUpdateOneWithoutShootDayNestedInput
@@ -580578,6 +587201,7 @@ export namespace Prisma {
     callSheets?: CallSheetUncheckedUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUncheckedUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUncheckedUpdateManyWithoutShootDayNestedInput
     controlBoard?: ShootDayControlBoardUncheckedUpdateOneWithoutShootDayNestedInput
@@ -580688,6 +587312,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
     creatorScripts?: CreatorScriptCreateNestedManyWithoutProjectInput
@@ -580777,6 +587402,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
     creatorScripts?: CreatorScriptUncheckedCreateNestedManyWithoutProjectInput
@@ -580865,6 +587491,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetCreateNestedManyWithoutSceneInput
     projectTasks?: ProjectTaskCreateNestedManyWithoutSceneInput
@@ -580900,6 +587527,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     footageAssets?: FootageAssetUncheckedCreateNestedManyWithoutSceneInput
     projectTasks?: ProjectTaskUncheckedCreateNestedManyWithoutSceneInput
@@ -580930,6 +587558,7 @@ export namespace Prisma {
     callSheets?: CallSheetCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskCreateNestedManyWithoutShootDayInput
     controlBoard?: ShootDayControlBoardCreateNestedOneWithoutShootDayInput
@@ -580953,6 +587582,7 @@ export namespace Prisma {
     callSheets?: CallSheetUncheckedCreateNestedManyWithoutShootDayInput
     incidents?: IncidentReportUncheckedCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskUncheckedCreateNestedManyWithoutShootDayInput
     controlBoard?: ShootDayControlBoardUncheckedCreateNestedOneWithoutShootDayInput
@@ -581093,6 +587723,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
     creatorScripts?: CreatorScriptUpdateManyWithoutProjectNestedInput
@@ -581182,6 +587813,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
     creatorScripts?: CreatorScriptUncheckedUpdateManyWithoutProjectNestedInput
@@ -581282,6 +587914,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
     projectTasks?: ProjectTaskUpdateManyWithoutSceneNestedInput
@@ -581317,6 +587950,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
     projectTasks?: ProjectTaskUncheckedUpdateManyWithoutSceneNestedInput
@@ -581353,6 +587987,7 @@ export namespace Prisma {
     callSheets?: CallSheetUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUpdateManyWithoutShootDayNestedInput
     controlBoard?: ShootDayControlBoardUpdateOneWithoutShootDayNestedInput
@@ -581376,6 +588011,7 @@ export namespace Prisma {
     callSheets?: CallSheetUncheckedUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUncheckedUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUncheckedUpdateManyWithoutShootDayNestedInput
     controlBoard?: ShootDayControlBoardUncheckedUpdateOneWithoutShootDayNestedInput
@@ -582743,6 +589379,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -582832,6 +589469,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -582871,6 +589509,7 @@ export namespace Prisma {
     scenes?: ShootDaySceneCreateNestedManyWithoutShootDayInput
     callSheets?: CallSheetCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskCreateNestedManyWithoutShootDayInput
@@ -582894,6 +589533,7 @@ export namespace Prisma {
     scenes?: ShootDaySceneUncheckedCreateNestedManyWithoutShootDayInput
     callSheets?: CallSheetUncheckedCreateNestedManyWithoutShootDayInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutShootDayInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutShootDayInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutShootDayInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutShootDayInput
     projectTasks?: ProjectTaskUncheckedCreateNestedManyWithoutShootDayInput
@@ -583882,6 +590522,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -583971,6 +590612,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -584016,6 +590658,7 @@ export namespace Prisma {
     scenes?: ShootDaySceneUpdateManyWithoutShootDayNestedInput
     callSheets?: CallSheetUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUpdateManyWithoutShootDayNestedInput
@@ -584039,6 +590682,7 @@ export namespace Prisma {
     scenes?: ShootDaySceneUncheckedUpdateManyWithoutShootDayNestedInput
     callSheets?: CallSheetUncheckedUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUncheckedUpdateManyWithoutShootDayNestedInput
@@ -585023,6 +591667,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -585112,6 +591757,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -585162,6 +591808,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutSceneInput
     projectTasks?: ProjectTaskCreateNestedManyWithoutSceneInput
@@ -585197,6 +591844,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedCreateNestedManyWithoutSceneInput
     shootDayLinks?: ShootDaySceneUncheckedCreateNestedManyWithoutSceneInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutSceneInput
+    contSheetScenes?: ContSheetSceneUncheckedCreateNestedManyWithoutProjectSceneInput
     dailies?: DailiesBatchUncheckedCreateNestedManyWithoutSceneInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutSceneInput
     projectTasks?: ProjectTaskUncheckedCreateNestedManyWithoutSceneInput
@@ -585347,6 +591995,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -585436,6 +592085,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -585492,6 +592142,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     projectTasks?: ProjectTaskUpdateManyWithoutSceneNestedInput
@@ -585527,6 +592178,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     projectTasks?: ProjectTaskUncheckedUpdateManyWithoutSceneNestedInput
@@ -585651,6 +592303,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -585740,6 +592393,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -585900,6 +592554,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -585989,6 +592644,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -586139,6 +592795,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -586228,6 +592885,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -586430,6 +593088,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -586519,6 +593178,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -588727,6 +595387,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -588816,6 +595477,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -588950,6 +595612,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -589039,6 +595702,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -589163,6 +595827,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -589252,6 +595917,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -589357,6 +596023,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -589446,6 +596113,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -589535,6 +596203,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -589624,6 +596293,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -589729,6 +596399,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -589818,6 +596489,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -589907,6 +596579,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -589996,6 +596669,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -590101,6 +596775,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -590190,6 +596865,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -597130,6 +603806,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     creatorScripts?: CreatorScriptCreateNestedManyWithoutProjectInput
@@ -597219,6 +603896,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     creatorScripts?: CreatorScriptUncheckedCreateNestedManyWithoutProjectInput
@@ -597777,6 +604455,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     creatorScripts?: CreatorScriptUpdateManyWithoutProjectNestedInput
@@ -597866,6 +604545,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     creatorScripts?: CreatorScriptUncheckedUpdateManyWithoutProjectNestedInput
@@ -598402,6 +605082,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -598491,6 +605172,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -599206,6 +605888,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -599295,6 +605978,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -599936,6 +606620,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -600025,6 +606710,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -600583,6 +607269,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -600672,6 +607359,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -603315,6 +610003,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -603404,6 +610093,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -604003,6 +610693,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -604092,6 +610783,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -614268,6 +620960,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -614357,6 +621050,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -614511,6 +621205,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -614600,6 +621295,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -614689,6 +621385,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteCreateNestedManyWithoutProjectInput
@@ -614778,6 +621475,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedCreateNestedManyWithoutProjectInput
     riskPlan?: RiskPlanUncheckedCreateNestedOneWithoutProjectInput
     continuityNotes?: ContinuityNoteUncheckedCreateNestedManyWithoutProjectInput
+    contSheetDays?: ContSheetDayUncheckedCreateNestedManyWithoutProjectInput
     dailiesBatches?: DailiesBatchUncheckedCreateNestedManyWithoutProjectInput
     dailiesClips?: DailiesClipUncheckedCreateNestedManyWithoutProjectInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedCreateNestedManyWithoutProjectInput
@@ -614883,6 +621581,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUpdateManyWithoutProjectNestedInput
@@ -614972,6 +621671,7 @@ export namespace Prisma {
     storyboardBoards?: StoryboardBoardUncheckedUpdateManyWithoutProjectNestedInput
     riskPlan?: RiskPlanUncheckedUpdateOneWithoutProjectNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutProjectNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutProjectNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutProjectNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutProjectNestedInput
     scriptReviewNotes?: ScriptReviewNoteUncheckedUpdateManyWithoutProjectNestedInput
@@ -635522,6 +642222,24 @@ export namespace Prisma {
     createdAt?: Date | string
   }
 
+  export type ContSheetDayCreateManyProjectInput = {
+    id?: string
+    shootDayId: string
+    version?: number
+    showTitle?: string | null
+    productionCompany?: string | null
+    callSheetNumber?: string | null
+    reportDate?: string | null
+    cameraUnit?: string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
   export type DailiesBatchCreateManyProjectInput = {
     id?: string
     sceneId?: string | null
@@ -636372,6 +643090,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
@@ -636407,6 +643126,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
@@ -637214,6 +643934,7 @@ export namespace Prisma {
     callSheets?: CallSheetUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUpdateManyWithoutShootDayNestedInput
@@ -637237,6 +643958,7 @@ export namespace Prisma {
     callSheets?: CallSheetUncheckedUpdateManyWithoutShootDayNestedInput
     incidents?: IncidentReportUncheckedUpdateManyWithoutShootDayNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutShootDayNestedInput
+    contSheetDays?: ContSheetDayUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesBatches?: DailiesBatchUncheckedUpdateManyWithoutShootDayNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutShootDayNestedInput
     projectTasks?: ProjectTaskUncheckedUpdateManyWithoutShootDayNestedInput
@@ -637993,6 +644715,62 @@ export namespace Prisma {
     photoUrls?: NullableStringFieldUpdateOperationsInput | string | null
     createdById?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ContSheetDayUpdateWithoutProjectInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    version?: IntFieldUpdateOperationsInput | number
+    showTitle?: NullableStringFieldUpdateOperationsInput | string | null
+    productionCompany?: NullableStringFieldUpdateOperationsInput | string | null
+    callSheetNumber?: NullableStringFieldUpdateOperationsInput | string | null
+    reportDate?: NullableStringFieldUpdateOperationsInput | string | null
+    cameraUnit?: NullableStringFieldUpdateOperationsInput | string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    shootDay?: ShootDayUpdateOneRequiredWithoutContSheetDaysNestedInput
+    scenes?: ContSheetSceneUpdateManyWithoutDayNestedInput
+  }
+
+  export type ContSheetDayUncheckedUpdateWithoutProjectInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    shootDayId?: StringFieldUpdateOperationsInput | string
+    version?: IntFieldUpdateOperationsInput | number
+    showTitle?: NullableStringFieldUpdateOperationsInput | string | null
+    productionCompany?: NullableStringFieldUpdateOperationsInput | string | null
+    callSheetNumber?: NullableStringFieldUpdateOperationsInput | string | null
+    reportDate?: NullableStringFieldUpdateOperationsInput | string | null
+    cameraUnit?: NullableStringFieldUpdateOperationsInput | string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    scenes?: ContSheetSceneUncheckedUpdateManyWithoutDayNestedInput
+  }
+
+  export type ContSheetDayUncheckedUpdateManyWithoutProjectInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    shootDayId?: StringFieldUpdateOperationsInput | string
+    version?: IntFieldUpdateOperationsInput | number
+    showTitle?: NullableStringFieldUpdateOperationsInput | string | null
+    productionCompany?: NullableStringFieldUpdateOperationsInput | string | null
+    callSheetNumber?: NullableStringFieldUpdateOperationsInput | string | null
+    reportDate?: NullableStringFieldUpdateOperationsInput | string | null
+    cameraUnit?: NullableStringFieldUpdateOperationsInput | string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
   export type DailiesBatchUpdateWithoutProjectInput = {
@@ -641690,6 +648468,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUpdateManyWithoutSceneNestedInput
@@ -641725,6 +648504,7 @@ export namespace Prisma {
     breakdownMakeups?: BreakdownMakeupUncheckedUpdateManyWithoutSceneNestedInput
     shootDayLinks?: ShootDaySceneUncheckedUpdateManyWithoutSceneNestedInput
     continuityNotes?: ContinuityNoteUncheckedUpdateManyWithoutSceneNestedInput
+    contSheetScenes?: ContSheetSceneUncheckedUpdateManyWithoutProjectSceneNestedInput
     dailies?: DailiesBatchUncheckedUpdateManyWithoutSceneNestedInput
     dailiesClips?: DailiesClipUncheckedUpdateManyWithoutSceneNestedInput
     footageAssets?: FootageAssetUncheckedUpdateManyWithoutSceneNestedInput
@@ -641959,6 +648739,24 @@ export namespace Prisma {
     photoUrls?: string | null
     createdById?: string | null
     createdAt?: Date | string
+  }
+
+  export type ContSheetSceneCreateManyProjectSceneInput = {
+    id?: string
+    dayId: string
+    episode?: string | null
+    sceneCode: string
+    dayNight?: string | null
+    intExt?: string | null
+    location?: string | null
+    weather?: string | null
+    turnoverTime?: string | null
+    estimatedTiming?: string | null
+    actualTiming?: string | null
+    completionStatus?: string
+    sortOrder?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
   }
 
   export type DailiesBatchCreateManySceneInput = {
@@ -642386,6 +649184,62 @@ export namespace Prisma {
     photoUrls?: NullableStringFieldUpdateOperationsInput | string | null
     createdById?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ContSheetSceneUpdateWithoutProjectSceneInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    episode?: NullableStringFieldUpdateOperationsInput | string | null
+    sceneCode?: StringFieldUpdateOperationsInput | string
+    dayNight?: NullableStringFieldUpdateOperationsInput | string | null
+    intExt?: NullableStringFieldUpdateOperationsInput | string | null
+    location?: NullableStringFieldUpdateOperationsInput | string | null
+    weather?: NullableStringFieldUpdateOperationsInput | string | null
+    turnoverTime?: NullableStringFieldUpdateOperationsInput | string | null
+    estimatedTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    actualTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    completionStatus?: StringFieldUpdateOperationsInput | string
+    sortOrder?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    day?: ContSheetDayUpdateOneRequiredWithoutScenesNestedInput
+    takes?: ContSheetTakeUpdateManyWithoutSceneNestedInput
+  }
+
+  export type ContSheetSceneUncheckedUpdateWithoutProjectSceneInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    dayId?: StringFieldUpdateOperationsInput | string
+    episode?: NullableStringFieldUpdateOperationsInput | string | null
+    sceneCode?: StringFieldUpdateOperationsInput | string
+    dayNight?: NullableStringFieldUpdateOperationsInput | string | null
+    intExt?: NullableStringFieldUpdateOperationsInput | string | null
+    location?: NullableStringFieldUpdateOperationsInput | string | null
+    weather?: NullableStringFieldUpdateOperationsInput | string | null
+    turnoverTime?: NullableStringFieldUpdateOperationsInput | string | null
+    estimatedTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    actualTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    completionStatus?: StringFieldUpdateOperationsInput | string
+    sortOrder?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    takes?: ContSheetTakeUncheckedUpdateManyWithoutSceneNestedInput
+  }
+
+  export type ContSheetSceneUncheckedUpdateManyWithoutProjectSceneInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    dayId?: StringFieldUpdateOperationsInput | string
+    episode?: NullableStringFieldUpdateOperationsInput | string | null
+    sceneCode?: StringFieldUpdateOperationsInput | string
+    dayNight?: NullableStringFieldUpdateOperationsInput | string | null
+    intExt?: NullableStringFieldUpdateOperationsInput | string | null
+    location?: NullableStringFieldUpdateOperationsInput | string | null
+    weather?: NullableStringFieldUpdateOperationsInput | string | null
+    turnoverTime?: NullableStringFieldUpdateOperationsInput | string | null
+    estimatedTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    actualTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    completionStatus?: StringFieldUpdateOperationsInput | string
+    sortOrder?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
   export type DailiesBatchUpdateWithoutSceneInput = {
@@ -644235,6 +651089,24 @@ export namespace Prisma {
     createdAt?: Date | string
   }
 
+  export type ContSheetDayCreateManyShootDayInput = {
+    id?: string
+    projectId: string
+    version?: number
+    showTitle?: string | null
+    productionCompany?: string | null
+    callSheetNumber?: string | null
+    reportDate?: string | null
+    cameraUnit?: string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
   export type DailiesBatchCreateManyShootDayInput = {
     id?: string
     projectId: string
@@ -644444,6 +651316,62 @@ export namespace Prisma {
     photoUrls?: NullableStringFieldUpdateOperationsInput | string | null
     createdById?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ContSheetDayUpdateWithoutShootDayInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    version?: IntFieldUpdateOperationsInput | number
+    showTitle?: NullableStringFieldUpdateOperationsInput | string | null
+    productionCompany?: NullableStringFieldUpdateOperationsInput | string | null
+    callSheetNumber?: NullableStringFieldUpdateOperationsInput | string | null
+    reportDate?: NullableStringFieldUpdateOperationsInput | string | null
+    cameraUnit?: NullableStringFieldUpdateOperationsInput | string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    project?: OriginalProjectUpdateOneRequiredWithoutContSheetDaysNestedInput
+    scenes?: ContSheetSceneUpdateManyWithoutDayNestedInput
+  }
+
+  export type ContSheetDayUncheckedUpdateWithoutShootDayInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    version?: IntFieldUpdateOperationsInput | number
+    showTitle?: NullableStringFieldUpdateOperationsInput | string | null
+    productionCompany?: NullableStringFieldUpdateOperationsInput | string | null
+    callSheetNumber?: NullableStringFieldUpdateOperationsInput | string | null
+    reportDate?: NullableStringFieldUpdateOperationsInput | string | null
+    cameraUnit?: NullableStringFieldUpdateOperationsInput | string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    scenes?: ContSheetSceneUncheckedUpdateManyWithoutDayNestedInput
+  }
+
+  export type ContSheetDayUncheckedUpdateManyWithoutShootDayInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    version?: IntFieldUpdateOperationsInput | number
+    showTitle?: NullableStringFieldUpdateOperationsInput | string | null
+    productionCompany?: NullableStringFieldUpdateOperationsInput | string | null
+    callSheetNumber?: NullableStringFieldUpdateOperationsInput | string | null
+    reportDate?: NullableStringFieldUpdateOperationsInput | string | null
+    cameraUnit?: NullableStringFieldUpdateOperationsInput | string | null
+    crewJson?: NullableJsonNullValueInput | InputJsonValue
+    dayClockJson?: NullableJsonNullValueInput | InputJsonValue
+    scenesSummaryJson?: NullableJsonNullValueInput | InputJsonValue
+    totalsJson?: NullableJsonNullValueInput | InputJsonValue
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
   export type DailiesBatchUpdateWithoutShootDayInput = {
@@ -646313,6 +653241,140 @@ export namespace Prisma {
     description?: StringFieldUpdateOperationsInput | string
     ownerId?: NullableStringFieldUpdateOperationsInput | string | null
     status?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ContSheetSceneCreateManyDayInput = {
+    id?: string
+    projectSceneId?: string | null
+    episode?: string | null
+    sceneCode: string
+    dayNight?: string | null
+    intExt?: string | null
+    location?: string | null
+    weather?: string | null
+    turnoverTime?: string | null
+    estimatedTiming?: string | null
+    actualTiming?: string | null
+    completionStatus?: string
+    sortOrder?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type ContSheetSceneUpdateWithoutDayInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    episode?: NullableStringFieldUpdateOperationsInput | string | null
+    sceneCode?: StringFieldUpdateOperationsInput | string
+    dayNight?: NullableStringFieldUpdateOperationsInput | string | null
+    intExt?: NullableStringFieldUpdateOperationsInput | string | null
+    location?: NullableStringFieldUpdateOperationsInput | string | null
+    weather?: NullableStringFieldUpdateOperationsInput | string | null
+    turnoverTime?: NullableStringFieldUpdateOperationsInput | string | null
+    estimatedTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    actualTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    completionStatus?: StringFieldUpdateOperationsInput | string
+    sortOrder?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    projectScene?: ProjectSceneUpdateOneWithoutContSheetScenesNestedInput
+    takes?: ContSheetTakeUpdateManyWithoutSceneNestedInput
+  }
+
+  export type ContSheetSceneUncheckedUpdateWithoutDayInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectSceneId?: NullableStringFieldUpdateOperationsInput | string | null
+    episode?: NullableStringFieldUpdateOperationsInput | string | null
+    sceneCode?: StringFieldUpdateOperationsInput | string
+    dayNight?: NullableStringFieldUpdateOperationsInput | string | null
+    intExt?: NullableStringFieldUpdateOperationsInput | string | null
+    location?: NullableStringFieldUpdateOperationsInput | string | null
+    weather?: NullableStringFieldUpdateOperationsInput | string | null
+    turnoverTime?: NullableStringFieldUpdateOperationsInput | string | null
+    estimatedTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    actualTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    completionStatus?: StringFieldUpdateOperationsInput | string
+    sortOrder?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    takes?: ContSheetTakeUncheckedUpdateManyWithoutSceneNestedInput
+  }
+
+  export type ContSheetSceneUncheckedUpdateManyWithoutDayInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectSceneId?: NullableStringFieldUpdateOperationsInput | string | null
+    episode?: NullableStringFieldUpdateOperationsInput | string | null
+    sceneCode?: StringFieldUpdateOperationsInput | string
+    dayNight?: NullableStringFieldUpdateOperationsInput | string | null
+    intExt?: NullableStringFieldUpdateOperationsInput | string | null
+    location?: NullableStringFieldUpdateOperationsInput | string | null
+    weather?: NullableStringFieldUpdateOperationsInput | string | null
+    turnoverTime?: NullableStringFieldUpdateOperationsInput | string | null
+    estimatedTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    actualTiming?: NullableStringFieldUpdateOperationsInput | string | null
+    completionStatus?: StringFieldUpdateOperationsInput | string
+    sortOrder?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ContSheetTakeCreateManySceneInput = {
+    id?: string
+    slate?: string | null
+    takeNumber?: number | null
+    pickup?: number | null
+    printStatus?: string | null
+    durationSec?: number | null
+    description?: string | null
+    notes?: string | null
+    camera?: string | null
+    sortOrder?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type ContSheetTakeUpdateWithoutSceneInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    slate?: NullableStringFieldUpdateOperationsInput | string | null
+    takeNumber?: NullableIntFieldUpdateOperationsInput | number | null
+    pickup?: NullableIntFieldUpdateOperationsInput | number | null
+    printStatus?: NullableStringFieldUpdateOperationsInput | string | null
+    durationSec?: NullableIntFieldUpdateOperationsInput | number | null
+    description?: NullableStringFieldUpdateOperationsInput | string | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    camera?: NullableStringFieldUpdateOperationsInput | string | null
+    sortOrder?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ContSheetTakeUncheckedUpdateWithoutSceneInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    slate?: NullableStringFieldUpdateOperationsInput | string | null
+    takeNumber?: NullableIntFieldUpdateOperationsInput | number | null
+    pickup?: NullableIntFieldUpdateOperationsInput | number | null
+    printStatus?: NullableStringFieldUpdateOperationsInput | string | null
+    durationSec?: NullableIntFieldUpdateOperationsInput | number | null
+    description?: NullableStringFieldUpdateOperationsInput | string | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    camera?: NullableStringFieldUpdateOperationsInput | string | null
+    sortOrder?: IntFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ContSheetTakeUncheckedUpdateManyWithoutSceneInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    slate?: NullableStringFieldUpdateOperationsInput | string | null
+    takeNumber?: NullableIntFieldUpdateOperationsInput | number | null
+    pickup?: NullableIntFieldUpdateOperationsInput | number | null
+    printStatus?: NullableStringFieldUpdateOperationsInput | string | null
+    durationSec?: NullableIntFieldUpdateOperationsInput | number | null
+    description?: NullableStringFieldUpdateOperationsInput | string | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    camera?: NullableStringFieldUpdateOperationsInput | string | null
+    sortOrder?: IntFieldUpdateOperationsInput | number
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -648233,6 +655295,14 @@ export namespace Prisma {
      */
     export type RiskPlanCountOutputTypeArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = RiskPlanCountOutputTypeDefaultArgs<ExtArgs>
     /**
+     * @deprecated Use ContSheetDayCountOutputTypeDefaultArgs instead
+     */
+    export type ContSheetDayCountOutputTypeArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = ContSheetDayCountOutputTypeDefaultArgs<ExtArgs>
+    /**
+     * @deprecated Use ContSheetSceneCountOutputTypeDefaultArgs instead
+     */
+    export type ContSheetSceneCountOutputTypeArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = ContSheetSceneCountOutputTypeDefaultArgs<ExtArgs>
+    /**
      * @deprecated Use DailiesBatchCountOutputTypeDefaultArgs instead
      */
     export type DailiesBatchCountOutputTypeArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = DailiesBatchCountOutputTypeDefaultArgs<ExtArgs>
@@ -649060,6 +656130,18 @@ export namespace Prisma {
      * @deprecated Use RiskChecklistItemDefaultArgs instead
      */
     export type RiskChecklistItemArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = RiskChecklistItemDefaultArgs<ExtArgs>
+    /**
+     * @deprecated Use ContSheetDayDefaultArgs instead
+     */
+    export type ContSheetDayArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = ContSheetDayDefaultArgs<ExtArgs>
+    /**
+     * @deprecated Use ContSheetSceneDefaultArgs instead
+     */
+    export type ContSheetSceneArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = ContSheetSceneDefaultArgs<ExtArgs>
+    /**
+     * @deprecated Use ContSheetTakeDefaultArgs instead
+     */
+    export type ContSheetTakeArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = ContSheetTakeDefaultArgs<ExtArgs>
     /**
      * @deprecated Use ContinuityNoteDefaultArgs instead
      */

@@ -250,6 +250,12 @@ export async function buildDailiesIntelligence(projectId: string): Promise<Daili
         status: shootDays.length > 0 ? "ready" : "empty",
       },
       {
+        label: "Cont Sheet",
+        href: `${basePath}/production/cont-sheet`,
+        description: "Script supervisor takes, PRINT/NG, and DPR timings",
+        status: shootDays.length > 0 ? "ready" : "empty",
+      },
+      {
         label: "Continuity Manager",
         href: `${basePath}/production/continuity-manager`,
         description: "Take notes, photos, and continuity flags",

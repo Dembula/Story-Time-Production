@@ -40,6 +40,7 @@ const PRODUCTION_TOOL_QUERY_KEYS: Record<string, string[]> = {
   "on-set-tasks": ["project-tasks", "command-center-calendar"],
   "equipment-tracking": ["project-equipment-plan", "production-control-center"],
   "shoot-progress": ["project-shoot-progress", "production-control-center", "project-schedule"],
+  "cont-sheet": ["project-cont-sheet", "project-cont-sheet-day", "project-schedule"],
   "continuity-manager": ["project-continuity"],
   "dailies-review": ["project-dailies", "project-dailies-intelligence", "project-dailies-notes"],
   "expense-tracker": ["project-expenses", "project-budget"],

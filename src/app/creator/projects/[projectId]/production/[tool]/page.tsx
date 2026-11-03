@@ -26,6 +26,7 @@ import { CONFIRM_DELETE_TASK } from "@/lib/confirm-delete";
 import { ExpenseTrackerStudio } from "@/components/expense/expense-tracker-studio";
 import { SecureFileLink } from "@/components/files/secure-file-link";
 import { DailiesReviewStudio } from "@/components/dailies";
+import { ContSheetStudio } from "@/components/cont-sheet";
 
 interface ProductionToolPageProps {
   params: Promise<{ projectId?: string; tool: string }>;
@@ -37,6 +38,7 @@ const LABELS: Record<string, string> = {
   "on-set-tasks": "On-Set Task Management",
   "equipment-tracking": "Equipment Tracking",
   "shoot-progress": "Shoot Progress Tracker",
+  "cont-sheet": "Cont Sheet",
   "continuity-manager": "Continuity Manager",
   "dailies-review": "Dailies Review",
   "expense-tracker": "Production Expense Tracker",
@@ -112,6 +114,14 @@ export default function ProductionToolPage({ params }: ProductionToolPageProps) 
       <>
         {!hasProject && <UnlinkedBanner />}
         <ShootProgress projectId={projectId} title={title} />
+      </>
+    );
+  }
+  if (tool === "cont-sheet") {
+    return (
+      <>
+        {!hasProject && <UnlinkedBanner />}
+        <ContSheetStudio projectId={projectId} title={title} />
       </>
     );
   }

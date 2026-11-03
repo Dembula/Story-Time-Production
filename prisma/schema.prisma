@@ -1235,6 +1235,7 @@ model OriginalProject {
   storyboardBoards StoryboardBoard[]
   riskPlan      RiskPlan?
   continuityNotes ContinuityNote[]
+  contSheetDays ContSheetDay[]
   dailiesBatches DailiesBatch[]
   dailiesClips   DailiesClip[]
   scriptReviewNotes ScriptReviewNote[]
@@ -2690,6 +2691,7 @@ model ProjectScene {
   breakdownMakeups    BreakdownMakeup[]
   shootDayLinks ShootDayScene[]
   continuityNotes ContinuityNote[]
+  contSheetScenes ContSheetScene[]
   dailies      DailiesBatch[]
   dailiesClips DailiesClip[]
   footageAssets FootageAsset[]
@@ -3432,6 +3434,7 @@ model ShootDay {
   callSheets  CallSheet[]
   incidents   IncidentReport[]
   continuityNotes ContinuityNote[]
+  contSheetDays   ContSheetDay[]
   dailiesBatches  DailiesBatch[]
   dailiesClips    DailiesClip[]
   projectTasks  ProjectTask[]
@@ -4362,7 +4365,85 @@ model RiskChecklistItem {
   @@index([ownerId])
 }
 
-// --- Continuity, dailies, incidents ---
+// --- Continuity, Cont Sheet / DPR, dailies, incidents ---
+
+model ContSheetDay {
+  id              String   @id @default(cuid())
+  projectId       String
+  project         OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  shootDayId      String
+  shootDay        ShootDay @relation(fields: [shootDayId], references: [id], onDelete: Cascade)
+  version         Int      @default(1)
+  showTitle       String?
+  productionCompany String?
+  callSheetNumber String?
+  reportDate      String?
+  cameraUnit      String?  // A, B, …
+  /// Crew snapshot: lineProducer, producer, productionManager, directors, scriptSupervisor
+  crewJson        Json?
+  /// Day clock: callTime, firstTurnover, lunch, firstShotAfterLunch, wrapTime
+  dayClockJson    Json?
+  /// Column strip summary for scheduled/completed/dropped/added/partly + est/act timings
+  scenesSummaryJson Json?
+  /// Totals: totalEstTime, totalActTime, totalPages, previous/today/total metrics
+  totalsJson      Json?
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  scenes          ContSheetScene[]
+
+  @@unique([projectId, shootDayId])
+  @@index([projectId])
+  @@index([shootDayId])
+}
+
+model ContSheetScene {
+  id               String   @id @default(cuid())
+  dayId            String
+  day              ContSheetDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  projectSceneId   String?
+  projectScene     ProjectScene? @relation(fields: [projectSceneId], references: [id], onDelete: SetNull)
+  episode          String?
+  sceneCode        String   // e.g. "86-2" or "5&8"
+  dayNight         String?
+  intExt           String?
+  location         String?
+  weather          String?
+  turnoverTime     String?
+  estimatedTiming  String?  // M:SS
+  actualTiming     String?
+  /// scheduled | completed | dropped | added | partlyShot
+  completionStatus String  @default("scheduled")
+  sortOrder        Int     @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  takes            ContSheetTake[]
+
+  @@index([dayId])
+  @@index([projectSceneId])
+}
+
+model ContSheetTake {
+  id            String   @id @default(cuid())
+  sceneId       String
+  scene         ContSheetScene @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  slate         String?
+  takeNumber    Int?
+  pickup        Int?
+  /// PRINT | NG | empty
+  printStatus   String?
+  durationSec   Int?
+  description   String?
+  notes         String?
+  camera        String?  // A | B
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([sceneId])
+}
 
 model ContinuityNote {
   id          String   @id @default(cuid())

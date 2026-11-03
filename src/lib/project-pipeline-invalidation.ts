@@ -18,6 +18,7 @@ export type PipelineStage =
   | "scheduleDownstream"
   | "callSheets"
   | "shootProgress"
+  | "contSheet"
   | "contracts";
 
 const STAGE_KEYS: Record<PipelineStage, string[]> = {
@@ -81,7 +82,8 @@ const STAGE_KEYS: Record<PipelineStage, string[]> = {
     "command-center-calendar",
   ],
   callSheets: ["project-call-sheets", "call-sheet-preview"],
-  shootProgress: ["project-shoot-progress", "production-control-center", "project-dailies"],
+  shootProgress: ["project-shoot-progress", "production-control-center", "project-dailies", "project-cont-sheet"],
+  contSheet: ["project-cont-sheet", "project-cont-sheet-day", "project-dailies"],
   contracts: ["project-contracts", "project-call-sheets"],
 };
 

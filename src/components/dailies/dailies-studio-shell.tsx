@@ -178,6 +178,7 @@ export function DailiesStudioShell({
           intelligence={intelligence}
           shootDayId={reportShootDayId}
           onShootDayId={onReportShootDayId}
+          projectId={projectId}
         />
       ) : null}
 

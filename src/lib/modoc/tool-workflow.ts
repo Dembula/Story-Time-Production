@@ -198,9 +198,13 @@ export const TOOL_WORKFLOW: Record<string, ToolWorkflowStep> = {
     "update_equipment_plan_item",
     "request_equipment",
   ]),
-  "shoot-progress": step("shoot-progress", "dailies-review", ["update_shoot_progress"], {
+  "shoot-progress": step("shoot-progress", "cont-sheet", ["update_shoot_progress"], {
+    action: "update_shoot_progress",
+    prompt: "log Cont Sheet takes and DPR for the shoot day",
+  }),
+  "cont-sheet": step("cont-sheet", "dailies-review", [], {
     action: "create_dailies_batch",
-    prompt: "log dailies batches",
+    prompt: "log dailies batches from printed takes",
   }),
   "continuity-manager": step("continuity-manager", "dailies-review", [
     "add_continuity_note",

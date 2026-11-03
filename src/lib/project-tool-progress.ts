@@ -119,6 +119,8 @@ function inferFromSignals(toolId: string, signals: ProjectUsageSignals): Resolve
       return signals.equipmentItemCount > 0 ? "IN_PROGRESS" : "NOT_STARTED";
     case "shoot-progress":
       return signals.shootDayCount > 0 ? "IN_PROGRESS" : "NOT_STARTED";
+    case "cont-sheet":
+      return signals.shootDayCount > 0 ? "IN_PROGRESS" : "NOT_STARTED";
     case "continuity-manager":
       return signals.shootDayCount > 0 ? "IN_PROGRESS" : "NOT_STARTED";
     case "incident-reporting":

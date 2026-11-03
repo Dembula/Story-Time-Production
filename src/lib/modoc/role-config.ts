@@ -202,6 +202,7 @@ export function toolSlugToModocTask(tool: string | undefined): string | undefine
     "on-set-tasks": "on_set_tasks",
     "equipment-tracking": "equipment_tracking",
     "shoot-progress": "shoot_progress",
+    "cont-sheet": "cont_sheet",
     "continuity-manager": "continuity_manager",
     "dailies-review": "dailies_review",
     "expense-tracker": "production_expense_tracker",

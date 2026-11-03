@@ -27,6 +27,7 @@ import {
   isDailiesStillMedia,
   resolveDailiesMediaType,
 } from "@/lib/dailies/media";
+import { ContSheetPrintTakesHint } from "@/components/cont-sheet/cont-sheet-print-takes-hint";
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
@@ -417,6 +418,12 @@ export function DailiesReviewWorkspace({
                 </Link>
               ) : null}
               <Link
+                href={`/creator/projects/${projectId}/production/cont-sheet`}
+                className="text-[10px] text-orange-300/90 hover:underline"
+              >
+                Cont Sheet →
+              </Link>
+              <Link
                 href={`/creator/projects/${projectId}/production/continuity-manager`}
                 className="text-[10px] text-slate-400 hover:underline"
               >
@@ -672,13 +679,16 @@ export function DailiesDailyReportPanel({
   intelligence,
   shootDayId,
   onShootDayId,
+  projectId,
 }: {
   intelligence: DailiesIntelligencePayload;
   shootDayId: string | null;
   onShootDayId: (id: string) => void;
+  projectId?: string;
 }) {
   const day = intelligence.shootDays.find((d) => d.shootDayId === shootDayId) ?? intelligence.activeShootDay;
   const dayClips = intelligence.clips.filter((c) => c.shootDayId === (shootDayId ?? day?.shootDayId));
+  const activeDayId = shootDayId ?? day?.shootDayId ?? null;
   const report = day
     ? buildDailyReport({
         shootDayDate: day.date,
@@ -701,6 +711,10 @@ export function DailiesDailyReportPanel({
           </option>
         ))}
       </select>
+
+      {projectId && activeDayId ? (
+        <ContSheetPrintTakesHint projectId={projectId} shootDayId={activeDayId} />
+      ) : null}
 
       {!report ? (
         <p className="text-sm text-slate-500">Select a shoot day with uploaded dailies.</p>

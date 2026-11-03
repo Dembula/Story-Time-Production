@@ -27,6 +27,7 @@ export type ProjectToolId =
   | "on-set-tasks"
   | "equipment-tracking"
   | "shoot-progress"
+  | "cont-sheet"
   | "continuity-manager"
   | "dailies-review"
   | "expense-tracker"
@@ -280,6 +281,14 @@ export const PRODUCTION_TOOLS: ProjectToolMeta[] = [
     description: "Progress across shoot days and scenes.",
     toolSlug: "shoot-progress",
     pipelineStep: "SHOOT",
+  },
+  {
+    id: "cont-sheet",
+    phase: "PRODUCTION",
+    label: "Cont Sheet",
+    description: "Script supervisor Cont Sheet and Daily Progress Report with take timing.",
+    toolSlug: "cont-sheet",
+    pipelineStep: "ON_SET",
   },
   {
     id: "continuity-manager",

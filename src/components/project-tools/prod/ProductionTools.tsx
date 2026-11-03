@@ -29,6 +29,7 @@ function ToolLink({
     | "on-set-tasks"
     | "equipment-tracking"
     | "shoot-progress"
+    | "cont-sheet"
     | "continuity-manager"
     | "dailies-review"
     | "expense-tracker"
@@ -134,6 +135,21 @@ export function ShootProgressTool({ projectId }: ProductionToolProps) {
     );
   }
   return <ToolLink projectId={projectId!} tool="shoot-progress" label="Shoot Progress Tracker" />;
+}
+
+export function ContSheetTool({ projectId }: ProductionToolProps) {
+  const missing = requireProjectId(projectId);
+  if (missing) {
+    return (
+      <div className="space-y-4">
+        <header>
+          <h2 className="text-xl font-semibold text-white">Cont Sheet</h2>
+          {missing}
+        </header>
+      </div>
+    );
+  }
+  return <ToolLink projectId={projectId!} tool="cont-sheet" label="Cont Sheet" />;
 }
 
 export function ContinuityManagerTool({ projectId }: ProductionToolProps) {
