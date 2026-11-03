@@ -1,4 +1,4 @@
-import type { ContSheetDay, ContSheetScene, ContSheetTake } from "@prisma/client";
+import type { ContSheetDay, ContSheetScene, ContSheetTake } from "../../../generated/prisma";
 import type { ContSheetCrew, ContSheetDayClock, ContSheetTotals } from "@/lib/cont-sheet/types";
 import type { ContSheetExportDay } from "@/lib/cont-sheet/html";
 

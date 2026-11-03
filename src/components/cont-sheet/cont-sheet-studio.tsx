@@ -223,7 +223,7 @@ export function ContSheetStudio({ projectId, title }: Props) {
   }, [dayData]);
 
   const prefill = useMutation({
-    mutationFn: async (forcePrefill = false) => {
+    mutationFn: async (forcePrefill: boolean) => {
       const res = await fetch(`/api/creator/projects/${projectId}/cont-sheet`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
