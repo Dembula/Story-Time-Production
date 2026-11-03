@@ -186,7 +186,14 @@ export async function downloadPdfFromHtmlDocument(options: {
     ]);
 
     const body = doc.body;
-    const pageNodes = body.querySelectorAll<HTMLElement>(".doc-page");
+    // Explicit page nodes (contracts / Cont Sheet / treatment use .doc-page).
+    // Fall back to .cs-page for older Cont Sheet HTML without the shared class.
+    const pageNodes = Array.from(
+      body.querySelectorAll<HTMLElement>(".doc-page"),
+    );
+    if (pageNodes.length === 0) {
+      pageNodes.push(...Array.from(body.querySelectorAll<HTMLElement>(".cs-page")));
+    }
 
     const pdf = new jsPDF({ unit: "in", format: "letter", orientation: "portrait" });
     const safeName =
@@ -200,10 +207,14 @@ export async function downloadPdfFromHtmlDocument(options: {
           useCORS: true,
           backgroundColor: "#ffffff",
           logging: false,
+          windowWidth: Math.ceil(8.5 * 96),
         });
         const img = canvas.toDataURL("image/jpeg", 0.92);
         if (i > 0) pdf.addPage();
-        pdf.addImage(img, "JPEG", 0, 0, 8.5, 11);
+        // Fit letter page; letterbox vertically if content is shorter than 11in.
+        const imgW = 8.5;
+        const imgH = Math.min(11, (canvas.height * imgW) / canvas.width);
+        pdf.addImage(img, "JPEG", 0, 0, imgW, imgH);
       }
     } else {
       const target = (body.firstElementChild as HTMLElement | null) ?? body;

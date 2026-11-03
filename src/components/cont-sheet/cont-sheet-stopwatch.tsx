@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { HelpCircle, RotateCcw, X } from "lucide-react";
 import { formatDurationMss } from "@/lib/cont-sheet/types";
 
@@ -9,22 +10,37 @@ type ContSheetStopwatchProps = {
   onCommitDuration: (durationSec: number) => void;
   /** When false, stopwatch is not interactive for commit (still visible). */
   canCommit?: boolean;
+  onClose?: () => void;
 };
 
 const STORAGE_KEY = "st-cont-sheet-stopwatch-pos";
+const W = 190;
+const H = 320;
+
+function clampPos(x: number, y: number) {
+  if (typeof window === "undefined") return { x, y };
+  const maxX = Math.max(8, window.innerWidth - W - 8);
+  const maxY = Math.max(8, window.innerHeight - H - 8);
+  return {
+    x: Math.min(maxX, Math.max(8, x)),
+    y: Math.min(maxY, Math.max(8, y)),
+  };
+}
 
 function loadPos(): { x: number; y: number } {
   if (typeof window === "undefined") return { x: 24, y: 96 };
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return { x: 24, y: 96 };
+    if (!raw) {
+      return clampPos(window.innerWidth - W - 24, 96);
+    }
     const parsed = JSON.parse(raw) as { x?: number; y?: number };
-    return {
-      x: typeof parsed.x === "number" ? parsed.x : 24,
-      y: typeof parsed.y === "number" ? parsed.y : 96,
-    };
+    return clampPos(
+      typeof parsed.x === "number" ? parsed.x : window.innerWidth - W - 24,
+      typeof parsed.y === "number" ? parsed.y : 96,
+    );
   } catch {
-    return { x: 24, y: 96 };
+    return clampPos(window.innerWidth - W - 24, 96);
   }
 }
 
@@ -32,8 +48,10 @@ export function ContSheetStopwatch({
   selectedTakeLabel,
   onCommitDuration,
   canCommit = true,
+  onClose,
 }: ContSheetStopwatchProps) {
-  const [pos, setPos] = useState(loadPos);
+  const [mounted, setMounted] = useState(false);
+  const [pos, setPos] = useState({ x: 24, y: 96 });
   const [running, setRunning] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -41,6 +59,19 @@ export function ContSheetStopwatch({
   const baseElapsedRef = useRef(0);
   const dragRef = useRef<{ ox: number; oy: number; px: number; py: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const posRef = useRef(pos);
+  posRef.current = pos;
+
+  useEffect(() => {
+    setMounted(true);
+    setPos(loadPos());
+  }, []);
+
+  useLayoutEffect(() => {
+    const onResize = () => setPos((p) => clampPos(p.x, p.y));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const tick = useCallback(() => {
     if (startedAtRef.current == null) return;
@@ -91,8 +122,6 @@ export function ContSheetStopwatch({
       const tag = t?.tagName?.toLowerCase();
       const editable =
         tag === "input" || tag === "textarea" || tag === "select" || t?.isContentEditable;
-      // Allow shortcut when a take is selected even if focus is elsewhere;
-      // block when typing in fields without a selected take target.
       if (editable && !canCommit) return;
       if (editable && tag === "textarea") return;
       e.preventDefault();
@@ -114,14 +143,7 @@ export function ContSheetStopwatch({
     if (!dragRef.current) return;
     const dx = e.clientX - dragRef.current.ox;
     const dy = e.clientY - dragRef.current.oy;
-    const parent = rootRef.current?.offsetParent as HTMLElement | null;
-    const maxX = Math.max(0, (parent?.clientWidth ?? window.innerWidth) - 200);
-    const maxY = Math.max(0, (parent?.clientHeight ?? window.innerHeight) - 260);
-    const next = {
-      x: Math.min(maxX, Math.max(0, dragRef.current.px + dx)),
-      y: Math.min(maxY, Math.max(0, dragRef.current.py + dy)),
-    };
-    setPos(next);
+    setPos(clampPos(dragRef.current.px + dx, dragRef.current.py + dy));
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
@@ -132,18 +154,20 @@ export function ContSheetStopwatch({
     } catch {
       // ignore
     }
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(pos));
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(posRef.current));
   };
 
   const sec = elapsedMs / 1000;
-  const angle = (sec % 60) * 6; // degrees
+  const angle = (sec % 60) * 6;
   const digital = formatDurationMss(Math.floor(sec)) || "0:00";
   const tenths = Math.floor((elapsedMs % 1000) / 100);
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <div
       ref={rootRef}
-      className="absolute z-40 w-[190px] select-none touch-none"
+      className="fixed z-[9999] w-[190px] select-none touch-none"
       style={{ left: pos.x, top: pos.y }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -155,7 +179,7 @@ export function ContSheetStopwatch({
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-orange-200/90">
             Stopwatch
           </p>
-          <div className="flex items-center gap-1" data-sw-no-drag>
+          <div className="flex items-center gap-0.5" data-sw-no-drag>
             <button
               type="button"
               onClick={() => setHelpOpen((v) => !v)}
@@ -164,6 +188,16 @@ export function ContSheetStopwatch({
             >
               <HelpCircle className="h-3.5 w-3.5" />
             </button>
+            {onClose ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-full p-1 text-slate-400 hover:bg-white/10 hover:text-white"
+                aria-label="Close stopwatch"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -175,7 +209,9 @@ export function ContSheetStopwatch({
               className="absolute left-1/2 top-1/2 h-[58px] w-[2px] origin-bottom"
               style={{ transform: `translate(-50%, -100%) rotate(${m * 6}deg)` }}
             >
-              <div className={`mx-auto ${m % 15 === 0 ? "h-3 w-[2px] bg-orange-300" : "h-2 w-px bg-zinc-500"}`} />
+              <div
+                className={`mx-auto ${m % 15 === 0 ? "h-3 w-[2px] bg-orange-300" : "h-2 w-px bg-zinc-500"}`}
+              />
             </div>
           ))}
           <div
@@ -191,9 +227,7 @@ export function ContSheetStopwatch({
             <span className="text-sm text-slate-500">.{tenths}</span>
           </p>
           <p className="mt-1 truncate text-[10px] text-slate-400">
-            {selectedTakeLabel
-              ? `Target: ${selectedTakeLabel}`
-              : "Select a take row to fill time"}
+            {selectedTakeLabel ? `Target: ${selectedTakeLabel}` : "Select a take row to fill time"}
           </p>
           <div className="mt-2 flex items-center justify-center gap-2">
             <button
@@ -232,13 +266,18 @@ export function ContSheetStopwatch({
             </div>
             <ol className="list-decimal space-y-1 pl-4">
               <li>Click a take row so it is selected.</li>
-              <li>Press <kbd className="rounded bg-white/10 px-1">Shift</kbd> + <kbd className="rounded bg-white/10 px-1">S</kbd> (or Start) when the slate rolls.</li>
-              <li>Press again to stop — time fills that take.</li>
-              <li>Drag the header to move the watch on this page only.</li>
+              <li>
+                Press{" "}
+                <kbd className="rounded bg-white/10 px-1">Shift</kbd> +{" "}
+                <kbd className="rounded bg-white/10 px-1">S</kbd> (or Start) when the slate rolls.
+              </li>
+              <li>Press again to stop — time fills that take and updates totals.</li>
+              <li>Drag the header to move anywhere on screen. Close with ×; reopen from the toolbar.</li>
             </ol>
           </div>
         ) : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

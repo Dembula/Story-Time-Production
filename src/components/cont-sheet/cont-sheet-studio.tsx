@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Plus, Save, Sparkles, Trash2 } from "lucide-react";
+import { Clock3, Download, FilePlus2, Plus, Save, Sparkles, Trash2 } from "lucide-react";
 import { ContSheetStopwatch } from "@/components/cont-sheet/cont-sheet-stopwatch";
 import { projectToolQueryFn } from "@/lib/project-tool-fetch";
+import { deriveContSheetMetrics } from "@/lib/cont-sheet/derive";
 import {
   formatDurationMss,
   normalizePrintStatus,
@@ -110,7 +111,7 @@ function emptyScene(sortOrder = 0): SceneRow {
 
 function mapApiDay(day: Record<string, unknown>): DayState {
   const scenes = Array.isArray(day.scenes) ? day.scenes : [];
-  return {
+  const mapped: DayState = {
     id: typeof day.id === "string" ? day.id : undefined,
     shootDayId: String(day.shootDayId ?? ""),
     showTitle: String(day.showTitle ?? ""),
@@ -169,6 +170,7 @@ function mapApiDay(day: Record<string, unknown>): DayState {
       })),
     })),
   };
+  return deriveContSheetMetrics(mapped);
 }
 
 const field =
@@ -187,6 +189,8 @@ export function ContSheetStudio({ projectId, title }: Props) {
   const [selectedTakeKey, setSelectedTakeKey] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [stopwatchOpen, setStopwatchOpen] = useState(true);
+  const [exportBusy, setExportBusy] = useState(false);
 
   const { data: listData, isLoading: listLoading } = useQuery({
     queryKey: ["project-cont-sheet", projectId],
@@ -223,21 +227,37 @@ export function ContSheetStudio({ projectId, title }: Props) {
   }, [dayData]);
 
   const prefill = useMutation({
-    mutationFn: async (forcePrefill: boolean) => {
+    mutationFn: async (opts: { forcePrefill?: boolean; blank?: boolean } = {}) => {
       const res = await fetch(`/api/creator/projects/${projectId}/cont-sheet`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shootDayId, forcePrefill }),
+        body: JSON.stringify({
+          shootDayId,
+          forcePrefill: Boolean(opts.forcePrefill),
+          blank: Boolean(opts.blank),
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Prefill failed");
-      return json;
+      return { ...json, blank: Boolean(opts.blank) };
     },
     onSuccess: (json) => {
       const mapped = mapApiDay(json.day);
       setDay(mapped);
       setActiveSceneKey(mapped.scenes[0]?.clientKey ?? null);
-      setMessage(json.reset ? "Reset from schedule." : json.created ? "Cont sheet created." : "Loaded existing cont sheet.");
+      setSelectedTakeKey(mapped.scenes[0]?.takes[0]?.clientKey ?? null);
+      setStopwatchOpen(true);
+      setMessage(
+        json.blank
+          ? json.reset
+            ? "Blank sheet ready — previous day cleared."
+            : "Blank Cont Sheet created."
+          : json.reset
+            ? "Reset from schedule."
+            : json.created
+              ? "Cont sheet created from schedule."
+              : "Loaded existing cont sheet.",
+      );
       setError("");
       qc.invalidateQueries({ queryKey: ["project-cont-sheet", projectId] });
       qc.invalidateQueries({ queryKey: ["project-cont-sheet-day", projectId, shootDayId] });
@@ -331,16 +351,16 @@ export function ContSheetStudio({ projectId, title }: Props) {
   const updateScene = (clientKey: string, patch: Partial<SceneRow>) =>
     setDay((d) => {
       if (!d) return d;
-      return {
+      return deriveContSheetMetrics({
         ...d,
         scenes: d.scenes.map((s) => (s.clientKey === clientKey ? { ...s, ...patch } : s)),
-      };
+      });
     });
 
   const updateTake = (sceneKey: string, takeKey: string, patch: Partial<TakeRow>) =>
     setDay((d) => {
       if (!d) return d;
-      return {
+      return deriveContSheetMetrics({
         ...d,
         scenes: d.scenes.map((s) =>
           s.clientKey !== sceneKey
@@ -350,33 +370,49 @@ export function ContSheetStudio({ projectId, title }: Props) {
                 takes: s.takes.map((t) => (t.clientKey === takeKey ? { ...t, ...patch } : t)),
               },
         ),
-      };
+      });
     });
 
   const commitDuration = useCallback(
     (durationSec: number) => {
-      if (!day || !activeScene || !selectedTakeKey) return;
-      updateTake(activeScene.clientKey, selectedTakeKey, { durationSec });
-      setMessage(`Filled ${formatDurationMss(durationSec)} into selected take.`);
+      if (!activeSceneKey || !selectedTakeKey) return;
+      setDay((d) => {
+        if (!d) return d;
+        return deriveContSheetMetrics({
+          ...d,
+          scenes: d.scenes.map((s) =>
+            s.clientKey !== activeSceneKey
+              ? s
+              : {
+                  ...s,
+                  takes: s.takes.map((t) =>
+                    t.clientKey === selectedTakeKey ? { ...t, durationSec } : t,
+                  ),
+                },
+          ),
+        });
+      });
+      setMessage(`Filled ${formatDurationMss(durationSec)} into selected take · totals updated.`);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [day, activeScene, selectedTakeKey],
+    [activeSceneKey, selectedTakeKey],
   );
 
   async function handleExport(mode: "print" | "pdf") {
     if (!day || !projectId) return;
+    const live = deriveContSheetMetrics(day);
+    setDay(live);
     const exportDay = {
-      showTitle: day.showTitle,
-      productionCompany: day.productionCompany,
-      callSheetNumber: day.callSheetNumber,
-      reportDate: day.reportDate,
-      cameraUnit: day.cameraUnit,
-      crew: day.crew,
-      dayClock: day.dayClock,
-      scenesSummary: day.scenesSummary,
-      totals: day.totals,
-      notes: day.notes,
-      scenes: day.scenes.map((s) => ({
+      showTitle: live.showTitle,
+      productionCompany: live.productionCompany,
+      callSheetNumber: live.callSheetNumber,
+      reportDate: live.reportDate,
+      cameraUnit: live.cameraUnit,
+      crew: live.crew,
+      dayClock: live.dayClock,
+      scenesSummary: live.scenesSummary,
+      totals: live.totals,
+      notes: live.notes,
+      scenes: live.scenes.map((s) => ({
         episode: s.episode,
         sceneCode: s.sceneCode,
         dayNight: s.dayNight,
@@ -391,17 +427,27 @@ export function ContSheetStudio({ projectId, title }: Props) {
       })),
     };
     const bodyHtml = buildContSheetBodyHtml(exportDay);
-    const docTitle = `Cont Sheet DPR ${day.callSheetNumber || ""} ${day.reportDate || ""}`.trim();
-    if (mode === "print") {
-      printHtmlDocument({ title: docTitle, bodyHtml, extraCss: CONT_SHEET_PRINT_CSS });
-      return;
+    const docTitle = `Cont Sheet DPR ${live.callSheetNumber || ""} ${live.reportDate || ""}`.trim();
+    try {
+      setExportBusy(true);
+      setError("");
+      if (mode === "print") {
+        printHtmlDocument({ title: docTitle, bodyHtml, extraCss: CONT_SHEET_PRINT_CSS });
+        setMessage("Print dialog opened — DPR + Cont Sheets in one document.");
+        return;
+      }
+      await downloadPdfFromHtmlDocument({
+        title: docTitle,
+        bodyHtml,
+        extraCss: CONT_SHEET_PRINT_CSS,
+        filename: `cont-sheet-DPR-${live.callSheetNumber || "draft"}-${(live.reportDate || "day").replace(/\//g, "-")}.pdf`,
+      });
+      setMessage("PDF downloaded — DPR first, then one Cont Sheet page per scene.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Export failed");
+    } finally {
+      setExportBusy(false);
     }
-    await downloadPdfFromHtmlDocument({
-      title: docTitle,
-      bodyHtml,
-      extraCss: CONT_SHEET_PRINT_CSS,
-      filename: `cont-sheet-DPR-${day.callSheetNumber || "draft"}-${(day.reportDate || "day").replace(/\//g, "-")}.pdf`,
-    });
   }
 
   if (!projectId) {
@@ -416,8 +462,8 @@ export function ContSheetStudio({ projectId, title }: Props) {
   }
 
   return (
-    <div className="relative min-h-[70vh] space-y-5">
-      {day ? (
+    <div className="min-h-[70vh] space-y-5">
+      {day && stopwatchOpen ? (
         <ContSheetStopwatch
           selectedTakeLabel={
             selectedTake
@@ -426,6 +472,7 @@ export function ContSheetStudio({ projectId, title }: Props) {
           }
           canCommit={Boolean(selectedTake)}
           onCommitDuration={commitDuration}
+          onClose={() => setStopwatchOpen(false)}
         />
       ) : null}
 
@@ -433,7 +480,7 @@ export function ContSheetStudio({ projectId, title }: Props) {
         <div>
           <h1 className="font-display text-2xl font-semibold text-white">{title}</h1>
           <p className="mt-1 text-sm text-slate-400">
-            Script supervisor Cont Sheet + Daily Progress Report. Manual entry with schedule prefill.
+            Script supervisor Cont Sheet + Daily Progress Report. Prefill from schedule or start blank.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -453,11 +500,28 @@ export function ContSheetStudio({ projectId, title }: Props) {
           <button
             type="button"
             disabled={!shootDayId || prefill.isPending}
-            onClick={() => prefill.mutate(false)}
+            onClick={() => prefill.mutate({ forcePrefill: false })}
             className="inline-flex items-center gap-1.5 rounded-xl border border-orange-400/35 bg-orange-500/10 px-3 py-2 text-xs font-semibold text-orange-100 hover:bg-orange-500/20 disabled:opacity-50"
           >
             <Sparkles className="h-3.5 w-3.5" />
             {day ? "Reload" : "Prefill from schedule"}
+          </button>
+          <button
+            type="button"
+            disabled={!shootDayId || prefill.isPending}
+            onClick={() => {
+              if (
+                day &&
+                !window.confirm("Replace this day with a blank Cont Sheet? Take logs will be cleared.")
+              ) {
+                return;
+              }
+              prefill.mutate({ blank: true });
+            }}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-white/12 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-orange-400/35 disabled:opacity-50"
+          >
+            <FilePlus2 className="h-3.5 w-3.5" />
+            Blank sheet
           </button>
           {day ? (
             <button
@@ -465,12 +529,24 @@ export function ContSheetStudio({ projectId, title }: Props) {
               disabled={prefill.isPending}
               onClick={() => {
                 if (window.confirm("Reset this day from schedule? Your take logs will be replaced.")) {
-                  prefill.mutate(true);
+                  prefill.mutate({ forcePrefill: true });
                 }
               }}
               className="rounded-xl border border-white/12 px-3 py-2 text-xs text-slate-300"
             >
               Reset from schedule
+            </button>
+          ) : null}
+          {day ? (
+            <button
+              type="button"
+              onClick={() => setStopwatchOpen(true)}
+              disabled={stopwatchOpen}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-40"
+              title="Show floating stopwatch over the full screen"
+            >
+              <Clock3 className="h-3.5 w-3.5" />
+              {stopwatchOpen ? "Stopwatch open" : "Show stopwatch"}
             </button>
           ) : null}
           <button
@@ -484,16 +560,16 @@ export function ContSheetStudio({ projectId, title }: Props) {
           </button>
           <button
             type="button"
-            disabled={!day}
+            disabled={!day || exportBusy}
             onClick={() => void handleExport("pdf")}
             className="inline-flex items-center gap-1.5 rounded-xl border border-white/12 px-3 py-2 text-xs font-semibold text-white hover:border-orange-400/40 disabled:opacity-50"
           >
             <Download className="h-3.5 w-3.5" />
-            Export PDF
+            {exportBusy ? "Exporting…" : "Export PDF"}
           </button>
           <button
             type="button"
-            disabled={!day}
+            disabled={!day || exportBusy}
             onClick={() => void handleExport("print")}
             className="rounded-xl border border-white/12 px-3 py-2 text-xs text-slate-300 disabled:opacity-50"
           >
@@ -520,10 +596,17 @@ export function ContSheetStudio({ projectId, title }: Props) {
           <p className="text-sm text-slate-300">No Cont Sheet for this day yet.</p>
           <button
             type="button"
-            onClick={() => prefill.mutate(false)}
+            onClick={() => prefill.mutate({ forcePrefill: false })}
             className="mt-3 rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-slate-950"
           >
             Prefill from call sheet &amp; schedule
+          </button>
+          <button
+            type="button"
+            onClick={() => prefill.mutate({ blank: true })}
+            className="mt-2 rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-slate-200"
+          >
+            Start blank sheet
           </button>
         </div>
       ) : (
@@ -689,7 +772,10 @@ export function ContSheetStudio({ projectId, title }: Props) {
                   onClick={() =>
                     setDay((d) =>
                       d
-                        ? { ...d, scenes: [...d.scenes, emptyScene(d.scenes.length)] }
+                        ? deriveContSheetMetrics({
+                            ...d,
+                            scenes: [...d.scenes, emptyScene(d.scenes.length)],
+                          })
                         : d,
                     )
                   }
@@ -700,7 +786,11 @@ export function ContSheetStudio({ projectId, title }: Props) {
               </div>
 
               <div>
-                <h3 className="mb-2 text-sm font-semibold text-orange-200">Totals</h3>
+                <h3 className="mb-1 text-sm font-semibold text-orange-200">Totals</h3>
+                <p className="mb-2 text-[11px] text-slate-500">
+                  Est/act, scene chips, and today&apos;s screen time / slates update from takes &amp; scene
+                  status. Override any field anytime.
+                </p>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <label className="text-xs text-slate-400">
                     Total est time
@@ -730,6 +820,63 @@ export function ContSheetStudio({ projectId, title }: Props) {
                       onChange={(e) =>
                         updateDay({ totals: { ...day.totals, totalPages: e.target.value } })
                       }
+                    />
+                  </label>
+                  <label className="text-xs text-slate-400">
+                    Today screen time
+                    <input
+                      className={field}
+                      value={day.totals.today?.screenTime ?? ""}
+                      onChange={(e) =>
+                        updateDay({
+                          totals: {
+                            ...day.totals,
+                            today: { ...day.totals.today, screenTime: e.target.value },
+                          },
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="text-xs text-slate-400">
+                    Today scenes shot
+                    <input
+                      className={field}
+                      value={day.totals.today?.scenesShot ?? ""}
+                      onChange={(e) =>
+                        updateDay({
+                          totals: {
+                            ...day.totals,
+                            today: {
+                              ...day.totals.today,
+                              scenesShot: e.target.value ? Number(e.target.value) : undefined,
+                            },
+                          },
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="text-xs text-slate-400">
+                    Today slates / cards
+                    <input
+                      className={field}
+                      value={
+                        day.totals.today?.slates != null || day.totals.today?.cards != null
+                          ? `${day.totals.today?.slates ?? "—"} / ${day.totals.today?.cards ?? "—"}`
+                          : ""
+                      }
+                      onChange={(e) => {
+                        const [slatesRaw, cardsRaw] = e.target.value.split("/").map((p) => p.trim());
+                        updateDay({
+                          totals: {
+                            ...day.totals,
+                            today: {
+                              ...day.totals.today,
+                              slates: slatesRaw && slatesRaw !== "—" ? Number(slatesRaw) : undefined,
+                              cards: cardsRaw && cardsRaw !== "—" ? Number(cardsRaw) : undefined,
+                            },
+                          },
+                        });
+                      }}
                     />
                   </label>
                 </div>
@@ -775,7 +922,11 @@ export function ContSheetStudio({ projectId, title }: Props) {
                   type="button"
                   onClick={() => {
                     const scene = emptyScene(day.scenes.length);
-                    setDay((d) => (d ? { ...d, scenes: [...d.scenes, scene] } : d));
+                    setDay((d) =>
+                      d
+                        ? deriveContSheetMetrics({ ...d, scenes: [...d.scenes, scene] })
+                        : d,
+                    );
                     setActiveSceneKey(scene.clientKey);
                     setSelectedTakeKey(scene.takes[0].clientKey);
                   }}
@@ -986,8 +1137,16 @@ export function ContSheetStudio({ projectId, title }: Props) {
                     type="button"
                     onClick={() => {
                       const take = emptyTake(activeScene.takes.length);
-                      updateScene(activeScene.clientKey, {
-                        takes: [...activeScene.takes, take],
+                      setDay((d) => {
+                        if (!d) return d;
+                        return deriveContSheetMetrics({
+                          ...d,
+                          scenes: d.scenes.map((s) =>
+                            s.clientKey === activeScene.clientKey
+                              ? { ...s, takes: [...s.takes, take] }
+                              : s,
+                          ),
+                        });
                       });
                       setSelectedTakeKey(take.clientKey);
                     }}

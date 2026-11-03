@@ -45,6 +45,84 @@ function estimateFromPages(pageCount: number | null | undefined): string | null 
   return `${m}:${String(r).padStart(2, "0")}`;
 }
 
+/** Empty Cont Sheet for solo / manual fill (still tied to a shoot day for storage). */
+export async function buildBlankContSheet(
+  projectId: string,
+  shootDayId: string,
+): Promise<ContSheetDayPayload> {
+  const [project, shootDay] = await Promise.all([
+    prisma.originalProject.findUnique({
+      where: { id: projectId },
+      select: { title: true },
+    }),
+    prisma.shootDay.findFirst({
+      where: { id: shootDayId, projectId },
+      select: { id: true, date: true, unit: true, callTime: true, wrapTime: true },
+    }),
+  ]);
+
+  if (!shootDay) {
+    throw new Error("Shoot day not found.");
+  }
+
+  return {
+    shootDayId,
+    showTitle: project?.title ?? null,
+    productionCompany: null,
+    callSheetNumber: null,
+    reportDate: formatReportDate(shootDay.date),
+    cameraUnit: shootDay.unit || "A",
+    crew: {},
+    dayClock: {
+      callTime: shootDay.callTime ?? undefined,
+      wrapTime: shootDay.wrapTime ?? undefined,
+    },
+    scenesSummary: {
+      scheduled: [],
+      completed: [],
+      dropped: [],
+      added: [],
+      partlyShot: [],
+    },
+    totals: {
+      totalEstTime: "",
+      totalActTime: "",
+      totalPages: "",
+      previous: { scenesShot: 0, screenTime: "0:00", cards: 0, slates: 0, pages: "" },
+      today: { scenesShot: 0, screenTime: "0:00", cards: 0, slates: 0, pages: "" },
+      total: { scenesShot: 0, screenTime: "0:00", cards: 0, slates: 0, pages: "" },
+    },
+    notes: null,
+    scenes: [
+      {
+        episode: null,
+        sceneCode: "1",
+        dayNight: null,
+        intExt: null,
+        location: null,
+        weather: null,
+        estimatedTiming: null,
+        actualTiming: null,
+        completionStatus: "scheduled",
+        sortOrder: 0,
+        takes: [
+          {
+            slate: "",
+            takeNumber: 1,
+            pickup: 1,
+            printStatus: "",
+            durationSec: null,
+            description: "",
+            notes: "",
+            camera: "A",
+            sortOrder: 0,
+          },
+        ],
+      },
+    ],
+  };
+}
+
 /** Build a Cont Sheet day draft from shoot day, call sheet, and scheduled scenes. */
 export async function buildContSheetPrefill(
   projectId: string,

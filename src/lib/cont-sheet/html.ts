@@ -55,9 +55,21 @@ export type ContSheetExportDay = {
 };
 
 export const CONT_SHEET_PRINT_CSS = `
-.cs-doc { font-family: "Segoe UI", Helvetica, Arial, sans-serif; color: #111; font-size: 11px; }
-.cs-page { page-break-after: always; padding: 0.5in 0.55in; }
-.cs-page:last-child { page-break-after: auto; }
+.cs-doc { font-family: "Segoe UI", Helvetica, Arial, sans-serif; color: #111; font-size: 11px; background: #fff; }
+.doc-page.cs-page,
+.cs-page {
+  position: relative;
+  box-sizing: border-box;
+  width: 8.5in;
+  min-height: 11in;
+  margin: 0 auto;
+  padding: 0.5in 0.55in;
+  background: #fff;
+  page-break-after: always;
+  break-after: page;
+}
+.doc-page.cs-page:last-child,
+.cs-page:last-child { page-break-after: auto; break-after: auto; }
 .cs-kicker { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: #64748b; font-weight: 700; }
 .cs-title { font-size: 18px; font-weight: 700; margin: 4px 0 10px; }
 .cs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; margin-bottom: 12px; }
@@ -95,7 +107,7 @@ export function buildContSheetBodyHtml(day: ContSheetExportDay): string {
   const total = totals.total ?? {};
 
   const dpr = `
-<article class="cs-page">
+<article class="doc-page cs-page">
   <p class="cs-kicker">Daily Progress Report${day.cameraUnit ? ` · Cam ${esc(day.cameraUnit)}` : ""}</p>
   <h1 class="cs-title">${esc(day.showTitle || "Cont Sheet / DPR")}</h1>
   <div class="cs-grid">
@@ -189,15 +201,23 @@ export function buildContSheetBodyHtml(day: ContSheetExportDay): string {
             <td>${t.pickup != null ? esc(String(t.pickup)) : ""}</td>
             <td>${esc(status)}</td>
             <td>${esc(formatDurationMss(t.durationSec))}</td>
+            <td>${esc(t.camera || day.cameraUnit)}</td>
             <td>${esc(t.description)}</td>
             <td>${esc(t.notes)}</td>
           </tr>`;
               })
               .join("")
-          : `<tr><td colspan="7">No takes logged</td></tr>`;
+          : `<tr><td colspan="8">No takes logged</td></tr>`;
+
+      const printTakes = s.takes.filter((t) => normalizePrintStatus(t.printStatus) === "PRINT");
+      const sceneAct =
+        s.actualTiming ||
+        formatDurationMss(
+          s.takes.reduce((acc, t) => acc + (typeof t.durationSec === "number" ? t.durationSec : 0), 0),
+        );
 
       return `
-<article class="cs-page">
+<article class="doc-page cs-page">
   <p class="cs-kicker">Continuity Sheet${s.takes[0]?.camera ? ` · Cam ${esc(s.takes[0].camera)}` : day.cameraUnit ? ` · Cam ${esc(day.cameraUnit)}` : ""}</p>
   <h1 class="cs-title">EP ${esc(s.episode || "—")} · Scene ${esc(s.sceneCode)}</h1>
   <div class="cs-grid">
@@ -207,15 +227,20 @@ export function buildContSheetBodyHtml(day: ContSheetExportDay): string {
     ${meta("Int / Ext", s.intExt)}
     ${meta("Location", s.location)}
     ${meta("Weather", s.weather)}
+    ${meta("Est timing", s.estimatedTiming)}
+    ${meta("Actual timing", sceneAct)}
+    ${meta("Status", s.completionStatus)}
+    ${meta("PRINT takes", String(printTakes.length))}
   </div>
   <table class="cs-table">
     <thead>
       <tr>
-        <th style="width:12%">Slate</th>
-        <th style="width:10%">Take</th>
-        <th style="width:8%">P/U</th>
-        <th style="width:12%">Print/NG</th>
-        <th style="width:10%">Time</th>
+        <th style="width:11%">Slate</th>
+        <th style="width:8%">Take</th>
+        <th style="width:7%">P/U</th>
+        <th style="width:10%">Print/NG</th>
+        <th style="width:9%">Time</th>
+        <th style="width:7%">Cam</th>
         <th style="width:28%">Description</th>
         <th style="width:20%">Notes</th>
       </tr>
@@ -227,5 +252,16 @@ export function buildContSheetBodyHtml(day: ContSheetExportDay): string {
     })
     .join("\n");
 
-  return `<div class="cs-doc">${dpr}${scenePages}</div>`;
+  // Always include DPR; if there are no scenes yet, still ship a blank cont-sheet page.
+  const sheets =
+    scenePages ||
+    `
+<article class="doc-page cs-page">
+  <p class="cs-kicker">Continuity Sheet</p>
+  <h1 class="cs-title">No scenes logged yet</h1>
+  <p>Add scenes and takes in Cont Sheet, then export again.</p>
+  <p class="cs-footer">Story Time Cont Sheet · ${esc(day.showTitle || "")}</p>
+</article>`;
+
+  return `<div class="cs-doc">${dpr}${sheets}</div>`;
 }

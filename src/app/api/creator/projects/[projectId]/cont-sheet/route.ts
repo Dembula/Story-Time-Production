@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureProjectAccess, projectAccessDenied } from "@/lib/project-access";
-import { buildContSheetPrefill } from "@/lib/cont-sheet/prefill";
+import { buildBlankContSheet, buildContSheetPrefill } from "@/lib/cont-sheet/prefill";
 import { serializeContSheetDay, extractPrintTakesForDailies } from "@/lib/cont-sheet/serialize";
 import type { ContSheetDayPayload, ContSheetSceneInput } from "@/lib/cont-sheet/types";
 import { normalizePrintStatus } from "@/lib/cont-sheet/types";
@@ -66,25 +66,30 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: "shootDayId is required." }, { status: 400 });
   }
 
+  const blank = Boolean(body.blank);
+  const forcePrefill = Boolean(body.forcePrefill) || blank;
+
   const existing = await prisma.contSheetDay.findUnique({
     where: { projectId_shootDayId: { projectId, shootDayId } },
     include: dayInclude,
   });
-  if (existing && !body.forcePrefill) {
+  if (existing && !forcePrefill) {
     return NextResponse.json({ day: serializeContSheetDay(existing), created: false });
   }
 
   let draft: ContSheetDayPayload;
   try {
-    draft = await buildContSheetPrefill(projectId, shootDayId);
+    draft = blank
+      ? await buildBlankContSheet(projectId, shootDayId)
+      : await buildContSheetPrefill(projectId, shootDayId);
   } catch (e) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Prefill failed" },
+      { error: e instanceof Error ? e.message : blank ? "Blank sheet failed" : "Prefill failed" },
       { status: 400 },
     );
   }
 
-  if (existing && body.forcePrefill) {
+  if (existing && forcePrefill) {
     await prisma.contSheetTake.deleteMany({
       where: { scene: { dayId: existing.id } },
     });
