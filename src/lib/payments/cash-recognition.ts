@@ -36,6 +36,11 @@ export function isDemoPaymentRecord(payment: PaymentLike): boolean {
     const env = String(meta.environment ?? "").toLowerCase();
     if (env === "sandbox" || env === "xcode" || env === "localtesting") return true;
   }
+  // Google Play license-test / sandbox purchases.
+  if (provider === "GOOGLE") {
+    const env = String(meta.environment ?? meta.purchaseType ?? "").toLowerCase();
+    if (env === "sandbox" || env === "test" || env === "license_test") return true;
+  }
   return false;
 }
 
@@ -68,16 +73,21 @@ export function isCashRecognizedPayment(payment: PaymentLike): boolean {
 
   const provider = String(payment.provider ?? "").toUpperCase();
   const settlementSource = String(payment.settlementSource ?? "").toLowerCase();
-  // Live PayFast (ITN or estimated settlement) and verified Apple IAP.
+  // Live PayFast, Apple IAP, and Google Play (incl. console remittance imports).
   // STITCH/DEMO/legacy do not count as cash.
   if (provider === "PAYFAST") return true;
   if (provider === "APPLE") return true;
+  if (provider === "GOOGLE") return true;
   if (
     settlementSource === "itn" ||
     settlementSource === "estimated" ||
     settlementSource === "apple_iap" ||
     settlementSource === "apple_estimated" ||
-    settlementSource === "apple_proceeds"
+    settlementSource === "apple_proceeds" ||
+    settlementSource === "google_play" ||
+    settlementSource === "google_estimated" ||
+    settlementSource === "google_proceeds" ||
+    settlementSource === "google_play_console"
   ) {
     return true;
   }

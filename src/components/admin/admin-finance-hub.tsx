@@ -361,7 +361,7 @@ export function AdminFinanceHub() {
               value={money.format(bundle.totals.gross)}
               hint={`${bundle.totals.paymentCount} cleared gateway payments`}
             />
-            <Kpi label="Gateway fees (cleared)" value={money.format(bundle.totals.gatewayFees)} hint="PayFast + Apple" />
+            <Kpi label="Gateway fees (cleared)" value={money.format(bundle.totals.gatewayFees)} hint="PayFast + Apple + Google Play" />
             <Kpi label="Net cleared settlement" value={money.format(bundle.totals.net)} hint="Cash after gateway cuts" />
             <Kpi
               label="Awaiting clear"
@@ -419,9 +419,9 @@ export function AdminFinanceHub() {
               hint={`${bundle.payouts.pendingCount} open · all-time queue`}
             />
             <Kpi
-              label="Creator unpaid (wallets)"
-              value={money.format(bundle.creatorUnpaid?.owedTotal ?? 0)}
-              hint={`${bundle.creatorUnpaid?.creatorCount ?? 0} creators · see details below`}
+              label="Creator unpaid liability"
+              value={money.format(bundle.creatorUnpaid?.liabilityTotal ?? bundle.creatorUnpaid?.owedTotal ?? 0)}
+              hint={`${bundle.creatorUnpaid?.creatorCount ?? 0} creators · wallets ${money.format(bundle.creatorUnpaid?.owedTotal ?? 0)} · pool ${money.format(bundle.creatorUnpaid?.undistributedPoolTotal ?? 0)}`}
             />
             <Kpi
               label="Free trial pipeline"
@@ -520,11 +520,13 @@ export function AdminFinanceHub() {
                       Creator unpaid liability
                     </span>
                     <span className="mt-0.5 block text-sm text-white">
-                      {money.format(bundle.creatorUnpaid?.owedTotal ?? 0)}
+                      {money.format(
+                        bundle.creatorUnpaid?.liabilityTotal ?? bundle.creatorUnpaid?.owedTotal ?? 0,
+                      )}
                       <span className="ml-2 text-xs font-normal text-teal-100/70">
-                        {bundle.creatorUnpaid?.creatorCount ?? 0} creators · available{" "}
-                        {money.format(bundle.creatorUnpaid?.availableTotal ?? 0)} · holds{" "}
-                        {money.format(bundle.creatorUnpaid?.pendingTotal ?? 0)}
+                        {bundle.creatorUnpaid?.creatorCount ?? 0} creators · wallets{" "}
+                        {money.format(bundle.creatorUnpaid?.owedTotal ?? 0)} · pool{" "}
+                        {money.format(bundle.creatorUnpaid?.undistributedPoolTotal ?? 0)}
                       </span>
                     </span>
                   </span>
@@ -540,15 +542,34 @@ export function AdminFinanceHub() {
 
               {creatorLiabilityOpen ? (
                 <div className="space-y-3 border-t border-teal-400/20 px-4 py-3">
-                  <p className="text-xs text-teal-100/75">
-                    Money already credited to creator wallets that has not been paid out to bank. Survives
-                    month rollover. Open payout queue{" "}
-                    {money.format(bundle.payouts.pendingAmount)}. As of{" "}
-                    {bundle.creatorUnpaid?.asOf
-                      ? new Date(bundle.creatorUnpaid.asOf).toLocaleString()
-                      : "—"}
-                    .
-                  </p>
+                  {(bundle.creatorUnpaid?.months?.length ?? 0) > 0 ? (
+                    <div className="overflow-x-auto rounded-lg border border-white/10">
+                      <table className="w-full min-w-[560px] text-left text-sm">
+                        <thead className="text-xs uppercase text-slate-500">
+                          <tr>
+                            <th className="px-3 py-2">Month</th>
+                            <th className="px-3 py-2">Viewer pool</th>
+                            <th className="px-3 py-2">Creator pool</th>
+                            <th className="px-3 py-2">Status</th>
+                            <th className="px-3 py-2">Unpaid pool</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {bundle.creatorUnpaid.months.map((m) => (
+                            <tr key={m.periodKey} className="border-t border-white/5">
+                              <td className="px-3 py-2 font-medium text-white">{m.periodKey}</td>
+                              <td className="px-3 py-2">{money.format(m.viewerPoolNet)}</td>
+                              <td className="px-3 py-2">{money.format(m.creatorPool)}</td>
+                              <td className="px-3 py-2 text-xs text-slate-400">
+                                {m.distributed ? "Distributed" : "Accruing"}
+                              </td>
+                              <td className="px-3 py-2">{money.format(m.unpaidPool)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
                   {(bundle.creatorUnpaid?.rows?.length ?? 0) > 0 ? (
                     <div className="overflow-x-auto rounded-lg border border-white/10">
                       <table className="w-full min-w-[640px] text-left text-sm">
@@ -585,11 +606,7 @@ export function AdminFinanceHub() {
                         </tbody>
                       </table>
                     </div>
-                  ) : (
-                    <p className="text-xs text-teal-100/70">
-                      No creator wallets currently holding unpaid balances.
-                    </p>
-                  )}
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -1052,9 +1069,21 @@ export function AdminFinanceHub() {
             <Kpi
               label="Estimated commission"
               value={money.format(bundle.gateways.appleEstimatedFees)}
-              hint={`Rate ${pct(bundle.feeSettings.appleCommissionRate)} (editable)`}
+              hint={pct(bundle.feeSettings.appleCommissionRate)}
             />
             <Kpi label="Proceeds-based fees" value={money.format(bundle.gateways.appleProceedsFees)} />
+          </div>
+          <div className="storytime-plan-card space-y-3 p-4">
+            <h2 className="text-sm font-semibold text-white">Google Play</h2>
+            <Kpi
+              label="Estimated commission"
+              value={money.format(bundle.gateways.googleEstimatedFees ?? 0)}
+              hint={pct(bundle.feeSettings.appleCommissionRate)}
+            />
+            <Kpi
+              label="Proceeds / console fees"
+              value={money.format(bundle.gateways.googleProceedsFees ?? 0)}
+            />
           </div>
           <div className="storytime-plan-card overflow-x-auto p-4 lg:col-span-2">
             <h2 className="text-sm font-semibold text-white">Settlement sources</h2>
@@ -1118,7 +1147,7 @@ export function AdminFinanceHub() {
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-xs text-slate-400">
-              Apple commission %
+              Apple / Google Play commission %
               <input
                 className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
                 value={settingsForm.appleCommissionRatePct}

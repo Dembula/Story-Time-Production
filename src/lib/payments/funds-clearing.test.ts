@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   APPLE_FUNDS_CLEAR_DAYS,
+  GOOGLE_FUNDS_CLEAR_DAYS,
   PAYFAST_FUNDS_CLEAR_DAYS,
   computeFundsClearDueAt,
   describeFundsClearStatus,
@@ -10,19 +11,23 @@ import {
 import { CREATOR_REVENUE_GO_LIVE_AT } from "@/lib/finance/revenue-tracking-start";
 
 describe("funds-clearing clocks", () => {
-  it("uses 3 days for PayFast and 45 for Apple", () => {
+  it("uses 3 days for PayFast, 45 for Apple, 15 for Google", () => {
     assert.equal(fundsClearDelayDaysForProvider("PAYFAST"), PAYFAST_FUNDS_CLEAR_DAYS);
     assert.equal(fundsClearDelayDaysForProvider("APPLE"), APPLE_FUNDS_CLEAR_DAYS);
+    assert.equal(fundsClearDelayDaysForProvider("GOOGLE"), GOOGLE_FUNDS_CLEAR_DAYS);
     assert.equal(PAYFAST_FUNDS_CLEAR_DAYS, 3);
     assert.equal(APPLE_FUNDS_CLEAR_DAYS, 45);
+    assert.equal(GOOGLE_FUNDS_CLEAR_DAYS, 15);
   });
 
   it("computes clear-due from paidAt", () => {
     const paidAt = new Date("2026-09-18T10:00:00.000Z");
     const pf = computeFundsClearDueAt(paidAt, "PAYFAST");
     const apple = computeFundsClearDueAt(paidAt, "APPLE");
+    const google = computeFundsClearDueAt(paidAt, "GOOGLE");
     assert.equal(pf.toISOString(), "2026-09-21T10:00:00.000Z");
     assert.equal(apple.toISOString(), "2026-11-02T10:00:00.000Z");
+    assert.equal(google.toISOString(), "2026-10-03T10:00:00.000Z");
   });
 
   it("describes pending and cleared states with provider day tags", () => {

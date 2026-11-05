@@ -12,6 +12,15 @@ import {
   detectGoogleStoreFreeTrial,
   storeTrialPaymentMeta,
 } from "@/lib/payments/store-trial";
+import { resolveGooglePlaySettlement } from "@/lib/payments/google-play/settlement";
+import { bookGooglePlayLedgerIfCash } from "@/lib/payments/google-play/ledger";
+import { resolveGooglePlayPackageName } from "@/lib/payments/google-play/config";
+import {
+  acknowledgeGooglePlayProduct,
+  acknowledgeGooglePlaySubscription,
+  requireGooglePlayProductVerification,
+  requireGooglePlaySubscriptionVerification,
+} from "@/lib/payments/google-play/verify";
 
 const db = prisma as any;
 
@@ -73,6 +82,14 @@ export async function activateGoogleViewerSubscription(options: {
     });
   }
 
+  const packageName = resolveGooglePlayPackageName(options.body.packageName, "universe");
+  const verified = await requireGooglePlaySubscriptionVerification({
+    packageName,
+    purchaseToken,
+    expectedProductId: productId,
+  });
+  void acknowledgeGooglePlaySubscription({ packageName, purchaseToken });
+
   const prior = await findGooglePayment(purchaseToken);
   if (prior?.status === "SUCCEEDED" && prior.relatedEntityType === "ViewerSubscription" && prior.relatedEntityId) {
     if (prior.userId && prior.userId !== options.userId) {
@@ -113,8 +130,14 @@ export async function activateGoogleViewerSubscription(options: {
   const planCode = mapped.planCode;
   const planConfig = VIEWER_PLAN_CONFIG[planCode];
   const periodEnd =
-    isFreeTrial && trialEndsAt ? trialEndsAt : addBillingPeriod(now, mapped.billingInterval);
-  const orderId = String(options.body.orderId ?? purchaseToken).trim();
+    verified?.expiryTime && verified.expiryTime.getTime() > now.getTime()
+      ? verified.expiryTime
+      : isFreeTrial && trialEndsAt
+        ? trialEndsAt
+        : addBillingPeriod(now, mapped.billingInterval);
+  const orderId = String(
+    options.body.orderId ?? verified?.orderId ?? purchaseToken,
+  ).trim();
 
   const subData = {
     viewerModel: VIEWER_MODELS.SUBSCRIPTION,
@@ -146,21 +169,36 @@ export async function activateGoogleViewerSubscription(options: {
       ? planConfig.yearlyPrice
       : planConfig.price;
 
+  const settlement = isFreeTrial
+    ? {
+        providerFeeAmount: 0,
+        settlementAmount: 0,
+        settlementSource: "free_trial" as const,
+        metadataExtras: {},
+      }
+    : await resolveGooglePlaySettlement({ gross: amount, source: "play_billing" });
+
   const meta = {
     productId,
     purchaseToken,
     orderId,
-    packageName: options.body.packageName ?? null,
+    packageName,
     plan: planCode,
     billingInterval: mapped.billingInterval,
     source: "android_app",
     listPriceZar:
       mapped.billingInterval === "year" ? planConfig.yearlyPrice : planConfig.price,
+    googleVerified: Boolean(verified),
+    googleSubscriptionState: verified?.subscriptionState ?? null,
+    googleTestPurchase: verified?.testPurchase ?? false,
+    environment: verified?.testPurchase ? "license_test" : "production",
     ...storeTrialPaymentMeta(trial),
+    ...settlement.metadataExtras,
   };
 
+  let paymentId: string;
   if (prior) {
-    await db.paymentRecord.update({
+    const updated = await db.paymentRecord.update({
       where: { id: prior.id },
       data: {
         status: "SUCCEEDED",
@@ -171,14 +209,15 @@ export async function activateGoogleViewerSubscription(options: {
         relatedEntityId: subscription.id,
         providerPaymentId: purchaseToken,
         gatewayTransactionId: purchaseToken,
-        settlementSource: isFreeTrial ? "free_trial" : "google_play",
-        settlementAmount: isFreeTrial ? 0 : amount,
-        providerFeeAmount: 0,
+        settlementSource: isFreeTrial ? "free_trial" : settlement.settlementSource,
+        settlementAmount: isFreeTrial ? 0 : settlement.settlementAmount,
+        providerFeeAmount: isFreeTrial ? 0 : settlement.providerFeeAmount,
         metadata: meta,
       },
     });
+    paymentId = updated.id;
   } else {
-    await db.paymentRecord.create({
+    const created = await db.paymentRecord.create({
       data: {
         userId: options.userId,
         email: options.email ?? undefined,
@@ -191,12 +230,24 @@ export async function activateGoogleViewerSubscription(options: {
         relatedEntityId: subscription.id,
         providerPaymentId: purchaseToken,
         gatewayTransactionId: purchaseToken,
-        settlementSource: isFreeTrial ? "free_trial" : "google_play",
-        settlementAmount: isFreeTrial ? 0 : amount,
-        providerFeeAmount: 0,
+        settlementSource: isFreeTrial ? "free_trial" : settlement.settlementSource,
+        settlementAmount: isFreeTrial ? 0 : settlement.settlementAmount,
+        providerFeeAmount: isFreeTrial ? 0 : settlement.providerFeeAmount,
         paidAt: now,
         metadata: meta,
       },
+    });
+    paymentId = created.id;
+  }
+
+  if (!isFreeTrial && amount > 0) {
+    await bookGooglePlayLedgerIfCash({
+      id: paymentId,
+      amount,
+      settlementAmount: settlement.settlementAmount,
+      purpose: "viewer_subscription_google_play",
+      relatedEntityType: "ViewerSubscription",
+      relatedEntityId: subscription.id,
     });
   }
 
@@ -228,6 +279,14 @@ export async function activateGoogleViewerPpv(options: {
   if (productId !== GOOGLE_UNIVERSE_PPV_PRODUCT_ID && !productId.includes("ppv")) {
     throw Object.assign(new Error(`Unknown Google PPV productId: ${productId}`), { status: 400 });
   }
+
+  const packageName = resolveGooglePlayPackageName(options.body.packageName, "universe");
+  const verified = await requireGooglePlayProductVerification({
+    packageName,
+    productId,
+    purchaseToken,
+  });
+  void acknowledgeGooglePlayProduct({ packageName, productId, purchaseToken });
 
   const prior = await findGooglePayment(purchaseToken);
   if (prior?.status === "SUCCEEDED") {
@@ -276,7 +335,12 @@ export async function activateGoogleViewerPpv(options: {
         },
       });
 
-  await db.paymentRecord.create({
+  const settlement = await resolveGooglePlaySettlement({
+    gross: amount,
+    source: "play_billing",
+  });
+
+  const created = await db.paymentRecord.create({
     data: {
       userId: options.userId,
       email: options.email ?? undefined,
@@ -289,18 +353,32 @@ export async function activateGoogleViewerPpv(options: {
       relatedEntityId: access.id,
       providerPaymentId: purchaseToken,
       gatewayTransactionId: purchaseToken,
-      settlementSource: "google_play",
-      settlementAmount: amount,
-      providerFeeAmount: 0,
+      settlementSource: settlement.settlementSource,
+      settlementAmount: settlement.settlementAmount,
+      providerFeeAmount: settlement.providerFeeAmount,
       paidAt: now,
       metadata: {
         productId,
         purchaseToken,
-        orderId: options.body.orderId ?? null,
+        orderId: options.body.orderId ?? verified?.orderId ?? null,
         contentId,
+        packageName,
         source: "android_app",
+        googleVerified: Boolean(verified),
+        googleTestPurchase: verified?.testPurchase ?? false,
+        environment: verified?.testPurchase ? "license_test" : "production",
+        ...settlement.metadataExtras,
       },
     },
+  });
+
+  await bookGooglePlayLedgerIfCash({
+    id: created.id,
+    amount,
+    settlementAmount: settlement.settlementAmount,
+    purpose: "viewer_ppv_google_play",
+    relatedEntityType: "ViewerContentAccess",
+    relatedEntityId: access.id,
   });
 
   return {

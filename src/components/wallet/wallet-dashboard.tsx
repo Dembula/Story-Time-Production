@@ -33,12 +33,35 @@ export function WalletDashboard({
 
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const { data: session } = useSession();
+  const role = session?.user?.role;
+  const isCreatorRoleEarly = role === "CONTENT_CREATOR" || role === "MUSIC_CREATOR";
+
   const { data, refetch, isLoading } = useQuery({
     queryKey: ["wallet-page"],
     queryFn: async () => {
       const res = await fetch("/api/wallet");
       return readJsonOrThrow(res);
     },
+    refetchInterval: PAYEE_DASHBOARD_REFETCH_MS,
+  });
+  const { data: revenueMonths } = useQuery({
+    queryKey: ["creator-revenue-months"],
+    queryFn: async () => {
+      const res = await fetch("/api/creator/revenue?period=month");
+      if (!res.ok) return null;
+      return res.json() as Promise<{
+        months?: Array<{
+          periodKey: string;
+          revenue: number;
+          distributed: boolean;
+          distributedAmount: number;
+        }>;
+        unpaidAttributedTotal?: number;
+        attributedTotal?: number;
+      }>;
+    },
+    enabled: isCreatorRoleEarly,
     refetchInterval: PAYEE_DASHBOARD_REFETCH_MS,
   });
   const filterMutation = useMutation({
@@ -74,8 +97,6 @@ export function WalletDashboard({
     onSuccess: () => refetch(),
   });
 
-  const { data: session } = useSession();
-  const role = session?.user?.role;
   const userId = session?.user?.id ?? "";
   const wallet = data?.wallet;
   const isCreatorRole = role === "CONTENT_CREATOR" || role === "MUSIC_CREATOR";
@@ -149,6 +170,42 @@ export function WalletDashboard({
           Showing your personal creator earnings only. Platform treasury activity is kept on the finance ledger,
           not this wallet.
         </p>
+      ) : null}
+
+      {isCreatorRole && (revenueMonths?.months?.length ?? 0) > 0 ? (
+        <section className="storytime-section p-6">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-lg font-semibold">By month</h2>
+            <p className="text-xs text-slate-400">
+              Total R{money.format(Number(revenueMonths?.attributedTotal ?? 0))} · unpaid R
+              {money.format(Number(revenueMonths?.unpaidAttributedTotal ?? 0))}
+            </p>
+          </div>
+          <div className="mt-3 overflow-x-auto rounded-xl border border-white/10">
+            <table className="w-full min-w-[480px] text-left text-sm">
+              <thead className="text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="px-3 py-2">Month</th>
+                  <th className="px-3 py-2">Share</th>
+                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2">Credited</th>
+                </tr>
+              </thead>
+              <tbody>
+                {revenueMonths!.months!.map((m) => (
+                  <tr key={m.periodKey} className="border-t border-white/5">
+                    <td className="px-3 py-2 font-medium text-white">{m.periodKey}</td>
+                    <td className="px-3 py-2">R{money.format(m.revenue)}</td>
+                    <td className="px-3 py-2 text-xs text-slate-400">
+                      {m.distributed ? "Distributed" : "Accruing"}
+                    </td>
+                    <td className="px-3 py-2">R{money.format(m.distributedAmount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       ) : null}
 
       <section className="storytime-section p-6">

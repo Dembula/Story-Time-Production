@@ -95,6 +95,15 @@ export async function GET(request: NextRequest) {
 
   const { getRevenueConnector } = await import("@/lib/finance/revenue-connector");
   const connector = await getRevenueConnector();
+  const { fetchCreatorMonthlyShares } = await import("@/lib/finance/creator-monthly-accrual");
+  const {
+    APPLE_FUNDS_CLEAR_DAYS,
+    GOOGLE_FUNDS_CLEAR_DAYS,
+    PAYFAST_FUNDS_CLEAR_DAYS,
+  } = await import("@/lib/payments/funds-clearing-policy");
+  const monthlyShares = trackingEnabled
+    ? await fetchCreatorMonthlyShares(creatorId)
+    : { months: [], attributedTotal: 0, unpaidAttributedTotal: 0 };
 
   return NextResponse.json({
     revenue: revenue.revenue,
@@ -112,6 +121,9 @@ export async function GET(request: NextRequest) {
     walletTotalEarnings: trackingEnabled ? (wallet?.totalEarnings ?? 0) : 0,
     distributedToWallet: trackingEnabled ? distributedToWallet : 0,
     projectedRevenue: revenue.revenue,
+    months: monthlyShares.months,
+    attributedTotal: monthlyShares.attributedTotal,
+    unpaidAttributedTotal: monthlyShares.unpaidAttributedTotal,
     banking: banking
       ? {
           bankName: banking.bankName,
@@ -125,10 +137,10 @@ export async function GET(request: NextRequest) {
     revenueRules: {
       trackingStartedAt: connector.trackingStartedAt,
       clearedCashOnly: true,
-      payfastClearDays: 3,
-      appleClearDays: 45,
+      payfastClearDays: PAYFAST_FUNDS_CLEAR_DAYS,
+      appleClearDays: APPLE_FUNDS_CLEAR_DAYS,
+      googleClearDays: GOOGLE_FUNDS_CLEAR_DAYS,
       split: { creator: VIEWER_CREATOR_SPLIT, platform: 1 - VIEWER_CREATOR_SPLIT },
-      note: "Figures use cleared viewer cash only (PayFast 3d / Apple 45d). Existing subscribers contribute on renewal; new subscribers after the tracking start date.",
     },
   });
 }

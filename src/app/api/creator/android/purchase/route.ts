@@ -19,16 +19,19 @@ import {
   detectGoogleStoreFreeTrial,
   storeTrialPaymentMeta,
 } from "@/lib/payments/store-trial";
+import { resolveGoogleCreatorProduct } from "@/lib/payments/apple-iap/products";
+import { resolveGooglePlayPackageName } from "@/lib/payments/google-play/config";
+import {
+  acknowledgeGooglePlayProduct,
+  acknowledgeGooglePlaySubscription,
+  requireGooglePlayProductVerification,
+  requireGooglePlaySubscriptionVerification,
+} from "@/lib/payments/google-play/verify";
+import { resolveGooglePlaySettlement } from "@/lib/payments/google-play/settlement";
+import { bookGooglePlayLedgerIfCash } from "@/lib/payments/google-play/ledger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const ANDROID_PRODUCTS = {
-  uploadYearly: "online.storytime.creators.sub.upload.yearly",
-  pipelineMonthly: "online.storytime.creators.sub.pipeline.monthly",
-  pipelineYearly: "online.storytime.creators.sub.pipeline.yearly",
-  perFilmUpload: "online.storytime.creators.upload.perfilm",
-} as const;
 
 function addMonths(from: Date, months: number): Date {
   const d = new Date(from);
@@ -41,10 +44,33 @@ function resolveProduct(
   packageHint?: string | null,
   billingHint?: string | null,
 ) {
-  if (productId === ANDROID_PRODUCTS.perFilmUpload) {
+  const mapped = resolveGoogleCreatorProduct(productId);
+  if (mapped?.kind === "content_upload") {
     return { kind: "content_upload" as const, amount: CREATOR_PER_FILM_UPLOAD_PRICE };
   }
-  if (productId === ANDROID_PRODUCTS.uploadYearly || packageHint === "UPLOAD_YEARLY") {
+  if (mapped?.kind === "creator_license" && mapped.licenseType) {
+    const isMonthly = mapped.billing === "MONTHLY";
+    return {
+      kind: "creator_license" as const,
+      storedType: mapped.licenseType,
+      periodEnd: isMonthly
+        ? addMonths(new Date(), 1)
+        : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      amount:
+        mapped.package === "UPLOAD_YEARLY"
+          ? CREATOR_ONBOARDING_PLANS.UPLOAD_YEARLY.price
+          : mapped.package === "PIPELINE_MONTHLY"
+            ? CREATOR_ONBOARDING_PLANS.PIPELINE_MONTHLY.price
+            : CREATOR_ONBOARDING_PLANS.PIPELINE_YEARLY.price,
+      package:
+        mapped.package === "UPLOAD_YEARLY"
+          ? "UPLOAD_YEARLY"
+          : "PIPELINE",
+      billing: mapped.billing ?? "YEARLY",
+    };
+  }
+  // Legacy client hints
+  if (packageHint === "UPLOAD_YEARLY") {
     return {
       kind: "creator_license" as const,
       storedType: CREATOR_LICENSE_TYPE.UPLOAD_ONLY_YEARLY,
@@ -54,7 +80,7 @@ function resolveProduct(
       billing: "YEARLY",
     };
   }
-  if (productId === ANDROID_PRODUCTS.pipelineMonthly || (packageHint === "PIPELINE" && billingHint === "MONTHLY")) {
+  if (packageHint === "PIPELINE" && billingHint === "MONTHLY") {
     return {
       kind: "creator_license" as const,
       storedType: CREATOR_LICENSE_TYPE.PIPELINE_MONTHLY,
@@ -64,7 +90,7 @@ function resolveProduct(
       billing: "MONTHLY",
     };
   }
-  if (productId === ANDROID_PRODUCTS.pipelineYearly || (packageHint === "PIPELINE" && billingHint === "YEARLY")) {
+  if (packageHint === "PIPELINE" && billingHint === "YEARLY") {
     return {
       kind: "creator_license" as const,
       storedType: CREATOR_LICENSE_TYPE.PIPELINE_YEARLY,
@@ -77,12 +103,7 @@ function resolveProduct(
   return null;
 }
 
-/**
- * Body: productId, purchaseToken, orderId?, packageName?, kind, package?, billing?,
- * contentId?, source?, isFreeTrial?, offerId?, trialEndsAt?
- *
- * TODO: verify purchaseToken with Google Play Developer API before unlocking in production.
- */
+/** Body: productId, purchaseToken, orderId?, packageName?, kind, package?, billing?, contentId?, … */
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   const userId = (session?.user as { id?: string } | undefined)?.id;
@@ -124,6 +145,32 @@ export async function POST(req: NextRequest) {
   }
 
   const kind = (body?.kind as "creator_license" | "content_upload" | undefined) ?? resolved.kind;
+  const packageName = resolveGooglePlayPackageName(body?.packageName, "creators");
+
+  try {
+    if (kind === "content_upload") {
+      await requireGooglePlayProductVerification({
+        packageName,
+        productId,
+        purchaseToken,
+      });
+      void acknowledgeGooglePlayProduct({ packageName, productId, purchaseToken });
+    } else {
+      await requireGooglePlaySubscriptionVerification({
+        packageName,
+        purchaseToken,
+        expectedProductId: productId,
+      });
+      void acknowledgeGooglePlaySubscription({ packageName, purchaseToken });
+    }
+  } catch (err) {
+    const status =
+      typeof (err as { status?: number })?.status === "number" ? (err as { status: number }).status : 502;
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Google Play verification failed" },
+      { status: status >= 400 && status < 600 ? status : 502 },
+    );
+  }
 
   const existing = await prisma.paymentRecord.findFirst({
     where: {
@@ -162,7 +209,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Content not found." }, { status: 404 });
       }
 
-      await prisma.paymentRecord.create({
+      const settlement = await resolveGooglePlaySettlement({
+        gross: resolved.amount,
+        source: "play_billing",
+      });
+      const created = await prisma.paymentRecord.create({
         data: {
           userId,
           provider: "GOOGLE",
@@ -175,15 +226,26 @@ export async function POST(req: NextRequest) {
           relatedEntityId: content.id,
           gatewayTransactionId: gatewayId,
           providerPaymentId: purchaseToken,
-          settlementSource: "google_play",
-          settlementAmount: resolved.amount,
+          settlementSource: settlement.settlementSource,
+          settlementAmount: settlement.settlementAmount,
+          providerFeeAmount: settlement.providerFeeAmount,
           paidAt: new Date(),
           metadata: {
             productId,
-            packageName: body?.packageName,
+            packageName,
             source: body?.source ?? "android_app",
+            googleVerified: true,
+            ...settlement.metadataExtras,
           },
         },
+      });
+      await bookGooglePlayLedgerIfCash({
+        id: created.id,
+        amount: resolved.amount,
+        settlementAmount: settlement.settlementAmount,
+        purpose: CREATOR_FILM_UPLOAD_PURPOSE,
+        relatedEntityType: "Content",
+        relatedEntityId: content.id,
       });
 
       const updated = await prisma.content.update({
@@ -268,7 +330,16 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    await prisma.paymentRecord.create({
+    const settlement = isFreeTrial
+      ? {
+          providerFeeAmount: 0,
+          settlementAmount: 0,
+          settlementSource: "free_trial" as const,
+          metadataExtras: {},
+        }
+      : await resolveGooglePlaySettlement({ gross: amount, source: "play_billing" });
+
+    const created = await prisma.paymentRecord.create({
       data: {
         userId,
         provider: "GOOGLE",
@@ -281,21 +352,34 @@ export async function POST(req: NextRequest) {
         relatedEntityId: license.id,
         gatewayTransactionId: gatewayId,
         providerPaymentId: purchaseToken,
-        settlementSource: isFreeTrial ? "free_trial" : "google_play",
-        settlementAmount: amount,
-        providerFeeAmount: 0,
+        settlementSource: isFreeTrial ? "free_trial" : settlement.settlementSource,
+        settlementAmount: isFreeTrial ? 0 : settlement.settlementAmount,
+        providerFeeAmount: isFreeTrial ? 0 : settlement.providerFeeAmount,
         paidAt: new Date(),
         metadata: {
           productId,
           package: resolved.package,
           billing: resolved.billing,
-          packageName: body?.packageName,
+          packageName,
           source: body?.source ?? "android_app",
           listPriceZar: resolved.amount,
+          googleVerified: true,
           ...storeTrialPaymentMeta(trial),
+          ...settlement.metadataExtras,
         },
       },
     });
+
+    if (!isFreeTrial && amount > 0) {
+      await bookGooglePlayLedgerIfCash({
+        id: created.id,
+        amount,
+        settlementAmount: settlement.settlementAmount,
+        purpose: "creator_distribution_license_google_play",
+        relatedEntityType: "CreatorDistributionLicense",
+        relatedEntityId: license.id,
+      });
+    }
 
     const packageStatus = await getCreatorPackageStatus(userId, role);
     let ctx = null;

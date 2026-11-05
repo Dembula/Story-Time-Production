@@ -104,9 +104,56 @@ export function resolveGoogleUniverseSubscriptionProduct(productId: string) {
   return GOOGLE_UNIVERSE_SUBSCRIPTION_PRODUCTS[productId.trim()] ?? null;
 }
 
-/** Creator products share the same product IDs on Apple and Google Play. */
+/** Creator Google Play product IDs (Play Console). */
+export const GOOGLE_CREATOR_PRODUCTS: Record<
+  string,
+  {
+    kind: "creator_license" | "content_upload";
+    package?: "UPLOAD_YEARLY" | "PIPELINE_MONTHLY" | "PIPELINE_YEARLY";
+    licenseType?: string;
+    billing?: "YEARLY" | "MONTHLY";
+  }
+> = {
+  "st.creators.catalogue.yearly": {
+    kind: "creator_license",
+    package: "UPLOAD_YEARLY",
+    licenseType: CREATOR_LICENSE_TYPE.UPLOAD_ONLY_YEARLY,
+    billing: "YEARLY",
+  },
+  "st.creators.pipeline.monthly": {
+    kind: "creator_license",
+    package: "PIPELINE_MONTHLY",
+    licenseType: CREATOR_LICENSE_TYPE.PIPELINE_MONTHLY,
+    billing: "MONTHLY",
+  },
+  "st.creators.pipeline.yearly": {
+    kind: "creator_license",
+    package: "PIPELINE_YEARLY",
+    licenseType: CREATOR_LICENSE_TYPE.PIPELINE_YEARLY,
+    billing: "YEARLY",
+  },
+  "st.creators.perfilm": {
+    kind: "content_upload",
+  },
+};
+
 export function resolveGoogleCreatorProduct(productId: string) {
-  return resolveCreatorAppleProduct(productId);
+  const id = productId.trim();
+  return GOOGLE_CREATOR_PRODUCTS[id] ?? resolveCreatorAppleProduct(id);
+}
+
+export function isGoogleUniverseSubscriptionProduct(productId: string): boolean {
+  return Boolean(resolveGoogleUniverseSubscriptionProduct(productId));
+}
+
+export function isGoogleUniversePpvProduct(productId: string): boolean {
+  const id = productId.trim();
+  return id === GOOGLE_UNIVERSE_PPV_PRODUCT_ID || id.includes("ppv");
+}
+
+export function isGoogleCreatorSubscriptionProduct(productId: string): boolean {
+  const mapped = resolveGoogleCreatorProduct(productId);
+  return mapped?.kind === "creator_license";
 }
 
 export function allowedAppleBundleIds(): string[] {

@@ -8,8 +8,10 @@ export const STORE_FREE_TRIAL_PRODUCT_IDS = new Set([
   // Universe Android (Play)
   "stu.sub.base.monthly",
   "stu.sub.base.yearly",
-  // Creators iOS / Android — pipeline monthly intro offer
+  // Creators iOS — pipeline monthly intro offer
   "online.storytime.creators.sub.pipeline.monthly",
+  // Creators Android (Play)
+  "st.creators.pipeline.monthly",
 ]);
 
 export const DEFAULT_STORE_FREE_TRIAL_DAYS = 7;

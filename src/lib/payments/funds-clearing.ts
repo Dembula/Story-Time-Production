@@ -12,6 +12,7 @@ import { resolveCreatorRevenueTrackingStart } from "@/lib/finance/revenue-tracki
 
 export {
   APPLE_FUNDS_CLEAR_DAYS,
+  GOOGLE_FUNDS_CLEAR_DAYS,
   PAYFAST_FUNDS_CLEAR_DAYS,
   computeFundsClearDueAt,
   describeFundsClearStatus,

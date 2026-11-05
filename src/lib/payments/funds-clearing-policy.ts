@@ -2,12 +2,15 @@
 export const PAYFAST_FUNDS_CLEAR_DAYS = 3;
 /** Apple App Store proceeds are typically remitted ~45 days after purchase. */
 export const APPLE_FUNDS_CLEAR_DAYS = 45;
+/** Google Play proceeds — 15 calendar days before treating as cleared for creator pool. */
+export const GOOGLE_FUNDS_CLEAR_DAYS = 15;
 
 export type FundsClearMode = "auto" | "manual";
 
 export function fundsClearDelayDaysForProvider(provider: string | null | undefined): number {
   const p = String(provider ?? "").toUpperCase();
   if (p === "APPLE") return APPLE_FUNDS_CLEAR_DAYS;
+  if (p === "GOOGLE") return GOOGLE_FUNDS_CLEAR_DAYS;
   if (p === "PAYFAST") return PAYFAST_FUNDS_CLEAR_DAYS;
   // Unknown live providers: treat like PayFast (faster) rather than holding 45 days.
   return PAYFAST_FUNDS_CLEAR_DAYS;
@@ -106,12 +109,15 @@ export function describeFundsClearStatus(payment: {
   const ms = due.getTime() - now.getTime();
   // Whole calendar days left until the clear-due instant (ceil so "day 0" means due/past).
   const daysRemaining = Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
+  const providerUpper = String(payment.provider ?? "").toUpperCase();
   const providerTag =
-    String(payment.provider ?? "").toUpperCase() === "APPLE"
+    providerUpper === "APPLE"
       ? `Apple ${clearDelayDays}d`
-      : String(payment.provider ?? "").toUpperCase() === "PAYFAST"
-        ? `PayFast ${clearDelayDays}d`
-        : `${clearDelayDays}d`;
+      : providerUpper === "GOOGLE"
+        ? `Google Play ${clearDelayDays}d`
+        : providerUpper === "PAYFAST"
+          ? `PayFast ${clearDelayDays}d`
+          : `${clearDelayDays}d`;
   return {
     status: "pending",
     label:

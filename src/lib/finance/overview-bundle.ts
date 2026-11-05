@@ -8,6 +8,7 @@ import {
 } from "@/lib/payments/cash-recognition";
 import {
   APPLE_FUNDS_CLEAR_DAYS,
+  GOOGLE_FUNDS_CLEAR_DAYS,
   PAYFAST_FUNDS_CLEAR_DAYS,
   describeFundsClearStatus,
 } from "@/lib/payments/funds-clearing-policy";
@@ -116,7 +117,7 @@ export type FinanceOverviewBundle = {
     enabled: boolean;
     trackingStartedAt: string | null;
     note: string | null;
-    clearRules: { payfastDays: number; appleDays: number };
+    clearRules: { payfastDays: number; appleDays: number; googleDays: number };
   };
   byProvider: Array<{
     provider: string;
@@ -136,6 +137,8 @@ export type FinanceOverviewBundle = {
     payfastEstimatedFees: number;
     appleEstimatedFees: number;
     appleProceedsFees: number;
+    googleEstimatedFees: number;
+    googleProceedsFees: number;
     webhookEventsInPeriod: number;
   };
   payouts: {
@@ -309,6 +312,8 @@ export async function fetchFinanceOverviewBundle(options: {
   let payfastEstimatedFees = 0;
   let appleEstimatedFees = 0;
   let appleProceedsFees = 0;
+  let googleEstimatedFees = 0;
+  let googleProceedsFees = 0;
   let clearedPaymentCount = 0;
 
   const byProviderMap = new Map<string, { count: number; gross: number; fees: number; net: number }>();
@@ -399,6 +404,12 @@ export async function fetchFinanceOverviewBundle(options: {
         appleEstimatedFees = roundMoney(appleEstimatedFees + fee);
       }
       if (source === "apple_proceeds") appleProceedsFees = roundMoney(appleProceedsFees + fee);
+      if (source === "google_estimated" || source === "google_play") {
+        googleEstimatedFees = roundMoney(googleEstimatedFees + fee);
+      }
+      if (source === "google_proceeds" || source === "google_play_console") {
+        googleProceedsFees = roundMoney(googleProceedsFees + fee);
+      }
 
       if (p.paidAt) {
         const key = dayKey(p.paidAt);
@@ -462,7 +473,8 @@ export async function fetchFinanceOverviewBundle(options: {
         fundsClearDaysRemaining: clearInfo.daysRemaining,
         fundsClearDelayDays: clearInfo.clearDelayDays,
         canClearEarly:
-          clearInfo.status === "pending" && (provider === "PAYFAST" || provider === "APPLE"),
+          clearInfo.status === "pending" &&
+          (provider === "PAYFAST" || provider === "APPLE" || provider === "GOOGLE"),
         payer: {
           id: p.user?.id ?? p.userId ?? null,
           name: p.user?.name ?? null,
@@ -711,7 +723,11 @@ export async function fetchFinanceOverviewBundle(options: {
       enabled: connector.creatorRevenueTrackingEnabled,
       trackingStartedAt: resolveCreatorRevenueTrackingStart(connector.trackingStartedAt).toISOString(),
       note: connector.note,
-      clearRules: { payfastDays: PAYFAST_FUNDS_CLEAR_DAYS, appleDays: APPLE_FUNDS_CLEAR_DAYS },
+      clearRules: {
+        payfastDays: PAYFAST_FUNDS_CLEAR_DAYS,
+        appleDays: APPLE_FUNDS_CLEAR_DAYS,
+        googleDays: GOOGLE_FUNDS_CLEAR_DAYS,
+      },
     },
     byProvider: [...byProviderMap.entries()].map(([provider, v]) => ({ provider, ...v })),
     bySettlementSource: [...bySourceMap.entries()].map(([source, v]) => ({ source, ...v })),
@@ -720,6 +736,8 @@ export async function fetchFinanceOverviewBundle(options: {
       payfastEstimatedFees,
       appleEstimatedFees,
       appleProceedsFees,
+      googleEstimatedFees,
+      googleProceedsFees,
       webhookEventsInPeriod: webhookEvents,
     },
     payouts: {

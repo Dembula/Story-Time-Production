@@ -54,6 +54,14 @@ type RevenueData = {
   viewerSubRevenue: number;
   walletAvailable?: number;
   walletTotalEarnings?: number;
+  months?: Array<{
+    periodKey: string;
+    revenue: number;
+    distributed: boolean;
+    distributedAmount: number;
+  }>;
+  attributedTotal?: number;
+  unpaidAttributedTotal?: number;
   banking: { bankName: string; accountNumberLast4: string; accountType: string; verified: boolean } | null;
   payouts: { id: string; amount: number; currency: string; status: string; period: string; paidAt: string | null }[];
 };
@@ -796,6 +804,41 @@ export function CommandCenterClient() {
           </Link>
           .
         </p>
+        {(revenueData.months?.length ?? 0) > 0 ? (
+          <div className="storytime-section p-5">
+            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="text-sm font-semibold text-white">By month</h3>
+              <p className="text-xs text-slate-500">
+                {formatZar(Number(revenueData.attributedTotal ?? 0))} · unpaid{" "}
+                {formatZar(Number(revenueData.unpaidAttributedTotal ?? 0))}
+              </p>
+            </div>
+            <div className="overflow-x-auto rounded-lg border border-white/8">
+              <table className="w-full min-w-[420px] text-left text-sm">
+                <thead className="text-[10px] uppercase text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2">Month</th>
+                    <th className="px-3 py-2">Share</th>
+                    <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2">Credited</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {revenueData.months!.map((m) => (
+                    <tr key={m.periodKey} className="border-t border-white/5">
+                      <td className="px-3 py-2 text-white">{m.periodKey}</td>
+                      <td className="px-3 py-2">{formatZar(m.revenue)}</td>
+                      <td className="px-3 py-2 text-xs text-slate-500">
+                        {m.distributed ? "Distributed" : "Accruing"}
+                      </td>
+                      <td className="px-3 py-2">{formatZar(m.distributedAmount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
         <div className="storytime-section p-5">
           <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
             <ArrowDownToLine className="w-4 h-4 text-violet-400" /> Payouts

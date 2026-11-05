@@ -4,6 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { roundMoney } from "@/lib/payments/config";
 import { getPlatformTreasuryUserId } from "@/lib/payments/treasury-inflow";
 import { computeCreatorFacingBalances } from "@/lib/payments/creator-wallet-view";
+import {
+  fetchCreatorMonthlyAccruals,
+  type CreatorMonthlyAccrualBundle,
+} from "@/lib/finance/creator-monthly-accrual";
 
 const db = prisma as any;
 
@@ -23,9 +27,15 @@ export type CreatorUnpaidLiabilityBundle = {
   asOf: string;
   availableTotal: number;
   pendingTotal: number;
+  /** Wallet balances still unpaid to bank. */
   owedTotal: number;
+  /** Undistributed monthly creator pools (cleared cash not yet rolled into wallets). */
+  undistributedPoolTotal: number;
+  /** Wallet unpaid + undistributed monthly pools. */
+  liabilityTotal: number;
   creatorCount: number;
   rows: CreatorUnpaidRow[];
+  months: CreatorMonthlyAccrualBundle["months"];
 };
 
 /**
@@ -125,12 +135,18 @@ export async function fetchCreatorUnpaidLiability(limit = 25): Promise<CreatorUn
 
   owedRows.sort((a, b) => b.totalOwed - a.totalOwed);
 
+  const monthly = await fetchCreatorMonthlyAccruals();
+  const walletOwed = roundMoney(availableAll + pendingAll);
+
   return {
     asOf,
     availableTotal: availableAll,
     pendingTotal: pendingAll,
-    owedTotal: roundMoney(availableAll + pendingAll),
+    owedTotal: walletOwed,
+    undistributedPoolTotal: monthly.undistributedPoolTotal,
+    liabilityTotal: roundMoney(walletOwed + monthly.undistributedPoolTotal),
     creatorCount: owedRows.length,
     rows: owedRows.slice(0, Math.min(100, Math.max(5, limit))),
+    months: monthly.months,
   };
 }

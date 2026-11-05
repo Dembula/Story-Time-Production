@@ -8,6 +8,11 @@ export const VIEWER_POOL_PAYMENT_PURPOSES = [
   // Universe iOS (StoreKit) — must count toward admin revenue + creator pool
   "viewer_subscription_apple_iap",
   "viewer_ppv_apple_iap",
+  // Universe Android (Google Play Billing)
+  "viewer_subscription_google_play",
+  "viewer_ppv_google_play",
+  // Manual / console remittance imports for Google Play earnings
+  "viewer_google_play_console_remittance",
 ] as const;
 
 export type ViewerPoolPaymentPurpose = (typeof VIEWER_POOL_PAYMENT_PURPOSES)[number];
