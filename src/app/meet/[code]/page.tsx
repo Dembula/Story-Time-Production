@@ -16,7 +16,14 @@ export default async function PublicMeetGuestPage({
     where: {
       OR: [{ code }, { code: code.toUpperCase() }, { id: code }],
     },
-    select: { id: true, code: true, title: true, status: true },
+    select: {
+      id: true,
+      code: true,
+      title: true,
+      status: true,
+      passcode: true,
+      waitingRoom: true,
+    },
   });
 
   if (!meeting) {
@@ -48,6 +55,8 @@ export default async function PublicMeetGuestPage({
           meetingId={meeting.id}
           meetingTitle={meeting.title}
           ended={meeting.status === "ENDED"}
+          requiresPasscode={Boolean(meeting.passcode)}
+          waitingRoom={meeting.waitingRoom}
         />
       </Suspense>
     </div>

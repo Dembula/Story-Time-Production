@@ -15,7 +15,8 @@ export function buildMeetInviteEmail(input: {
   scheduledAt?: Date | string | null;
   durationMinutes?: number;
 }) {
-  const guestUrl = absoluteMeetGuestUrl(input.code);
+  // Deep link: code (+ passcode when set) live in the URL — guests tap Join, no code typing.
+  const guestUrl = absoluteMeetGuestUrl(input.code, undefined, { passcode: input.passcode });
   const { startAt, endAt } = resolveMeetWindow({
     scheduledAt: input.scheduledAt,
     durationMinutes: input.durationMinutes,
@@ -46,9 +47,14 @@ export function buildMeetInviteEmail(input: {
     `Meeting: ${input.title}`,
     `When: ${when}`,
     "",
-    `Join link: ${guestUrl}`,
-    `Meeting code: ${input.code}`,
-    input.passcode ? `Passcode: ${input.passcode}` : null,
+    "Tap the join link below — the meeting is already selected for you.",
+    "You’ll land in the lobby, enter your name, and press Join now.",
+    "No need to type a meeting code.",
+    "",
+    `Join now: ${guestUrl}`,
+    "",
+    `Meeting code (only if you join without this link): ${input.code}`,
+    input.passcode ? `Passcode (included in your link): ${input.passcode}` : null,
     "",
     "Save to your calendar:",
     `Google Calendar: ${googleCalUrl}`,
@@ -56,7 +62,7 @@ export function buildMeetInviteEmail(input: {
     "(An .ics calendar file is also attached to this email.)",
     "",
     "No Story Time account is required for guests.",
-    "Open the link, enter your name, and wait for the host to admit you.",
+    "Open the link, check your camera/mic in the lobby, then wait for the host to admit you.",
     "Meetings support up to 20 people.",
   ]
     .filter(Boolean)
@@ -87,12 +93,14 @@ export function buildMeetInviteEmail(input: {
                   <td style="padding:16px 18px;font-family:Arial,sans-serif;">
                     <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.12em;">When</div>
                     <div style="margin-top:6px;font-size:14px;color:#e2e8f0;">${escapeHtml(when)}</div>
-                    <div style="margin-top:14px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.12em;">Meeting code</div>
-                    <div style="margin-top:6px;font-size:20px;letter-spacing:0.08em;color:#fdba74;font-family:ui-monospace,Menlo,monospace;">${escapeHtml(input.code)}</div>
+                    <div style="margin-top:14px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.12em;">How to join</div>
+                    <div style="margin-top:6px;font-size:14px;color:#e2e8f0;line-height:1.5;">
+                      Tap <strong style="color:#fdba74;">Join now</strong> — the meeting is already in the link. No code to type.
+                    </div>
                     ${
                       input.passcode
                         ? `<div style="margin-top:14px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.12em;">Passcode</div>
-                    <div style="margin-top:6px;font-size:18px;letter-spacing:0.12em;color:#fff;font-family:ui-monospace,Menlo,monospace;">${escapeHtml(input.passcode)}</div>`
+                    <div style="margin-top:6px;font-size:13px;color:#94a3b8;">Included in your join link for you.</div>`
                         : ""
                     }
                   </td>
@@ -102,9 +110,12 @@ export function buildMeetInviteEmail(input: {
           </tr>
           <tr>
             <td style="padding:0 28px 20px;" align="center">
-              <a href="${guestUrl}" style="display:inline-block;background:#f97316;color:#fff;text-decoration:none;font-family:Arial,sans-serif;font-size:14px;font-weight:600;padding:12px 22px;border-radius:12px;">
-                Join Story Time Meet
+              <a href="${guestUrl}" style="display:inline-block;background:#f97316;color:#fff;text-decoration:none;font-family:Arial,sans-serif;font-size:15px;font-weight:600;padding:14px 28px;border-radius:12px;">
+                Join now
               </a>
+              <p style="margin:12px 0 0;font-size:12px;line-height:1.5;color:#64748b;font-family:Arial,sans-serif;">
+                Opens the Story Time Meet lobby — check camera &amp; mic, enter your name, then join.
+              </p>
             </td>
           </tr>
           <tr>
@@ -119,10 +130,8 @@ export function buildMeetInviteEmail(input: {
               <p style="margin:10px 0 0;font-size:12px;line-height:1.5;color:#64748b;font-family:Arial,sans-serif;">
                 An <strong style="color:#94a3b8;">.ics</strong> file is attached — open it to add this Meet to Apple Calendar, Outlook, or any calendar app.
               </p>
-              <p style="margin:14px 0 0;font-size:12px;line-height:1.5;color:#64748b;font-family:Arial,sans-serif;">
-                Guests don’t need an account. Open the link, enter your name${
-                  input.passcode ? " and passcode" : ""
-                }, then wait in the lobby until the host admits you.
+              <p style="margin:14px 0 0;font-size:11px;color:#475569;font-family:Arial,sans-serif;">
+                Backup code if you don’t have the link: <span style="color:#94a3b8;font-family:ui-monospace,Menlo,monospace;">${escapeHtml(input.code)}</span>
               </p>
               <p style="margin:10px 0 0;font-size:11px;color:#475569;word-break:break-all;font-family:Arial,sans-serif;">
                 ${escapeHtml(guestUrl)}

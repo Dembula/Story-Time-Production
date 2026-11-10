@@ -24,19 +24,27 @@ export function generateMeetPeerId(prefix: "u" | "g" = "u"): string {
   return `${prefix}_${randomBytes(8).toString("hex")}`;
 }
 
-export function meetGuestPath(code: string): string {
-  return `/meet/${encodeURIComponent(code)}`;
+export function meetGuestPath(code: string, opts?: { passcode?: string | null }): string {
+  const path = `/meet/${encodeURIComponent(code)}`;
+  const passcode = opts?.passcode?.trim();
+  if (!passcode) return path;
+  return `${path}?passcode=${encodeURIComponent(passcode)}`;
 }
 
 export function meetRoomPath(meetingId: string): string {
   return `/creator/meet/room/${encodeURIComponent(meetingId)}`;
 }
 
-export function absoluteMeetGuestUrl(code: string, origin?: string): string {
+/** Deep link into the guest lobby — code (and optional passcode) are in the URL so guests never re-type them. */
+export function absoluteMeetGuestUrl(
+  code: string,
+  origin?: string,
+  opts?: { passcode?: string | null },
+): string {
   const base =
     origin?.replace(/\/$/, "") ||
     process.env.NEXTAUTH_URL?.replace(/\/$/, "") ||
     process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, "") ||
     "https://story-time.online";
-  return `${base}${meetGuestPath(code)}`;
+  return `${base}${meetGuestPath(code, opts)}`;
 }

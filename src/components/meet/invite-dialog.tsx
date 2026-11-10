@@ -148,6 +148,9 @@ export function MeetInviteDialog({ meetingId, open, onClose, guestUrl, scheduled
               Invite
             </p>
             <h2 className="text-lg font-semibold text-white">Bring people into Meet</h2>
+            <p className="mt-1 text-[11px] text-slate-400">
+              Guests open the link → lobby → Join now. No meeting code to type.
+            </p>
           </div>
           <button
             type="button"
@@ -179,7 +182,8 @@ export function MeetInviteDialog({ meetingId, open, onClose, guestUrl, scheduled
             Save to calendar
           </p>
           <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
-            Invite emails include Google/Outlook links and an .ics attachment
+            Invite emails include a one-tap Join now lobby link, Google/Outlook buttons, and an .ics
+            attachment
             {scheduledAt
               ? ` for ${new Date(scheduledAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`
               : ""}

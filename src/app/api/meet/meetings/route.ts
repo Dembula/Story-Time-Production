@@ -85,7 +85,9 @@ export async function POST(req: Request) {
     participant = joined.participant;
   }
 
-  const guestUrl = absoluteMeetGuestUrl(meeting.code);
+  const guestUrl = absoluteMeetGuestUrl(meeting.code, undefined, {
+    passcode: meeting.passcode,
+  });
   const startAt = scheduledAt ?? meeting.startedAt ?? new Date();
   const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
   let calendarEventId: string | null = null;

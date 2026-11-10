@@ -52,7 +52,7 @@ export function MeetJoinByCodeClient() {
       </label>
       {error ? <p className="text-xs text-red-300">{error}</p> : null}
       <Button type="submit" className="w-full bg-orange-500 text-white hover:bg-orange-400">
-        Continue to join
+        Open lobby
       </Button>
     </form>
   );

@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { Loader2, Video } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  Loader2,
+  Mic,
+  MicOff,
+  Video,
+  VideoOff,
+  Volume2,
+} from "lucide-react";
 import { MeetRoomClient } from "@/components/meet/meet-room-client";
 
 type Props = {
@@ -12,13 +17,30 @@ type Props = {
   meetingTitle?: string | null;
   meetingId?: string | null;
   ended?: boolean;
+  requiresPasscode?: boolean;
+  waitingRoom?: boolean;
 };
 
+type DeviceLists = {
+  audioIn: MediaDeviceInfo[];
+  audioOut: MediaDeviceInfo[];
+  videoIn: MediaDeviceInfo[];
+};
+
+const NAME_KEY = "st-meet-guest-name";
+
+function deviceLabel(d: MediaDeviceInfo, fallback: string) {
+  return d.label?.trim() || fallback;
+}
+
 export function MeetGuestClient(props: Props) {
+  const router = useRouter();
   const search = useSearchParams();
   const left = search.get("left") === "1";
+  const linkPasscode = search.get("passcode")?.trim() || "";
+
   const [name, setName] = useState("");
-  const [passcode, setPasscode] = useState(search.get("passcode") ?? "");
+  const [passcode, setPasscode] = useState(linkPasscode);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [session, setSession] = useState<{
@@ -28,49 +50,130 @@ export function MeetGuestClient(props: Props) {
     name: string;
     stream: MediaStream | null;
   } | null>(null);
+
   const previewRef = useRef<HTMLVideoElement>(null);
-  const [preview, setPreview] = useState<MediaStream | null>(null);
-  const [previewReady, setPreviewReady] = useState(false);
+  const streamRef = useRef<MediaStream | null>(null);
   const handedOffRef = useRef(false);
 
+  const [preview, setPreview] = useState<MediaStream | null>(null);
+  const [camOn, setCamOn] = useState(true);
+  const [micOn, setMicOn] = useState(true);
+  const [devices, setDevices] = useState<DeviceLists>({
+    audioIn: [],
+    audioOut: [],
+    videoIn: [],
+  });
+  const [micId, setMicId] = useState("");
+  const [speakerId, setSpeakerId] = useState("");
+  const [cameraId, setCameraId] = useState("");
+  const [mediaError, setMediaError] = useState<string | null>(null);
+
+  const passcodeLockedInLink = Boolean(linkPasscode);
+  const showPasscodeField = Boolean(props.requiresPasscode) && !passcodeLockedInLink;
+
   useEffect(() => {
-    let stream: MediaStream | null = null;
+    try {
+      const saved = localStorage.getItem(NAME_KEY);
+      if (saved) setName(saved);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const refreshDevices = useCallback(async () => {
+    try {
+      const list = await navigator.mediaDevices.enumerateDevices();
+      const next: DeviceLists = {
+        audioIn: list.filter((d) => d.kind === "audioinput"),
+        audioOut: list.filter((d) => d.kind === "audiooutput"),
+        videoIn: list.filter((d) => d.kind === "videoinput"),
+      };
+      setDevices(next);
+      setMicId((prev) => prev || next.audioIn[0]?.deviceId || "");
+      setSpeakerId((prev) => prev || next.audioOut[0]?.deviceId || "");
+      setCameraId((prev) => prev || next.videoIn[0]?.deviceId || "");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const startPreview = useCallback(
+    async (opts?: { videoDeviceId?: string; audioDeviceId?: string; withVideo?: boolean }) => {
+      const wantVideo = opts?.withVideo ?? camOn;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            ...(opts?.audioDeviceId || micId
+              ? { deviceId: { exact: opts?.audioDeviceId || micId } }
+              : {}),
+          },
+          video: wantVideo
+            ? {
+                facingMode: "user",
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                ...(opts?.videoDeviceId || cameraId
+                  ? { deviceId: { exact: opts?.videoDeviceId || cameraId } }
+                  : {}),
+              }
+            : false,
+        });
+        if (!handedOffRef.current) {
+          streamRef.current?.getTracks().forEach((t) => t.stop());
+        }
+        for (const track of stream.getAudioTracks()) track.enabled = micOn;
+        for (const track of stream.getVideoTracks()) track.enabled = wantVideo;
+        streamRef.current = stream;
+        setPreview(stream);
+        setMediaError(null);
+        await refreshDevices();
+        return stream;
+      } catch {
+        try {
+          const audioOnly = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: false,
+          });
+          if (!handedOffRef.current) {
+            streamRef.current?.getTracks().forEach((t) => t.stop());
+          }
+          for (const track of audioOnly.getAudioTracks()) track.enabled = micOn;
+          streamRef.current = audioOnly;
+          setPreview(audioOnly);
+          setCamOn(false);
+          setMediaError("Camera unavailable — you can still join with audio.");
+          await refreshDevices();
+          return audioOnly;
+        } catch {
+          setMediaError("Could not access camera/mic. You can still join — enable access for best quality.");
+          setPreview(null);
+          return null;
+        }
+      }
+    },
+    [camOn, cameraId, micId, micOn, refreshDevices],
+  );
+
+  useEffect(() => {
     let cancelled = false;
-    void navigator.mediaDevices
-      .getUserMedia({
-        video: {
-          facingMode: "user",
-          width: { ideal: 720 },
-          height: { ideal: 1280 },
-          frameRate: { ideal: 24, max: 30 },
-        },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      })
-      .then((s) => {
-        if (cancelled) {
-          s.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        for (const track of s.getTracks()) track.enabled = true;
-        stream = s;
-        setPreview(s);
-        setPreviewReady(true);
-        if (previewRef.current) {
-          previewRef.current.srcObject = s;
-          void previewRef.current.play().catch(() => undefined);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setPreviewReady(false);
-      });
+    void (async () => {
+      const stream = await startPreview({ withVideo: true });
+      if (cancelled && stream && !handedOffRef.current) {
+        stream.getTracks().forEach((t) => t.stop());
+      }
+    })();
     return () => {
       cancelled = true;
-      if (!handedOffRef.current) stream?.getTracks().forEach((t) => t.stop());
+      if (!handedOffRef.current) {
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
     };
+    // Initial lobby mount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -79,6 +182,91 @@ export function MeetGuestClient(props: Props) {
       void previewRef.current.play().catch(() => undefined);
     }
   }, [preview]);
+
+  useEffect(() => {
+    const el = previewRef.current as HTMLVideoElement & {
+      setSinkId?: (id: string) => Promise<void>;
+    } | null;
+    if (!el?.setSinkId || !speakerId) return;
+    void el.setSinkId(speakerId).catch(() => undefined);
+  }, [speakerId, preview]);
+
+  const toggleCamera = async () => {
+    const next = !camOn;
+    setCamOn(next);
+    if (next) {
+      await startPreview({ withVideo: true });
+      return;
+    }
+    preview?.getVideoTracks().forEach((t) => {
+      t.enabled = false;
+      t.stop();
+      preview.removeTrack(t);
+    });
+    setPreview(preview ? new MediaStream(preview.getTracks()) : null);
+  };
+
+  const toggleMic = () => {
+    const next = !micOn;
+    setMicOn(next);
+    preview?.getAudioTracks().forEach((t) => {
+      t.enabled = next;
+    });
+  };
+
+  const canJoin = name.trim().length >= 2 && (!showPasscodeField || passcode.trim().length > 0);
+
+  async function join() {
+    if (!canJoin) return;
+    setBusy(true);
+    setError(null);
+    try {
+      try {
+        localStorage.setItem(NAME_KEY, name.trim());
+      } catch {
+        /* ignore */
+      }
+      const res = await fetch("/api/meet/rtc/guest/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          code: props.code,
+          name: name.trim(),
+          passcode: passcode.trim() || undefined,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Could not join");
+
+      const stream = streamRef.current;
+      if (stream) {
+        stream.getAudioTracks().forEach((t) => {
+          t.enabled = micOn;
+        });
+        stream.getVideoTracks().forEach((t) => {
+          t.enabled = camOn;
+        });
+      }
+      handedOffRef.current = true;
+      setSession({
+        meetingId: json.meeting.id,
+        title: json.meeting.title,
+        code: json.meeting.code,
+        name: name.trim(),
+        stream,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Join failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const headerTitle = useMemo(
+    () => props.meetingTitle?.trim() || "Story Time Meet",
+    [props.meetingTitle],
+  );
 
   if (props.ended || left) {
     return (
@@ -107,130 +295,216 @@ export function MeetGuestClient(props: Props) {
     );
   }
 
-  async function join() {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/meet/rtc/guest/join", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          code: props.code,
-          name: name.trim(),
-          passcode: passcode.trim() || undefined,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Could not join");
-      // Hand preview media into the room so mobile doesn’t re-prompt / black-screen.
-      handedOffRef.current = true;
-      setSession({
-        meetingId: json.meeting.id,
-        title: json.meeting.title,
-        code: json.meeting.code,
-        name: name.trim(),
-        stream: preview,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Join failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-[#0a0a0b]">
-      <div className="relative min-h-[42dvh] flex-1 bg-black sm:min-h-0 sm:flex-none">
-        <div className="absolute inset-0 sm:relative sm:mx-auto sm:mt-8 sm:aspect-video sm:max-w-lg sm:overflow-hidden sm:rounded-2xl sm:border sm:border-white/10">
-          {previewReady ? (
+    <div className="flex min-h-[100dvh] flex-col bg-[#1b1a19] text-white">
+      {/* Top brand + meeting title */}
+      <header className="flex flex-col items-center px-4 pb-2 pt-[max(1rem,env(safe-area-inset-top))] text-center">
+        <div className="flex items-center gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/st-mark.png" alt="" className="h-7 w-auto object-contain opacity-95" />
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-orange-300/90">
+            Story Time Meet
+          </p>
+        </div>
+        <h1 className="mt-3 max-w-3xl text-balance text-xl font-semibold tracking-tight text-white sm:text-2xl md:text-[1.65rem]">
+          {headerTitle}
+        </h1>
+        <p className="mt-1.5 text-xs text-slate-400">
+          {props.waitingRoom === false
+            ? "Check your devices, then join the meeting."
+            : "Check your devices, then join the lobby — the host will admit you."}
+        </p>
+      </header>
+
+      {/* Main lobby card — Teams-style two column */}
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 px-3 pb-4 pt-2 sm:px-6 lg:flex-row lg:items-stretch lg:gap-5 lg:pb-6">
+        {/* Camera preview */}
+        <section className="relative flex min-h-[240px] flex-1 flex-col overflow-hidden rounded-xl border border-white/10 bg-[#11100f] shadow-2xl lg:min-h-[360px]">
+          {camOn && preview?.getVideoTracks().some((t) => t.readyState === "live") ? (
             <video
               ref={previewRef}
               autoPlay
               playsInline
               muted
-              className="h-full w-full scale-x-[-1] object-cover"
+              className="absolute inset-0 h-full w-full scale-x-[-1] object-cover"
             />
           ) : (
-            <div className="flex h-full min-h-[42dvh] flex-col items-center justify-center gap-2 bg-[#121214] text-slate-500 sm:min-h-[240px]">
-              <Video className="h-8 w-8" />
-              <p className="px-6 text-center text-xs">
-                Camera preview unavailable — you can still join
-              </p>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#161514]">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/[0.04]">
+                <VideoOff className="h-6 w-6 text-slate-400" />
+              </div>
+              <p className="text-sm font-medium text-slate-300">Your camera is turned off</p>
+              {mediaError ? (
+                <p className="max-w-xs px-4 text-center text-[11px] text-slate-500">{mediaError}</p>
+              ) : null}
             </div>
           )}
-          <div className="pointer-events-none absolute left-4 top-4 opacity-90 sm:left-3 sm:top-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/st-mark.png" alt="" className="h-8 w-auto object-contain mix-blend-screen" />
-          </div>
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent p-4 sm:hidden">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-orange-300/90">
-              Story Time Meet
-            </p>
-            <p className="mt-1 text-lg font-semibold text-white">
-              {props.meetingTitle || "Join as guest"}
-            </p>
-          </div>
-        </div>
-      </div>
 
-      <div className="relative z-10 -mt-4 rounded-t-3xl border-t border-white/10 bg-[#121214] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-6 shadow-2xl sm:mx-auto sm:mt-5 sm:mb-10 sm:w-full sm:max-w-lg sm:rounded-2xl sm:border sm:px-8 sm:py-8">
-        <div className="hidden sm:block">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-orange-300/85">
-            Story Time Meet
-          </p>
-          <h1 className="mt-3 font-display text-2xl font-semibold leading-snug text-white">
-            {props.meetingTitle || "Join as guest"}
-          </h1>
-        </div>
-        <p className="text-sm leading-relaxed text-slate-400 sm:mt-3">
-          Enter your name to join the waiting room — no Story Time account required. The host will
-          admit you.
-        </p>
-        <p className="mt-2 text-xs text-slate-500">Meeting code · {props.code}</p>
+          <div className="absolute bottom-3 left-3 right-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void toggleCamera()}
+              className={[
+                "inline-flex min-h-10 items-center gap-2 rounded-lg border px-3 text-xs font-medium backdrop-blur-md touch-manipulation",
+                camOn
+                  ? "border-white/15 bg-black/55 text-white hover:bg-black/70"
+                  : "border-rose-400/30 bg-rose-500/25 text-rose-50",
+              ].join(" ")}
+            >
+              {camOn ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
+              {camOn ? "Camera on" : "Camera off"}
+            </button>
+            {devices.videoIn.length > 1 && camOn ? (
+              <select
+                value={cameraId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setCameraId(id);
+                  void startPreview({ videoDeviceId: id, withVideo: true });
+                }}
+                className="min-h-10 max-w-[14rem] truncate rounded-lg border border-white/15 bg-black/55 px-2 text-xs text-white backdrop-blur-md outline-none"
+              >
+                {devices.videoIn.map((d, i) => (
+                  <option key={d.deviceId || i} value={d.deviceId}>
+                    {deviceLabel(d, `Camera ${i + 1}`)}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+          </div>
+        </section>
 
-        <form
-          className="mt-5 space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void join();
-          }}
-        >
-          <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-slate-300">Your name</span>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="How should others see you?"
-              required
-              minLength={2}
-              autoComplete="name"
-              className="h-12 border-white/10 bg-black/40 text-base text-white sm:h-10 sm:text-sm"
-            />
-          </label>
-          <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-slate-300">
-              Passcode <span className="text-slate-500">(if the host shared one)</span>
-            </span>
-            <Input
-              type="password"
-              value={passcode}
-              onChange={(e) => setPasscode(e.target.value)}
-              placeholder="Optional"
-              className="h-12 border-white/10 bg-black/40 text-base text-white sm:h-10 sm:text-sm"
-            />
-          </label>
-          {error ? <p className="text-xs text-red-300">{error}</p> : null}
-          <Button
-            type="submit"
-            className="h-12 w-full bg-orange-500 text-base text-white hover:bg-orange-400 sm:h-10 sm:text-sm"
-            disabled={busy || name.trim().length < 2}
-          >
-            {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Ask to join
-          </Button>
-        </form>
-      </div>
+        {/* Audio + identity */}
+        <section className="flex w-full flex-col justify-between gap-4 rounded-xl border border-white/10 bg-[#201f1e] p-4 shadow-2xl lg:w-[22.5rem] lg:shrink-0 lg:p-5">
+          <div className="space-y-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Computer audio
+              </p>
+              <p className="mt-1 text-xs text-slate-400">
+                Choose the mic and speakers you’ll use in this Meet.
+              </p>
+            </div>
+
+            <div className="space-y-3 rounded-xl border border-white/8 bg-black/25 p-3">
+              <label className="block space-y-1.5">
+                <span className="flex items-center justify-between text-[11px] font-medium text-slate-300">
+                  Microphone
+                  <button
+                    type="button"
+                    onClick={toggleMic}
+                    className={[
+                      "inline-flex h-8 w-8 items-center justify-center rounded-full touch-manipulation",
+                      micOn ? "bg-white/10 text-white" : "bg-rose-500/30 text-rose-50",
+                    ].join(" ")}
+                    title={micOn ? "Mute" : "Unmute"}
+                  >
+                    {micOn ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5" />}
+                  </button>
+                </span>
+                <select
+                  value={micId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setMicId(id);
+                    void startPreview({ audioDeviceId: id, withVideo: camOn });
+                  }}
+                  className="h-11 w-full rounded-lg border border-white/10 bg-[#121110] px-3 text-sm text-white outline-none focus:border-orange-400/40"
+                >
+                  {(devices.audioIn.length ? devices.audioIn : [{ deviceId: "", label: "Default microphone" } as MediaDeviceInfo]).map(
+                    (d, i) => (
+                      <option key={d.deviceId || `mic-${i}`} value={d.deviceId}>
+                        {deviceLabel(d, `Microphone ${i + 1}`)}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </label>
+
+              <label className="block space-y-1.5">
+                <span className="flex items-center gap-1.5 text-[11px] font-medium text-slate-300">
+                  <Volume2 className="h-3.5 w-3.5 text-slate-500" />
+                  Speakers
+                </span>
+                <select
+                  value={speakerId}
+                  onChange={(e) => setSpeakerId(e.target.value)}
+                  className="h-11 w-full rounded-lg border border-white/10 bg-[#121110] px-3 text-sm text-white outline-none focus:border-orange-400/40"
+                >
+                  {(devices.audioOut.length
+                    ? devices.audioOut
+                    : [{ deviceId: "", label: "Default speakers" } as MediaDeviceInfo]
+                  ).map((d, i) => (
+                    <option key={d.deviceId || `spk-${i}`} value={d.deviceId}>
+                      {deviceLabel(d, `Speakers ${i + 1}`)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <label className="block space-y-1.5">
+              <span className="text-[11px] font-medium text-slate-300">Your name</span>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="How should others see you?"
+                required
+                minLength={2}
+                autoComplete="name"
+                className="h-11 w-full rounded-lg border border-white/10 bg-[#121110] px-3 text-base text-white outline-none placeholder:text-slate-600 focus:border-orange-400/40 sm:text-sm"
+              />
+            </label>
+
+            {showPasscodeField ? (
+              <label className="block space-y-1.5">
+                <span className="text-[11px] font-medium text-slate-300">Passcode</span>
+                <input
+                  type="password"
+                  value={passcode}
+                  onChange={(e) => setPasscode(e.target.value)}
+                  placeholder="Required by host"
+                  className="h-11 w-full rounded-lg border border-white/10 bg-[#121110] px-3 text-base text-white outline-none focus:border-orange-400/40 sm:text-sm"
+                />
+              </label>
+            ) : passcodeLockedInLink ? (
+              <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-100/90">
+                Passcode included in your invite link — you’re ready to join.
+              </p>
+            ) : null}
+
+            {error ? (
+              <p className="rounded-lg border border-rose-500/25 bg-rose-500/10 px-3 py-2 text-xs text-rose-100">
+                {error}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={() => router.push("/")}
+              className="order-2 min-h-11 rounded-lg border border-white/15 bg-transparent px-4 text-sm font-medium text-slate-200 touch-manipulation hover:bg-white/[0.06] sm:order-1"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={busy || !canJoin}
+              onClick={() => void join()}
+              className="order-1 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-orange-500 px-5 text-sm font-semibold text-white touch-manipulation hover:bg-orange-400 disabled:opacity-50 sm:order-2"
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Join now
+            </button>
+          </div>
+        </section>
+      </main>
+
+      <footer className="pb-[max(1rem,env(safe-area-inset-bottom))] pt-1 text-center text-[11px] text-slate-500">
+        Meeting secured by invite link
+        {props.requiresPasscode ? " · passcode protected" : ""} · no account required
+      </footer>
     </div>
   );
 }

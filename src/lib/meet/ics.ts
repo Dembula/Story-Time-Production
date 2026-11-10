@@ -61,7 +61,7 @@ export function buildMeetIcs(input: MeetCalendarInput): {
   contentType: string;
   body: string;
 } {
-  const guestUrl = absoluteMeetGuestUrl(input.code);
+  const guestUrl = absoluteMeetGuestUrl(input.code, undefined, { passcode: input.passcode });
   const endAt = input.endAt ?? new Date(input.startAt.getTime() + 60 * 60 * 1000);
   const uid = `meet-${input.meetingId}@storytime`;
   const stamp = toIcsUtc(new Date());
@@ -108,7 +108,7 @@ export function buildMeetIcs(input: MeetCalendarInput): {
 
 /** Google Calendar “Add event” deep link. */
 export function buildGoogleCalendarUrl(input: MeetCalendarInput): string {
-  const guestUrl = absoluteMeetGuestUrl(input.code);
+  const guestUrl = absoluteMeetGuestUrl(input.code, undefined, { passcode: input.passcode });
   const endAt = input.endAt ?? new Date(input.startAt.getTime() + 60 * 60 * 1000);
   const details = [
     `Join: ${guestUrl}`,
@@ -130,7 +130,7 @@ export function buildGoogleCalendarUrl(input: MeetCalendarInput): string {
 
 /** Outlook.com web compose deep link. */
 export function buildOutlookCalendarUrl(input: MeetCalendarInput): string {
-  const guestUrl = absoluteMeetGuestUrl(input.code);
+  const guestUrl = absoluteMeetGuestUrl(input.code, undefined, { passcode: input.passcode });
   const endAt = input.endAt ?? new Date(input.startAt.getTime() + 60 * 60 * 1000);
   const body = [
     `Join: ${guestUrl}`,
