@@ -55,6 +55,7 @@ export async function POST(
     meetingId: meeting.id,
     passcode: meeting.passcode,
     scheduledAt: meeting.scheduledAt ?? meeting.startedAt ?? new Date(),
+    scheduledEndAt: (meeting as { scheduledEndAt?: Date | null }).scheduledEndAt ?? null,
   });
 
   const created: { id: string; email?: string | null; invitedUserId?: string | null }[] = [];

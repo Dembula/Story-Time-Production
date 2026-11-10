@@ -47,10 +47,17 @@ export type MeetCalendarInput = {
 
 export function resolveMeetWindow(input: {
   scheduledAt?: Date | string | null;
+  scheduledEndAt?: Date | string | null;
   startedAt?: Date | string | null;
   durationMinutes?: number;
 }) {
   const start = new Date(input.scheduledAt || input.startedAt || Date.now());
+  if (input.scheduledEndAt) {
+    const end = new Date(input.scheduledEndAt);
+    if (!Number.isNaN(end.getTime()) && end.getTime() > start.getTime()) {
+      return { startAt: start, endAt: end };
+    }
+  }
   const mins = Math.max(15, Math.min(8 * 60, input.durationMinutes ?? 60));
   const end = new Date(start.getTime() + mins * 60 * 1000);
   return { startAt: start, endAt: end };

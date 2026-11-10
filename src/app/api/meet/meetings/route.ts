@@ -45,12 +45,16 @@ export async function POST(req: Request) {
     passcode?: string | null;
     waitingRoom?: boolean;
     scheduledAt?: string | null;
+    scheduledEndAt?: string | null;
     joinNow?: boolean;
     /** Optional invite emails sent when scheduling (or creating) a Meet. */
     inviteEmails?: string[];
   } | null;
 
-  const title = String(body?.title ?? "").trim() || "Story Time Meet";
+  const title = String(body?.title ?? "").trim();
+  if (!title) {
+    return NextResponse.json({ error: "Please enter a meeting title" }, { status: 400 });
+  }
   let code = generateMeetCode();
   for (let i = 0; i < 5; i++) {
     const clash = await prisma.meetMeeting.findUnique({ where: { code } });
@@ -59,6 +63,26 @@ export async function POST(req: Request) {
   }
 
   const scheduledAt = body?.scheduledAt ? new Date(body.scheduledAt) : null;
+  if (scheduledAt && Number.isNaN(scheduledAt.getTime())) {
+    return NextResponse.json({ error: "Invalid start time" }, { status: 400 });
+  }
+  let scheduledEndAt = body?.scheduledEndAt ? new Date(body.scheduledEndAt) : null;
+  if (scheduledEndAt && Number.isNaN(scheduledEndAt.getTime())) {
+    return NextResponse.json({ error: "Invalid end time" }, { status: 400 });
+  }
+  if (!scheduledEndAt && scheduledAt) {
+    scheduledEndAt = new Date(scheduledAt.getTime() + 60 * 60 * 1000);
+  }
+  if (scheduledEndAt && scheduledAt && scheduledEndAt.getTime() <= scheduledAt.getTime()) {
+    return NextResponse.json({ error: "End time must be after the start time" }, { status: 400 });
+  }
+  if (scheduledEndAt && !scheduledAt && body?.joinNow !== false) {
+    // Instant Meet with a planned finish — end must be in the future.
+    if (scheduledEndAt.getTime() <= Date.now() + 60_000) {
+      return NextResponse.json({ error: "End time must be at least a minute from now" }, { status: 400 });
+    }
+  }
+
   const joinNow = body?.joinNow !== false && !scheduledAt;
 
   const meeting = await prisma.meetMeeting.create({
@@ -70,6 +94,7 @@ export async function POST(req: Request) {
       passcode: body?.passcode?.trim() || null,
       waitingRoom: body?.waitingRoom !== false,
       scheduledAt,
+      scheduledEndAt,
       startedAt: joinNow ? new Date() : null,
     },
   });
@@ -88,7 +113,10 @@ export async function POST(req: Request) {
     passcode: meeting.passcode,
   });
   const startAt = scheduledAt ?? meeting.startedAt ?? new Date();
-  const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+  const endAt =
+    scheduledEndAt && scheduledEndAt.getTime() > startAt.getTime()
+      ? scheduledEndAt
+      : new Date(startAt.getTime() + 60 * 60 * 1000);
   let calendarEventId: string | null = null;
   try {
     const cal = await createCreatorCalendarEvent(session.userId, {

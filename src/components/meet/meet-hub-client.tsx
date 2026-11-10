@@ -13,6 +13,7 @@ type MeetingRow = {
   title: string;
   status: string;
   scheduledAt: string | null;
+  scheduledEndAt?: string | null;
   updatedAt: string;
   summary?: { id: string } | null;
   host?: { name: string | null };
@@ -45,10 +46,11 @@ function toDatetimeLocalValue(iso: string | null | undefined) {
 export function MeetHubClient() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [title, setTitle] = useState("Creative sync");
+  const [title, setTitle] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [passcode, setPasscode] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
+  const [scheduledEndAt, setScheduledEndAt] = useState("");
   const [roomPasscode, setRoomPasscode] = useState("");
   const [inviteEmails, setInviteEmails] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -56,6 +58,7 @@ export function MeetHubClient() {
   const [editingMeeting, setEditingMeeting] = useState<MeetingRow | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editScheduledAt, setEditScheduledAt] = useState("");
+  const [editScheduledEndAt, setEditScheduledEndAt] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["meet-meetings"],
@@ -79,17 +82,37 @@ export function MeetHubClient() {
 
   const createMeeting = useMutation({
     mutationFn: async (mode: "now" | "schedule") => {
+      const trimmedTitle = title.trim();
+      if (!trimmedTitle) throw new Error("Please enter a meeting title");
+      if (mode === "schedule") {
+        if (!scheduledAt) throw new Error("Pick a start time");
+        if (!scheduledEndAt) throw new Error("Pick an end time");
+        if (new Date(scheduledEndAt).getTime() <= new Date(scheduledAt).getTime()) {
+          throw new Error("End time must be after the start time");
+        }
+      }
+      if (mode === "now" && scheduledEndAt) {
+        if (new Date(scheduledEndAt).getTime() <= Date.now() + 60_000) {
+          throw new Error("End time must be at least a minute from now");
+        }
+      }
       const emails = mode === "schedule" ? parseInviteEmails(inviteEmails) : [];
       const res = await fetch("/api/meet/meetings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          title,
+          title: trimmedTitle,
           joinNow: mode === "now",
           waitingRoom: true,
           passcode: roomPasscode.trim() || null,
           scheduledAt: mode === "schedule" && scheduledAt ? new Date(scheduledAt).toISOString() : null,
+          scheduledEndAt:
+            scheduledEndAt
+              ? new Date(scheduledEndAt).toISOString()
+              : mode === "schedule" && scheduledAt
+                ? new Date(new Date(scheduledAt).getTime() + 60 * 60 * 1000).toISOString()
+                : null,
           inviteEmails: emails,
         }),
       });
@@ -108,9 +131,15 @@ export function MeetHubClient() {
     onSuccess: (json, mode) => {
       void queryClient.invalidateQueries({ queryKey: ["meet-meetings"] });
       if (mode === "now") {
+        setTitle("");
+        setScheduledAt("");
+        setScheduledEndAt("");
         router.push(`/creator/meet/room/${json.meeting.id}`);
         return;
       }
+      setTitle("");
+      setScheduledAt("");
+      setScheduledEndAt("");
       const requested = parseInviteEmails(inviteEmails).length;
       const parts = [
         `Scheduled “${json.meeting.title}”. Code ${json.meeting.code}.`,
@@ -158,6 +187,7 @@ export function MeetHubClient() {
       id: string;
       title?: string;
       scheduledAt?: string;
+      scheduledEndAt?: string;
       cancel?: boolean;
     }) => {
       const res = await fetch(`/api/meet/meetings/${input.id}`, {
@@ -171,6 +201,9 @@ export function MeetHubClient() {
                 title: input.title,
                 scheduledAt: input.scheduledAt
                   ? new Date(input.scheduledAt).toISOString()
+                  : undefined,
+                scheduledEndAt: input.scheduledEndAt
+                  ? new Date(input.scheduledEndAt).toISOString()
                   : undefined,
                 notifyInvitees: true,
               },
@@ -280,7 +313,8 @@ export function MeetHubClient() {
               className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none focus:border-orange-400/40"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Table read briefing"
+              placeholder="Name this Meet"
+              required
             />
           </label>
           <label className="block space-y-1.5">
@@ -292,15 +326,41 @@ export function MeetHubClient() {
               placeholder="Shared in invite email"
             />
           </label>
-          <label className="block space-y-1.5">
-            <span className="text-xs text-slate-400">Schedule (optional)</span>
-            <input
-              type="datetime-local"
-              className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none focus:border-orange-400/40"
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-            />
-          </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block space-y-1.5">
+              <span className="text-xs text-slate-400">Start</span>
+              <input
+                type="datetime-local"
+                className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none focus:border-orange-400/40"
+                value={scheduledAt}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setScheduledAt(next);
+                  if (next && !scheduledEndAt) {
+                    const start = new Date(next);
+                    if (!Number.isNaN(start.getTime())) {
+                      setScheduledEndAt(
+                        toDatetimeLocalValue(new Date(start.getTime() + 60 * 60 * 1000).toISOString()),
+                      );
+                    }
+                  }
+                }}
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-xs text-slate-400">End</span>
+              <input
+                type="datetime-local"
+                className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none focus:border-orange-400/40"
+                value={scheduledEndAt}
+                onChange={(e) => setScheduledEndAt(e.target.value)}
+              />
+            </label>
+          </div>
+          <p className="text-[11px] leading-relaxed text-slate-500">
+            Start now can still set an end time. After the end time, the host is asked to extend —
+            if nobody extends within 15 minutes, the Meet ends automatically.
+          </p>
           {scheduledAt ? (
             <label className="block space-y-1.5">
               <span className="text-xs text-slate-400">
@@ -317,14 +377,10 @@ export function MeetHubClient() {
               </span>
             </label>
           ) : null}
-          <p className="text-[11px] leading-relaxed text-slate-500">
-            Instant and scheduled Meets are added to your production calendar with the join link,
-            code, and passcode.
-          </p>
           <div className="grid gap-2 sm:grid-cols-2">
             <button
               type="button"
-              disabled={createMeeting.isPending}
+              disabled={createMeeting.isPending || !title.trim()}
               onClick={() => {
                 setMsg(null);
                 createMeeting.mutate("now");
@@ -335,7 +391,7 @@ export function MeetHubClient() {
             </button>
             <button
               type="button"
-              disabled={createMeeting.isPending || !scheduledAt}
+              disabled={createMeeting.isPending || !title.trim() || !scheduledAt || !scheduledEndAt}
               onClick={() => {
                 setMsg(null);
                 createMeeting.mutate("schedule");
@@ -434,10 +490,16 @@ export function MeetHubClient() {
                         <p className="text-sm font-medium text-white">{m.title}</p>
                         <p className="text-xs text-slate-400">
                           {m.scheduledAt
-                            ? new Date(m.scheduledAt).toLocaleString(undefined, {
+                            ? `${new Date(m.scheduledAt).toLocaleString(undefined, {
                                 dateStyle: "medium",
                                 timeStyle: "short",
-                              })
+                              })}${
+                                m.scheduledEndAt
+                                  ? ` – ${new Date(m.scheduledEndAt).toLocaleTimeString(undefined, {
+                                      timeStyle: "short",
+                                    })}`
+                                  : ""
+                              }`
                             : "Time TBD"}
                           {" · "}
                           <span className="font-mono text-slate-500">{m.code}</span>
@@ -450,6 +512,7 @@ export function MeetHubClient() {
                             setEditingMeeting(m);
                             setEditTitle(m.title);
                             setEditScheduledAt(toDatetimeLocalValue(m.scheduledAt));
+                            setEditScheduledEndAt(toDatetimeLocalValue(m.scheduledEndAt));
                             setMsg(null);
                           }}
                           className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-200 hover:bg-white/[0.08]"
@@ -508,15 +571,26 @@ export function MeetHubClient() {
                           onChange={(e) => setEditTitle(e.target.value)}
                         />
                       </label>
-                      <label className="block space-y-1.5">
-                        <span className="text-xs text-slate-400">Date &amp; time</span>
-                        <input
-                          type="datetime-local"
-                          className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none focus:border-orange-400/40"
-                          value={editScheduledAt}
-                          onChange={(e) => setEditScheduledAt(e.target.value)}
-                        />
-                      </label>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="block space-y-1.5">
+                          <span className="text-xs text-slate-400">Start</span>
+                          <input
+                            type="datetime-local"
+                            className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none focus:border-orange-400/40"
+                            value={editScheduledAt}
+                            onChange={(e) => setEditScheduledAt(e.target.value)}
+                          />
+                        </label>
+                        <label className="block space-y-1.5">
+                          <span className="text-xs text-slate-400">End</span>
+                          <input
+                            type="datetime-local"
+                            className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none focus:border-orange-400/40"
+                            value={editScheduledEndAt}
+                            onChange={(e) => setEditScheduledEndAt(e.target.value)}
+                          />
+                        </label>
+                      </div>
                       <p className="text-[11px] text-slate-500">
                         Saving notifies people who already received an invite email.
                       </p>
@@ -526,7 +600,8 @@ export function MeetHubClient() {
                           disabled={
                             updateScheduled.isPending ||
                             !editTitle.trim() ||
-                            !editScheduledAt
+                            !editScheduledAt ||
+                            !editScheduledEndAt
                           }
                           onClick={() => {
                             setMsg(null);
@@ -534,6 +609,7 @@ export function MeetHubClient() {
                               id: m.id,
                               title: editTitle.trim(),
                               scheduledAt: editScheduledAt,
+                              scheduledEndAt: editScheduledEndAt,
                             });
                           }}
                           className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-400 disabled:opacity-50"

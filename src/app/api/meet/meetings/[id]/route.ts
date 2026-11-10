@@ -65,11 +65,15 @@ export async function PATCH(
     passcode?: string | null;
     waitingRoom?: boolean;
     scheduledAt?: string | null;
+    scheduledEndAt?: string | null;
+    /** Extend a live Meet by N minutes from max(now, current end). */
+    extendMinutes?: number;
     /** When true, email existing invitees about cancel/reschedule. Default true for schedule changes. */
     notifyInvitees?: boolean;
   } | null;
 
   const previousScheduledAt = meeting.scheduledAt;
+  const previousScheduledEndAt = (meeting as { scheduledEndAt?: Date | null }).scheduledEndAt ?? null;
   const wantsCancel =
     body?.status === "CANCELLED" || body?.status === "CANCELED" || body?.status === "cancel";
   const nextScheduledAt =
@@ -82,6 +86,27 @@ export async function PATCH(
   if (nextScheduledAt !== undefined && nextScheduledAt !== null) {
     if (Number.isNaN(nextScheduledAt.getTime())) {
       return NextResponse.json({ error: "Invalid scheduled date" }, { status: 400 });
+    }
+  }
+
+  let nextScheduledEndAt: Date | null | undefined = undefined;
+  const extendMinutes = Number(body?.extendMinutes);
+  if (Number.isFinite(extendMinutes) && extendMinutes > 0) {
+    if (meeting.status !== "LIVE") {
+      return NextResponse.json({ error: "Only live Meets can be extended" }, { status: 400 });
+    }
+    const mins = Math.min(180, Math.max(5, Math.round(extendMinutes)));
+    const base = Math.max(
+      Date.now(),
+      previousScheduledEndAt?.getTime() ?? Date.now(),
+    );
+    nextScheduledEndAt = new Date(base + mins * 60 * 1000);
+  } else if (body?.scheduledEndAt === null) {
+    nextScheduledEndAt = null;
+  } else if (body?.scheduledEndAt) {
+    nextScheduledEndAt = new Date(body.scheduledEndAt);
+    if (Number.isNaN(nextScheduledEndAt.getTime())) {
+      return NextResponse.json({ error: "Invalid end time" }, { status: 400 });
     }
   }
 
@@ -103,6 +128,15 @@ export async function PATCH(
     );
   }
 
+  const startForEndCheck = nextScheduledAt ?? meeting.scheduledAt;
+  if (
+    nextScheduledEndAt &&
+    startForEndCheck &&
+    nextScheduledEndAt.getTime() <= startForEndCheck.getTime()
+  ) {
+    return NextResponse.json({ error: "End time must be after the start time" }, { status: 400 });
+  }
+
   const updated = await prisma.meetMeeting.update({
     where: { id: meeting.id },
     data: {
@@ -117,12 +151,17 @@ export async function PATCH(
       ...(body?.passcode !== undefined ? { passcode: body.passcode?.trim() || null } : {}),
       ...(typeof body?.waitingRoom === "boolean" ? { waitingRoom: body.waitingRoom } : {}),
       ...(nextScheduledAt !== undefined ? { scheduledAt: nextScheduledAt } : {}),
+      ...(nextScheduledEndAt !== undefined ? { scheduledEndAt: nextScheduledEndAt } : {}),
     },
   });
 
   const scheduleChanged =
-    nextScheduledAt !== undefined &&
-    (previousScheduledAt?.getTime() ?? null) !== (updated.scheduledAt?.getTime() ?? null);
+    (nextScheduledAt !== undefined &&
+      (previousScheduledAt?.getTime() ?? null) !== (updated.scheduledAt?.getTime() ?? null)) ||
+    (nextScheduledEndAt !== undefined &&
+      Number.isFinite(extendMinutes) === false &&
+      (previousScheduledEndAt?.getTime() ?? null) !==
+        ((updated as { scheduledEndAt?: Date | null }).scheduledEndAt?.getTime() ?? null));
   const shouldNotify =
     body?.notifyInvitees !== false && (wantsCancel || scheduleChanged);
 
@@ -153,6 +192,7 @@ export async function PATCH(
       kind: wantsCancel ? "cancelled" : "rescheduled",
       previousScheduledAt,
       scheduledAt: updated.scheduledAt,
+      scheduledEndAt: (updated as { scheduledEndAt?: Date | null }).scheduledEndAt ?? null,
     });
 
     for (const to of recipients) {

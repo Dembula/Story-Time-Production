@@ -13,20 +13,24 @@ export function buildMeetInviteEmail(input: {
   meetingId: string;
   passcode?: string | null;
   scheduledAt?: Date | string | null;
+  scheduledEndAt?: Date | string | null;
   durationMinutes?: number;
 }) {
   // Deep link: code (+ passcode when set) live in the URL — guests tap Join, no code typing.
   const guestUrl = absoluteMeetGuestUrl(input.code, undefined, { passcode: input.passcode });
   const { startAt, endAt } = resolveMeetWindow({
     scheduledAt: input.scheduledAt,
+    scheduledEndAt: input.scheduledEndAt,
     durationMinutes: input.durationMinutes,
   });
   const when = input.scheduledAt
-    ? startAt.toLocaleString(undefined, {
+    ? `${startAt.toLocaleString(undefined, {
         dateStyle: "full",
         timeStyle: "short",
-      })
-    : "Starting now / join when ready";
+      })} – ${endAt.toLocaleTimeString(undefined, { timeStyle: "short" })}`
+    : input.scheduledEndAt
+      ? `Starting now · ends ${endAt.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`
+      : "Starting now / join when ready";
 
   const calInput = {
     meetingId: input.meetingId,

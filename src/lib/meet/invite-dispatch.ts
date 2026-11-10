@@ -127,6 +127,7 @@ export async function dispatchMeetEmailInvites(input: {
     code: string;
     passcode?: string | null;
     scheduledAt?: Date | null;
+    scheduledEndAt?: Date | null;
     startedAt?: Date | null;
   };
   hostUserId: string;
@@ -150,6 +151,7 @@ export async function dispatchMeetEmailInvites(input: {
     meetingId: input.meeting.id,
     passcode: input.meeting.passcode,
     scheduledAt: input.meeting.scheduledAt ?? input.meeting.startedAt ?? new Date(),
+    scheduledEndAt: input.meeting.scheduledEndAt ?? null,
   });
 
   const results: MeetInviteSendResult[] = [];

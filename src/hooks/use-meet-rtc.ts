@@ -94,6 +94,13 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
     remaining: number;
     isFull: boolean;
   } | null>(null);
+  const [schedule, setSchedule] = useState<{
+    scheduledEndAt: string;
+    pastEnd: boolean;
+    autoEnded?: boolean;
+    graceEndsAt: string;
+    msUntilAutoEnd: number;
+  } | null>(null);
 
   const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const cameraStreamsRef = useRef<Map<string, MediaStream>>(new Map());
@@ -554,6 +561,13 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
             remaining: number;
             isFull: boolean;
           };
+          schedule?: {
+            scheduledEndAt: string;
+            pastEnd: boolean;
+            autoEnded?: boolean;
+            graceEndsAt: string;
+            msUntilAutoEnd: number;
+          } | null;
         };
 
         if (cancelled) return;
@@ -565,6 +579,7 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
         setIsManager(Boolean(data.isManager));
         setWaiting(data.waiting ?? []);
         if (data.capacity) setCapacity(data.capacity);
+        if (data.schedule !== undefined) setSchedule(data.schedule);
 
         if (data.status === "WAITING") {
           setStatus("waiting");
@@ -608,7 +623,7 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
             const pc = pcsRef.current.get(p.peerId)!;
             const need = attachOutboundTracks(pc, p.peerId);
             if (need) {
-              // Whoever added tracks must renegotiate — don't wait on peer-id order.
+              // We added outbound tracks — we must offer (perfect-negotiation handles glare).
               void negotiate(p.peerId);
             }
           }
@@ -918,6 +933,7 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
     isManager,
     peerId,
     capacity,
+    schedule,
     sendSpeech,
     sendChat,
     sendReaction,

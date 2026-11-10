@@ -24,10 +24,14 @@ export function buildMeetScheduleChangeEmail(input: {
   kind: "rescheduled" | "cancelled";
   previousScheduledAt?: Date | string | null;
   scheduledAt?: Date | string | null;
+  scheduledEndAt?: Date | string | null;
 }) {
   const guestUrl = absoluteMeetGuestUrl(input.code, undefined, { passcode: input.passcode });
   const when = formatWhen(input.scheduledAt);
+  const ends = formatWhen(input.scheduledEndAt);
   const previous = formatWhen(input.previousScheduledAt);
+  const windowLabel =
+    input.scheduledEndAt && ends !== "Time TBD" ? `${when} – ${ends}` : when;
 
   if (input.kind === "cancelled") {
     const subject = `Cancelled: Story Time Meet — ${input.title}`;
@@ -66,7 +70,7 @@ export function buildMeetScheduleChangeEmail(input: {
     "",
     `Meeting: ${input.title}`,
     `Previously: ${previous}`,
-    `New time: ${when}`,
+    `New time: ${windowLabel}`,
     "",
     `Join link: ${guestUrl}`,
     `Meeting code: ${input.code}`,
@@ -83,7 +87,7 @@ export function buildMeetScheduleChangeEmail(input: {
           <strong style="color:#fff;">${escapeHtml(input.title)}</strong>.
         </p>
         <p style="margin:16px 0 0;font-size:13px;color:#64748b;">Was: ${escapeHtml(previous)}</p>
-        <p style="margin:8px 0 0;font-size:15px;color:#e2e8f0;"><strong>New time:</strong> ${escapeHtml(when)}</p>
+        <p style="margin:8px 0 0;font-size:15px;color:#e2e8f0;"><strong>New time:</strong> ${escapeHtml(windowLabel)}</p>
         <p style="margin:22px 0 0;" align="center">
           <a href="${guestUrl}" style="display:inline-block;background:#f97316;color:#fff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 22px;border-radius:12px;">Join now</a>
         </p>

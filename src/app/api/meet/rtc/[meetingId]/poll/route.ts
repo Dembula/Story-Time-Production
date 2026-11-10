@@ -3,6 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { resolveMeetRtcIdentity, isMeetHostOrCoHost } from "@/lib/meet/access";
 import { getMeetIceServers } from "@/lib/meet/ice-servers";
 import { getMeetCapacityState } from "@/lib/meet/capacity";
+import {
+  MEET_END_GRACE_MS,
+  shouldAutoEndMeet,
+} from "@/lib/meet/schedule-window";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,20 +17,52 @@ export async function GET(
   ctx: { params: Promise<{ meetingId: string }> },
 ) {
   const { meetingId: rawId } = await ctx.params;
-  const meeting = await prisma.meetMeeting.findFirst({
+  let meeting = await prisma.meetMeeting.findFirst({
     where: { OR: [{ id: rawId }, { code: rawId }, { code: rawId.toUpperCase() }] },
-    select: { id: true, status: true },
+    select: { id: true, status: true, scheduledEndAt: true },
   });
   if (!meeting) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const meetingId = meeting.id;
 
-  if (meeting.status === "ENDED") {
+  // Past planned end + 15m grace → auto-end even if host never confirms.
+  if (
+    meeting.status === "LIVE" &&
+    meeting.scheduledEndAt &&
+    shouldAutoEndMeet(meeting.scheduledEndAt)
+  ) {
+    meeting = await prisma.meetMeeting.update({
+      where: { id: meetingId },
+      data: { status: "ENDED", endedAt: new Date() },
+      select: { id: true, status: true, scheduledEndAt: true },
+    });
+    await prisma.meetParticipant.updateMany({
+      where: { meetingId, leftAt: null },
+      data: { leftAt: new Date() },
+    });
+    await prisma.meetGuest.updateMany({
+      where: { meetingId, leftAt: null },
+      data: { leftAt: new Date(), status: "LEFT" },
+    });
+  }
+
+  if (meeting.status === "ENDED" || meeting.status === "CANCELLED") {
     return NextResponse.json({
       status: "ENDED",
       peers: [],
       signals: [],
       waiting: [],
       iceServers: getMeetIceServers(),
+      schedule: meeting.scheduledEndAt
+        ? {
+            scheduledEndAt: meeting.scheduledEndAt.toISOString(),
+            pastEnd: true,
+            autoEnded: true,
+            graceEndsAt: new Date(
+              meeting.scheduledEndAt.getTime() + MEET_END_GRACE_MS,
+            ).toISOString(),
+            msUntilAutoEnd: 0,
+          }
+        : null,
     });
   }
 
@@ -138,6 +174,18 @@ export async function GET(
   }
 
   const capacity = await getMeetCapacityState(meetingId);
+  const now = Date.now();
+  const endAt = meeting.scheduledEndAt;
+  const graceEndsAt = endAt ? new Date(endAt.getTime() + MEET_END_GRACE_MS) : null;
+  const schedule = endAt
+    ? {
+        scheduledEndAt: endAt.toISOString(),
+        pastEnd: now >= endAt.getTime(),
+        autoEnded: false,
+        graceEndsAt: graceEndsAt!.toISOString(),
+        msUntilAutoEnd: Math.max(0, graceEndsAt!.getTime() - now),
+      }
+    : null;
 
   return NextResponse.json({
     status: "admitted",
@@ -155,5 +203,6 @@ export async function GET(
     capacity,
     iceServers: getMeetIceServers(),
     isManager: identity.kind === "user" ? await isMeetHostOrCoHost(meetingId, identity.userId) : false,
+    schedule,
   });
 }

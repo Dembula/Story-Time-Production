@@ -206,6 +206,8 @@ export function MeetRoomClient(props: Props) {
   const [chatDraft, setChatDraft] = useState("");
   const [chatUnread, setChatUnread] = useState(0);
   const [chatSending, setChatSending] = useState(false);
+  const [extending, setExtending] = useState(false);
+  const [extendDismissedUntil, setExtendDismissedUntil] = useState<string | null>(null);
   const [speechInterim, setSpeechInterim] = useState("");
   const [localReaction, setLocalReaction] = useState<string | null>(null);
   const showChatRef = useRef(false);
@@ -821,6 +823,38 @@ export function MeetRoomClient(props: Props) {
     setChatUnread(0);
   };
 
+  const extendMeeting = async (minutes: number) => {
+    if (extending) return;
+    setExtending(true);
+    try {
+      const res = await fetch(`/api/meet/meetings/${props.meetingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ extendMinutes: minutes, notifyInvitees: false }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        flash(json.error || "Could not extend Meet");
+        return;
+      }
+      setExtendDismissedUntil(null);
+      flash(`Extended by ${minutes} minutes`);
+    } finally {
+      setExtending(false);
+    }
+  };
+
+  const schedulePastEnd = Boolean(rtc.schedule?.pastEnd);
+  const showExtendPrompt =
+    schedulePastEnd &&
+    rtc.isManager &&
+    !props.guestMode &&
+    (!extendDismissedUntil ||
+      extendDismissedUntil !== rtc.schedule?.scheduledEndAt);
+  const graceMs = rtc.schedule?.msUntilAutoEnd ?? 0;
+  const graceMins = Math.max(0, Math.ceil(graceMs / 60_000));
+
   const sendChatMessage = async () => {
     const text = chatDraft.trim();
     if (!text || chatSending) return;
@@ -1171,7 +1205,7 @@ export function MeetRoomClient(props: Props) {
         </div>
       </div>
 
-      {toast || rtc.error ? (
+      {toast || rtc.error || schedulePastEnd ? (
         <div className="absolute left-1/2 top-24 z-30 w-[min(92vw,32rem)] -translate-x-1/2 space-y-2">
           {toast ? (
             <div className="rounded-xl border border-white/15 bg-black/55 px-3 py-2 text-center text-sm text-slate-100 backdrop-blur-xl">
@@ -1181,6 +1215,57 @@ export function MeetRoomClient(props: Props) {
           {rtc.error ? (
             <div className="rounded-xl border border-amber-400/30 bg-amber-500/20 px-3 py-2 text-center text-sm text-amber-50 backdrop-blur-xl">
               {rtc.error}
+            </div>
+          ) : null}
+          {showExtendPrompt ? (
+            <div className="rounded-2xl border border-orange-400/35 bg-black/75 px-4 py-3 text-left shadow-2xl backdrop-blur-xl">
+              <p className="text-sm font-semibold text-white">Scheduled time is over</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-300">
+                Extend to keep going, or the Meet ends automatically in about{" "}
+                {graceMins || 1} minute{graceMins === 1 ? "" : "s"}.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {[15, 30, 60].map((mins) => (
+                  <button
+                    key={mins}
+                    type="button"
+                    disabled={extending}
+                    onClick={() => void extendMeeting(mins)}
+                    className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-400 disabled:opacity-50"
+                  >
+                    +{mins} min
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={extending}
+                  onClick={() => {
+                    void (async () => {
+                      const ok = await hostAction("end_for_all");
+                      if (ok) await leaveCall({ endReport: true, endForAllAlready: true });
+                    })();
+                  }}
+                  className="rounded-lg border border-rose-400/30 bg-rose-500/15 px-3 py-1.5 text-xs text-rose-100 hover:bg-rose-500/25 disabled:opacity-50"
+                >
+                  End now
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExtendDismissedUntil(rtc.schedule?.scheduledEndAt ?? null)
+                  }
+                  className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-300 hover:bg-white/[0.08]"
+                >
+                  Remind me
+                </button>
+              </div>
+            </div>
+          ) : schedulePastEnd && !showExtendPrompt ? (
+            <div className="rounded-xl border border-amber-400/30 bg-amber-500/15 px-3 py-2 text-center text-sm text-amber-50 backdrop-blur-xl">
+              Past scheduled end
+              {graceMins > 0
+                ? ` · auto-ends in ~${graceMins} min unless the host extends`
+                : " · wrapping up"}
             </div>
           ) : null}
         </div>

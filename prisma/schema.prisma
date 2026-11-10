@@ -5550,6 +5550,8 @@ model MeetMeeting {
   passcode     String?
   waitingRoom  Boolean   @default(true)
   scheduledAt  DateTime?
+  /// Planned finish time (used for calendar + in-call extend / auto-end).
+  scheduledEndAt DateTime?
   startedAt    DateTime?
   endedAt      DateTime?
   createdAt    DateTime  @default(now())
@@ -5565,6 +5567,7 @@ model MeetMeeting {
   @@index([hostUserId])
   @@index([status])
   @@index([scheduledAt])
+  @@index([scheduledEndAt])
 }
 
 model MeetParticipant {

@@ -53,12 +53,12 @@ function usePreferContain(stream: MediaStream | null, forceContain?: boolean) {
   return contain;
 }
 
-function streamVideoSignature(stream: MediaStream | null | undefined) {
+/** Stable identity for video tracks only — ignore mute flicker so we don't thrash playback. */
+function streamVideoTrackKey(stream: MediaStream | null | undefined) {
   if (!stream) return "none";
-  return stream
-    .getTracks()
-    .map((t) => `${t.kind}:${t.id}:${t.readyState}:${t.enabled}:${t.muted ? 1 : 0}`)
-    .join("|");
+  const videos = stream.getVideoTracks();
+  if (!videos.length) return "novideo";
+  return videos.map((t) => `${t.id}:${t.readyState}`).join("|");
 }
 
 function Tile({
@@ -77,72 +77,98 @@ function Tile({
   const ref = useRef<HTMLVideoElement>(null);
   const preferContain = usePreferContain(tile.stream, tile.isScreen);
   const [hasFrames, setHasFrames] = useState(false);
-  const [trackSig, setTrackSig] = useState(() => streamVideoSignature(tile.stream));
+  const [showConnecting, setShowConnecting] = useState(true);
+  const [trackKey, setTrackKey] = useState(() => streamVideoTrackKey(tile.stream));
+  const boundStreamRef = useRef<MediaStream | null>(null);
 
-  // MediaStream identity is stable while tracks are added later — watch the stream.
+  // Watch for real track add/remove (not mute) so late remote video can attach.
   useEffect(() => {
     const stream = tile.stream;
     if (!stream) {
-      setTrackSig("none");
+      setTrackKey("none");
       return;
     }
-    const bump = () => setTrackSig(streamVideoSignature(stream));
+    const bump = () => setTrackKey(streamVideoTrackKey(stream));
     bump();
     stream.addEventListener("addtrack", bump);
     stream.addEventListener("removetrack", bump);
-    const tracks = stream.getTracks();
-    for (const t of tracks) {
-      t.addEventListener("unmute", bump);
-      t.addEventListener("mute", bump);
-      t.addEventListener("ended", bump);
-    }
-    const poll = window.setInterval(bump, 1000);
     return () => {
       stream.removeEventListener("addtrack", bump);
       stream.removeEventListener("removetrack", bump);
-      for (const t of tracks) {
-        t.removeEventListener("unmute", bump);
-        t.removeEventListener("mute", bump);
-        t.removeEventListener("ended", bump);
-      }
-      window.clearInterval(poll);
     };
   }, [tile.stream]);
 
   useEffect(() => {
     const el = ref.current;
-    if (!el || tile.screenPlaceholder) return;
-    setHasFrames(false);
-    el.muted = Boolean(tile.isLocal);
+    if (!el || tile.screenPlaceholder || tile.videoOff || !tile.stream) return;
 
-    const bindAndPlay = () => {
-      // Safari often keeps a black frame unless srcObject is reassigned after tracks arrive.
-      if (el.srcObject !== tile.stream) {
+    el.muted = Boolean(tile.isLocal);
+    setHasFrames(false);
+    setShowConnecting(true);
+
+    const ensureBound = (force = false) => {
+      if (!tile.stream) return;
+      if (force || el.srcObject !== tile.stream || boundStreamRef.current !== tile.stream) {
         el.srcObject = tile.stream;
-      } else if (tile.stream) {
-        el.srcObject = null;
-        el.srcObject = tile.stream;
+        boundStreamRef.current = tile.stream;
       }
       void el.play().catch(() => undefined);
     };
 
-    bindAndPlay();
-    const track = tile.stream?.getVideoTracks()[0];
-    const onUnmute = () => bindAndPlay();
+    // Soft play kick — never null/reset srcObject on a timer (that caused the forever loop).
+    const kickPlay = () => {
+      void el.play().catch(() => undefined);
+      if (el.videoWidth > 0 || (el.readyState >= 2 && !el.paused)) {
+        setHasFrames(true);
+        setShowConnecting(false);
+      }
+    };
+
+    ensureBound(true);
+    const track = tile.stream.getVideoTracks()[0];
+    const onUnmute = () => {
+      ensureBound(false);
+      kickPlay();
+    };
     track?.addEventListener("unmute", onUnmute);
-    const onPlaying = () => setHasFrames(true);
-    el.addEventListener("playing", onPlaying);
-    el.addEventListener("loadeddata", bindAndPlay);
-    el.addEventListener("canplay", bindAndPlay);
-    const kicks = [120, 400, 1000, 2200].map((ms) => window.setTimeout(bindAndPlay, ms));
+
+    const markReady = () => {
+      setHasFrames(true);
+      setShowConnecting(false);
+    };
+    el.addEventListener("playing", markReady);
+    el.addEventListener("loadeddata", kickPlay);
+    el.addEventListener("canplay", kickPlay);
+
+    const kicks = [150, 500, 1200].map((ms) => window.setTimeout(kickPlay, ms));
+    // Never leave the overlay up forever — hide after a few seconds even if events are flaky.
+    const hideOverlay = window.setTimeout(() => setShowConnecting(false), 3500);
+
+    let frameHandle = 0;
+    const videoEl = el as HTMLVideoElement & {
+      requestVideoFrameCallback?: (cb: () => void) => number;
+      cancelVideoFrameCallback?: (h: number) => void;
+    };
+    if (typeof videoEl.requestVideoFrameCallback === "function") {
+      frameHandle = videoEl.requestVideoFrameCallback(() => markReady());
+    }
+
     return () => {
       for (const id of kicks) window.clearTimeout(id);
+      window.clearTimeout(hideOverlay);
       track?.removeEventListener("unmute", onUnmute);
-      el.removeEventListener("playing", onPlaying);
-      el.removeEventListener("loadeddata", bindAndPlay);
-      el.removeEventListener("canplay", bindAndPlay);
+      el.removeEventListener("playing", markReady);
+      el.removeEventListener("loadeddata", kickPlay);
+      el.removeEventListener("canplay", kickPlay);
+      if (frameHandle && typeof videoEl.cancelVideoFrameCallback === "function") {
+        videoEl.cancelVideoFrameCallback(frameHandle);
+      }
     };
-  }, [tile.stream, tile.isLocal, tile.screenPlaceholder, tile.videoOff, trackSig]);
+  }, [tile.stream, tile.isLocal, tile.screenPlaceholder, tile.videoOff, trackKey]);
+
+  const videoTrackLive = Boolean(
+    tile.stream?.getVideoTracks().some((t) => t.readyState === "live" && t.enabled),
+  );
 
   return (
     <div
@@ -187,9 +213,14 @@ function Tile({
         </div>
       )}
 
-      {!tile.screenPlaceholder && !tile.videoOff && tile.stream && !hasFrames ? (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/55 text-xs text-slate-300">
-          {tile.isScreen ? "Waiting for screen frames…" : "Connecting video…"}
+      {!tile.screenPlaceholder &&
+      !tile.videoOff &&
+      tile.stream &&
+      showConnecting &&
+      !hasFrames &&
+      videoTrackLive ? (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40 text-xs text-slate-300">
+          {tile.isScreen ? "Waiting for screen…" : "Connecting video…"}
         </div>
       ) : null}
 

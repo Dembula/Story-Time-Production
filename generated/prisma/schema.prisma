@@ -5540,21 +5540,23 @@ model FestivalStage2Review {
 
 /// Story Time Meet — built-in WebRTC meetings (not pipeline).
 model MeetMeeting {
-  id          String    @id @default(cuid())
+  id             String    @id @default(cuid())
   /// Short join code shown in links (/meet/{code})
-  code        String    @unique
-  title       String
-  hostUserId  String
-  host        User      @relation("MeetHost", fields: [hostUserId], references: [id], onDelete: Cascade)
-  /// SCHEDULED | LIVE | ENDED
-  status      String    @default("SCHEDULED")
-  passcode    String?
-  waitingRoom Boolean   @default(true)
-  scheduledAt DateTime?
-  startedAt   DateTime?
-  endedAt     DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  code           String    @unique
+  title          String
+  hostUserId     String
+  host           User      @relation("MeetHost", fields: [hostUserId], references: [id], onDelete: Cascade)
+  /// SCHEDULED | LIVE | ENDED | CANCELLED
+  status         String    @default("SCHEDULED")
+  passcode       String?
+  waitingRoom    Boolean   @default(true)
+  scheduledAt    DateTime?
+  /// Planned finish time (used for calendar + in-call extend / auto-end).
+  scheduledEndAt DateTime?
+  startedAt      DateTime?
+  endedAt        DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   participants MeetParticipant[]
   guests       MeetGuest[]
@@ -5566,6 +5568,7 @@ model MeetMeeting {
   @@index([hostUserId])
   @@index([status])
   @@index([scheduledAt])
+  @@index([scheduledEndAt])
 }
 
 model MeetParticipant {
@@ -5645,17 +5648,22 @@ model MeetSignal {
 }
 
 model MeetNote {
-  id           String      @id @default(cuid())
-  meetingId    String
-  meeting      MeetMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
-  authorUserId String?
-  author       User?       @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
-  /// MANUAL | VA | SPEECH
-  source       String      @default("MANUAL")
-  body         String
-  createdAt    DateTime    @default(now())
+  id            String      @id @default(cuid())
+  meetingId     String
+  meeting       MeetMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  authorUserId  String?
+  author        User?       @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  /// MANUAL | VA | SPEECH | CHAT
+  source        String      @default("MANUAL")
+  body          String
+  /// Display name of the speaker (SPEECH/CHAT) or note author label.
+  speakerName   String?
+  /// RTC peer id when the note came from live speech or chat.
+  speakerPeerId String?
+  createdAt     DateTime    @default(now())
 
   @@index([meetingId])
+  @@index([meetingId, source])
 }
 
 model MeetSummary {

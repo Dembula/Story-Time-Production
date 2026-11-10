@@ -3536,6 +3536,7 @@ exports.Prisma.MeetMeetingScalarFieldEnum = {
   passcode: 'passcode',
   waitingRoom: 'waitingRoom',
   scheduledAt: 'scheduledAt',
+  scheduledEndAt: 'scheduledEndAt',
   startedAt: 'startedAt',
   endedAt: 'endedAt',
   createdAt: 'createdAt',
@@ -3597,6 +3598,8 @@ exports.Prisma.MeetNoteScalarFieldEnum = {
   authorUserId: 'authorUserId',
   source: 'source',
   body: 'body',
+  speakerName: 'speakerName',
+  speakerPeerId: 'speakerPeerId',
   createdAt: 'createdAt'
 };
 

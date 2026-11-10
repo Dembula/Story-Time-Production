@@ -43,6 +43,7 @@ export async function GET(
   });
   const { startAt, endAt } = resolveMeetWindow({
     scheduledAt: meeting.scheduledAt,
+    scheduledEndAt: (meeting as { scheduledEndAt?: Date | null }).scheduledEndAt,
     startedAt: meeting.startedAt,
   });
   const ics = buildMeetIcs({

@@ -297495,6 +297495,7 @@ export namespace Prisma {
     passcode: string | null
     waitingRoom: boolean | null
     scheduledAt: Date | null
+    scheduledEndAt: Date | null
     startedAt: Date | null
     endedAt: Date | null
     createdAt: Date | null
@@ -297510,6 +297511,7 @@ export namespace Prisma {
     passcode: string | null
     waitingRoom: boolean | null
     scheduledAt: Date | null
+    scheduledEndAt: Date | null
     startedAt: Date | null
     endedAt: Date | null
     createdAt: Date | null
@@ -297525,6 +297527,7 @@ export namespace Prisma {
     passcode: number
     waitingRoom: number
     scheduledAt: number
+    scheduledEndAt: number
     startedAt: number
     endedAt: number
     createdAt: number
@@ -297542,6 +297545,7 @@ export namespace Prisma {
     passcode?: true
     waitingRoom?: true
     scheduledAt?: true
+    scheduledEndAt?: true
     startedAt?: true
     endedAt?: true
     createdAt?: true
@@ -297557,6 +297561,7 @@ export namespace Prisma {
     passcode?: true
     waitingRoom?: true
     scheduledAt?: true
+    scheduledEndAt?: true
     startedAt?: true
     endedAt?: true
     createdAt?: true
@@ -297572,6 +297577,7 @@ export namespace Prisma {
     passcode?: true
     waitingRoom?: true
     scheduledAt?: true
+    scheduledEndAt?: true
     startedAt?: true
     endedAt?: true
     createdAt?: true
@@ -297660,6 +297666,7 @@ export namespace Prisma {
     passcode: string | null
     waitingRoom: boolean
     scheduledAt: Date | null
+    scheduledEndAt: Date | null
     startedAt: Date | null
     endedAt: Date | null
     createdAt: Date
@@ -297692,6 +297699,7 @@ export namespace Prisma {
     passcode?: boolean
     waitingRoom?: boolean
     scheduledAt?: boolean
+    scheduledEndAt?: boolean
     startedAt?: boolean
     endedAt?: boolean
     createdAt?: boolean
@@ -297715,6 +297723,7 @@ export namespace Prisma {
     passcode?: boolean
     waitingRoom?: boolean
     scheduledAt?: boolean
+    scheduledEndAt?: boolean
     startedAt?: boolean
     endedAt?: boolean
     createdAt?: boolean
@@ -297731,6 +297740,7 @@ export namespace Prisma {
     passcode?: boolean
     waitingRoom?: boolean
     scheduledAt?: boolean
+    scheduledEndAt?: boolean
     startedAt?: boolean
     endedAt?: boolean
     createdAt?: boolean
@@ -297771,12 +297781,16 @@ export namespace Prisma {
       title: string
       hostUserId: string
       /**
-       * SCHEDULED | LIVE | ENDED
+       * SCHEDULED | LIVE | ENDED | CANCELLED
        */
       status: string
       passcode: string | null
       waitingRoom: boolean
       scheduledAt: Date | null
+      /**
+       * Planned finish time (used for calendar + in-call extend / auto-end).
+       */
+      scheduledEndAt: Date | null
       startedAt: Date | null
       endedAt: Date | null
       createdAt: Date
@@ -298189,6 +298203,7 @@ export namespace Prisma {
     readonly passcode: FieldRef<"MeetMeeting", 'String'>
     readonly waitingRoom: FieldRef<"MeetMeeting", 'Boolean'>
     readonly scheduledAt: FieldRef<"MeetMeeting", 'DateTime'>
+    readonly scheduledEndAt: FieldRef<"MeetMeeting", 'DateTime'>
     readonly startedAt: FieldRef<"MeetMeeting", 'DateTime'>
     readonly endedAt: FieldRef<"MeetMeeting", 'DateTime'>
     readonly createdAt: FieldRef<"MeetMeeting", 'DateTime'>
@@ -302673,6 +302688,8 @@ export namespace Prisma {
     authorUserId: string | null
     source: string | null
     body: string | null
+    speakerName: string | null
+    speakerPeerId: string | null
     createdAt: Date | null
   }
 
@@ -302682,6 +302699,8 @@ export namespace Prisma {
     authorUserId: string | null
     source: string | null
     body: string | null
+    speakerName: string | null
+    speakerPeerId: string | null
     createdAt: Date | null
   }
 
@@ -302691,6 +302710,8 @@ export namespace Prisma {
     authorUserId: number
     source: number
     body: number
+    speakerName: number
+    speakerPeerId: number
     createdAt: number
     _all: number
   }
@@ -302702,6 +302723,8 @@ export namespace Prisma {
     authorUserId?: true
     source?: true
     body?: true
+    speakerName?: true
+    speakerPeerId?: true
     createdAt?: true
   }
 
@@ -302711,6 +302734,8 @@ export namespace Prisma {
     authorUserId?: true
     source?: true
     body?: true
+    speakerName?: true
+    speakerPeerId?: true
     createdAt?: true
   }
 
@@ -302720,6 +302745,8 @@ export namespace Prisma {
     authorUserId?: true
     source?: true
     body?: true
+    speakerName?: true
+    speakerPeerId?: true
     createdAt?: true
     _all?: true
   }
@@ -302802,6 +302829,8 @@ export namespace Prisma {
     authorUserId: string | null
     source: string
     body: string
+    speakerName: string | null
+    speakerPeerId: string | null
     createdAt: Date
     _count: MeetNoteCountAggregateOutputType | null
     _min: MeetNoteMinAggregateOutputType | null
@@ -302828,6 +302857,8 @@ export namespace Prisma {
     authorUserId?: boolean
     source?: boolean
     body?: boolean
+    speakerName?: boolean
+    speakerPeerId?: boolean
     createdAt?: boolean
     meeting?: boolean | MeetMeetingDefaultArgs<ExtArgs>
     author?: boolean | MeetNote$authorArgs<ExtArgs>
@@ -302839,6 +302870,8 @@ export namespace Prisma {
     authorUserId?: boolean
     source?: boolean
     body?: boolean
+    speakerName?: boolean
+    speakerPeerId?: boolean
     createdAt?: boolean
     meeting?: boolean | MeetMeetingDefaultArgs<ExtArgs>
     author?: boolean | MeetNote$authorArgs<ExtArgs>
@@ -302850,6 +302883,8 @@ export namespace Prisma {
     authorUserId?: boolean
     source?: boolean
     body?: boolean
+    speakerName?: boolean
+    speakerPeerId?: boolean
     createdAt?: boolean
   }
 
@@ -302873,10 +302908,18 @@ export namespace Prisma {
       meetingId: string
       authorUserId: string | null
       /**
-       * MANUAL | VA | SPEECH
+       * MANUAL | VA | SPEECH | CHAT
        */
       source: string
       body: string
+      /**
+       * Display name of the speaker (SPEECH/CHAT) or note author label.
+       */
+      speakerName: string | null
+      /**
+       * RTC peer id when the note came from live speech or chat.
+       */
+      speakerPeerId: string | null
       createdAt: Date
     }, ExtArgs["result"]["meetNote"]>
     composites: {}
@@ -303278,6 +303321,8 @@ export namespace Prisma {
     readonly authorUserId: FieldRef<"MeetNote", 'String'>
     readonly source: FieldRef<"MeetNote", 'String'>
     readonly body: FieldRef<"MeetNote", 'String'>
+    readonly speakerName: FieldRef<"MeetNote", 'String'>
+    readonly speakerPeerId: FieldRef<"MeetNote", 'String'>
     readonly createdAt: FieldRef<"MeetNote", 'DateTime'>
   }
     
@@ -308864,6 +308909,7 @@ export namespace Prisma {
     passcode: 'passcode',
     waitingRoom: 'waitingRoom',
     scheduledAt: 'scheduledAt',
+    scheduledEndAt: 'scheduledEndAt',
     startedAt: 'startedAt',
     endedAt: 'endedAt',
     createdAt: 'createdAt',
@@ -308940,6 +308986,8 @@ export namespace Prisma {
     authorUserId: 'authorUserId',
     source: 'source',
     body: 'body',
+    speakerName: 'speakerName',
+    speakerPeerId: 'speakerPeerId',
     createdAt: 'createdAt'
   };
 
@@ -332210,6 +332258,7 @@ export namespace Prisma {
     passcode?: StringNullableFilter<"MeetMeeting"> | string | null
     waitingRoom?: BoolFilter<"MeetMeeting"> | boolean
     scheduledAt?: DateTimeNullableFilter<"MeetMeeting"> | Date | string | null
+    scheduledEndAt?: DateTimeNullableFilter<"MeetMeeting"> | Date | string | null
     startedAt?: DateTimeNullableFilter<"MeetMeeting"> | Date | string | null
     endedAt?: DateTimeNullableFilter<"MeetMeeting"> | Date | string | null
     createdAt?: DateTimeFilter<"MeetMeeting"> | Date | string
@@ -332232,6 +332281,7 @@ export namespace Prisma {
     passcode?: SortOrderInput | SortOrder
     waitingRoom?: SortOrder
     scheduledAt?: SortOrderInput | SortOrder
+    scheduledEndAt?: SortOrderInput | SortOrder
     startedAt?: SortOrderInput | SortOrder
     endedAt?: SortOrderInput | SortOrder
     createdAt?: SortOrder
@@ -332257,6 +332307,7 @@ export namespace Prisma {
     passcode?: StringNullableFilter<"MeetMeeting"> | string | null
     waitingRoom?: BoolFilter<"MeetMeeting"> | boolean
     scheduledAt?: DateTimeNullableFilter<"MeetMeeting"> | Date | string | null
+    scheduledEndAt?: DateTimeNullableFilter<"MeetMeeting"> | Date | string | null
     startedAt?: DateTimeNullableFilter<"MeetMeeting"> | Date | string | null
     endedAt?: DateTimeNullableFilter<"MeetMeeting"> | Date | string | null
     createdAt?: DateTimeFilter<"MeetMeeting"> | Date | string
@@ -332279,6 +332330,7 @@ export namespace Prisma {
     passcode?: SortOrderInput | SortOrder
     waitingRoom?: SortOrder
     scheduledAt?: SortOrderInput | SortOrder
+    scheduledEndAt?: SortOrderInput | SortOrder
     startedAt?: SortOrderInput | SortOrder
     endedAt?: SortOrderInput | SortOrder
     createdAt?: SortOrder
@@ -332300,6 +332352,7 @@ export namespace Prisma {
     passcode?: StringNullableWithAggregatesFilter<"MeetMeeting"> | string | null
     waitingRoom?: BoolWithAggregatesFilter<"MeetMeeting"> | boolean
     scheduledAt?: DateTimeNullableWithAggregatesFilter<"MeetMeeting"> | Date | string | null
+    scheduledEndAt?: DateTimeNullableWithAggregatesFilter<"MeetMeeting"> | Date | string | null
     startedAt?: DateTimeNullableWithAggregatesFilter<"MeetMeeting"> | Date | string | null
     endedAt?: DateTimeNullableWithAggregatesFilter<"MeetMeeting"> | Date | string | null
     createdAt?: DateTimeWithAggregatesFilter<"MeetMeeting"> | Date | string
@@ -332631,6 +332684,8 @@ export namespace Prisma {
     authorUserId?: StringNullableFilter<"MeetNote"> | string | null
     source?: StringFilter<"MeetNote"> | string
     body?: StringFilter<"MeetNote"> | string
+    speakerName?: StringNullableFilter<"MeetNote"> | string | null
+    speakerPeerId?: StringNullableFilter<"MeetNote"> | string | null
     createdAt?: DateTimeFilter<"MeetNote"> | Date | string
     meeting?: XOR<MeetMeetingRelationFilter, MeetMeetingWhereInput>
     author?: XOR<UserNullableRelationFilter, UserWhereInput> | null
@@ -332642,6 +332697,8 @@ export namespace Prisma {
     authorUserId?: SortOrderInput | SortOrder
     source?: SortOrder
     body?: SortOrder
+    speakerName?: SortOrderInput | SortOrder
+    speakerPeerId?: SortOrderInput | SortOrder
     createdAt?: SortOrder
     meeting?: MeetMeetingOrderByWithRelationInput
     author?: UserOrderByWithRelationInput
@@ -332656,6 +332713,8 @@ export namespace Prisma {
     authorUserId?: StringNullableFilter<"MeetNote"> | string | null
     source?: StringFilter<"MeetNote"> | string
     body?: StringFilter<"MeetNote"> | string
+    speakerName?: StringNullableFilter<"MeetNote"> | string | null
+    speakerPeerId?: StringNullableFilter<"MeetNote"> | string | null
     createdAt?: DateTimeFilter<"MeetNote"> | Date | string
     meeting?: XOR<MeetMeetingRelationFilter, MeetMeetingWhereInput>
     author?: XOR<UserNullableRelationFilter, UserWhereInput> | null
@@ -332667,6 +332726,8 @@ export namespace Prisma {
     authorUserId?: SortOrderInput | SortOrder
     source?: SortOrder
     body?: SortOrder
+    speakerName?: SortOrderInput | SortOrder
+    speakerPeerId?: SortOrderInput | SortOrder
     createdAt?: SortOrder
     _count?: MeetNoteCountOrderByAggregateInput
     _max?: MeetNoteMaxOrderByAggregateInput
@@ -332682,6 +332743,8 @@ export namespace Prisma {
     authorUserId?: StringNullableWithAggregatesFilter<"MeetNote"> | string | null
     source?: StringWithAggregatesFilter<"MeetNote"> | string
     body?: StringWithAggregatesFilter<"MeetNote"> | string
+    speakerName?: StringNullableWithAggregatesFilter<"MeetNote"> | string | null
+    speakerPeerId?: StringNullableWithAggregatesFilter<"MeetNote"> | string | null
     createdAt?: DateTimeWithAggregatesFilter<"MeetNote"> | Date | string
   }
 
@@ -358035,6 +358098,7 @@ export namespace Prisma {
     passcode?: string | null
     waitingRoom?: boolean
     scheduledAt?: Date | string | null
+    scheduledEndAt?: Date | string | null
     startedAt?: Date | string | null
     endedAt?: Date | string | null
     createdAt?: Date | string
@@ -358057,6 +358121,7 @@ export namespace Prisma {
     passcode?: string | null
     waitingRoom?: boolean
     scheduledAt?: Date | string | null
+    scheduledEndAt?: Date | string | null
     startedAt?: Date | string | null
     endedAt?: Date | string | null
     createdAt?: Date | string
@@ -358077,6 +358142,7 @@ export namespace Prisma {
     passcode?: NullableStringFieldUpdateOperationsInput | string | null
     waitingRoom?: BoolFieldUpdateOperationsInput | boolean
     scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    scheduledEndAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -358099,6 +358165,7 @@ export namespace Prisma {
     passcode?: NullableStringFieldUpdateOperationsInput | string | null
     waitingRoom?: BoolFieldUpdateOperationsInput | boolean
     scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    scheduledEndAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -358120,6 +358187,7 @@ export namespace Prisma {
     passcode?: string | null
     waitingRoom?: boolean
     scheduledAt?: Date | string | null
+    scheduledEndAt?: Date | string | null
     startedAt?: Date | string | null
     endedAt?: Date | string | null
     createdAt?: Date | string
@@ -358134,6 +358202,7 @@ export namespace Prisma {
     passcode?: NullableStringFieldUpdateOperationsInput | string | null
     waitingRoom?: BoolFieldUpdateOperationsInput | boolean
     scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    scheduledEndAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -358149,6 +358218,7 @@ export namespace Prisma {
     passcode?: NullableStringFieldUpdateOperationsInput | string | null
     waitingRoom?: BoolFieldUpdateOperationsInput | boolean
     scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    scheduledEndAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -358492,6 +358562,8 @@ export namespace Prisma {
     id?: string
     source?: string
     body: string
+    speakerName?: string | null
+    speakerPeerId?: string | null
     createdAt?: Date | string
     meeting: MeetMeetingCreateNestedOneWithoutNotesInput
     author?: UserCreateNestedOneWithoutMeetNotesAuthoredInput
@@ -358503,6 +358575,8 @@ export namespace Prisma {
     authorUserId?: string | null
     source?: string
     body: string
+    speakerName?: string | null
+    speakerPeerId?: string | null
     createdAt?: Date | string
   }
 
@@ -358510,6 +358584,8 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     source?: StringFieldUpdateOperationsInput | string
     body?: StringFieldUpdateOperationsInput | string
+    speakerName?: NullableStringFieldUpdateOperationsInput | string | null
+    speakerPeerId?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     meeting?: MeetMeetingUpdateOneRequiredWithoutNotesNestedInput
     author?: UserUpdateOneWithoutMeetNotesAuthoredNestedInput
@@ -358521,6 +358597,8 @@ export namespace Prisma {
     authorUserId?: NullableStringFieldUpdateOperationsInput | string | null
     source?: StringFieldUpdateOperationsInput | string
     body?: StringFieldUpdateOperationsInput | string
+    speakerName?: NullableStringFieldUpdateOperationsInput | string | null
+    speakerPeerId?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
@@ -358530,6 +358608,8 @@ export namespace Prisma {
     authorUserId?: string | null
     source?: string
     body: string
+    speakerName?: string | null
+    speakerPeerId?: string | null
     createdAt?: Date | string
   }
 
@@ -358537,6 +358617,8 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     source?: StringFieldUpdateOperationsInput | string
     body?: StringFieldUpdateOperationsInput | string
+    speakerName?: NullableStringFieldUpdateOperationsInput | string | null
+    speakerPeerId?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
@@ -358546,6 +358628,8 @@ export namespace Prisma {
     authorUserId?: NullableStringFieldUpdateOperationsInput | string | null
     source?: StringFieldUpdateOperationsInput | string
     body?: StringFieldUpdateOperationsInput | string
+    speakerName?: NullableStringFieldUpdateOperationsInput | string | null
+    speakerPeerId?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
@@ -373304,6 +373388,7 @@ export namespace Prisma {
     passcode?: SortOrder
     waitingRoom?: SortOrder
     scheduledAt?: SortOrder
+    scheduledEndAt?: SortOrder
     startedAt?: SortOrder
     endedAt?: SortOrder
     createdAt?: SortOrder
@@ -373319,6 +373404,7 @@ export namespace Prisma {
     passcode?: SortOrder
     waitingRoom?: SortOrder
     scheduledAt?: SortOrder
+    scheduledEndAt?: SortOrder
     startedAt?: SortOrder
     endedAt?: SortOrder
     createdAt?: SortOrder
@@ -373334,6 +373420,7 @@ export namespace Prisma {
     passcode?: SortOrder
     waitingRoom?: SortOrder
     scheduledAt?: SortOrder
+    scheduledEndAt?: SortOrder
     startedAt?: SortOrder
     endedAt?: SortOrder
     createdAt?: SortOrder
@@ -373504,6 +373591,8 @@ export namespace Prisma {
     authorUserId?: SortOrder
     source?: SortOrder
     body?: SortOrder
+    speakerName?: SortOrder
+    speakerPeerId?: SortOrder
     createdAt?: SortOrder
   }
 
@@ -373513,6 +373602,8 @@ export namespace Prisma {
     authorUserId?: SortOrder
     source?: SortOrder
     body?: SortOrder
+    speakerName?: SortOrder
+    speakerPeerId?: SortOrder
     createdAt?: SortOrder
   }
 
@@ -373522,6 +373613,8 @@ export namespace Prisma {
     authorUserId?: SortOrder
     source?: SortOrder
     body?: SortOrder
+    speakerName?: SortOrder
+    speakerPeerId?: SortOrder
     createdAt?: SortOrder
   }
 
@@ -407475,6 +407568,7 @@ export namespace Prisma {
     passcode?: string | null
     waitingRoom?: boolean
     scheduledAt?: Date | string | null
+    scheduledEndAt?: Date | string | null
     startedAt?: Date | string | null
     endedAt?: Date | string | null
     createdAt?: Date | string
@@ -407495,6 +407589,7 @@ export namespace Prisma {
     passcode?: string | null
     waitingRoom?: boolean
     scheduledAt?: Date | string | null
+    scheduledEndAt?: Date | string | null
     startedAt?: Date | string | null
     endedAt?: Date | string | null
     createdAt?: Date | string
@@ -407659,6 +407754,8 @@ export namespace Prisma {
     id?: string
     source?: string
     body: string
+    speakerName?: string | null
+    speakerPeerId?: string | null
     createdAt?: Date | string
     meeting: MeetMeetingCreateNestedOneWithoutNotesInput
   }
@@ -407668,6 +407765,8 @@ export namespace Prisma {
     meetingId: string
     source?: string
     body: string
+    speakerName?: string | null
+    speakerPeerId?: string | null
     createdAt?: Date | string
   }
 
@@ -413618,6 +413717,7 @@ export namespace Prisma {
     passcode?: StringNullableFilter<"MeetMeeting"> | string | null
     waitingRoom?: BoolFilter<"MeetMeeting"> | boolean
     scheduledAt?: DateTimeNullableFilter<"MeetMeeting"> | Date | string | null
+    scheduledEndAt?: DateTimeNullableFilter<"MeetMeeting"> | Date | string | null
     startedAt?: DateTimeNullableFilter<"MeetMeeting"> | Date | string | null
     endedAt?: DateTimeNullableFilter<"MeetMeeting"> | Date | string | null
     createdAt?: DateTimeFilter<"MeetMeeting"> | Date | string
@@ -413763,6 +413863,8 @@ export namespace Prisma {
     authorUserId?: StringNullableFilter<"MeetNote"> | string | null
     source?: StringFilter<"MeetNote"> | string
     body?: StringFilter<"MeetNote"> | string
+    speakerName?: StringNullableFilter<"MeetNote"> | string | null
+    speakerPeerId?: StringNullableFilter<"MeetNote"> | string | null
     createdAt?: DateTimeFilter<"MeetNote"> | Date | string
   }
 
@@ -645984,6 +646086,8 @@ export namespace Prisma {
     id?: string
     source?: string
     body: string
+    speakerName?: string | null
+    speakerPeerId?: string | null
     createdAt?: Date | string
     author?: UserCreateNestedOneWithoutMeetNotesAuthoredInput
   }
@@ -645993,6 +646097,8 @@ export namespace Prisma {
     authorUserId?: string | null
     source?: string
     body: string
+    speakerName?: string | null
+    speakerPeerId?: string | null
     createdAt?: Date | string
   }
 
@@ -646665,6 +646771,7 @@ export namespace Prisma {
     passcode?: string | null
     waitingRoom?: boolean
     scheduledAt?: Date | string | null
+    scheduledEndAt?: Date | string | null
     startedAt?: Date | string | null
     endedAt?: Date | string | null
     createdAt?: Date | string
@@ -646686,6 +646793,7 @@ export namespace Prisma {
     passcode?: string | null
     waitingRoom?: boolean
     scheduledAt?: Date | string | null
+    scheduledEndAt?: Date | string | null
     startedAt?: Date | string | null
     endedAt?: Date | string | null
     createdAt?: Date | string
@@ -647180,6 +647288,7 @@ export namespace Prisma {
     passcode?: NullableStringFieldUpdateOperationsInput | string | null
     waitingRoom?: BoolFieldUpdateOperationsInput | boolean
     scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    scheduledEndAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -647201,6 +647310,7 @@ export namespace Prisma {
     passcode?: NullableStringFieldUpdateOperationsInput | string | null
     waitingRoom?: BoolFieldUpdateOperationsInput | boolean
     scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    scheduledEndAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -647685,6 +647795,7 @@ export namespace Prisma {
     passcode?: string | null
     waitingRoom?: boolean
     scheduledAt?: Date | string | null
+    scheduledEndAt?: Date | string | null
     startedAt?: Date | string | null
     endedAt?: Date | string | null
     createdAt?: Date | string
@@ -647706,6 +647817,7 @@ export namespace Prisma {
     passcode?: string | null
     waitingRoom?: boolean
     scheduledAt?: Date | string | null
+    scheduledEndAt?: Date | string | null
     startedAt?: Date | string | null
     endedAt?: Date | string | null
     createdAt?: Date | string
@@ -647741,6 +647853,7 @@ export namespace Prisma {
     passcode?: NullableStringFieldUpdateOperationsInput | string | null
     waitingRoom?: BoolFieldUpdateOperationsInput | boolean
     scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    scheduledEndAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -647762,6 +647875,7 @@ export namespace Prisma {
     passcode?: NullableStringFieldUpdateOperationsInput | string | null
     waitingRoom?: BoolFieldUpdateOperationsInput | boolean
     scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    scheduledEndAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -647781,6 +647895,7 @@ export namespace Prisma {
     passcode?: string | null
     waitingRoom?: boolean
     scheduledAt?: Date | string | null
+    scheduledEndAt?: Date | string | null
     startedAt?: Date | string | null
     endedAt?: Date | string | null
     createdAt?: Date | string
@@ -647802,6 +647917,7 @@ export namespace Prisma {
     passcode?: string | null
     waitingRoom?: boolean
     scheduledAt?: Date | string | null
+    scheduledEndAt?: Date | string | null
     startedAt?: Date | string | null
     endedAt?: Date | string | null
     createdAt?: Date | string
@@ -648755,6 +648871,7 @@ export namespace Prisma {
     passcode?: NullableStringFieldUpdateOperationsInput | string | null
     waitingRoom?: BoolFieldUpdateOperationsInput | boolean
     scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    scheduledEndAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -648776,6 +648893,7 @@ export namespace Prisma {
     passcode?: NullableStringFieldUpdateOperationsInput | string | null
     waitingRoom?: BoolFieldUpdateOperationsInput | boolean
     scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    scheduledEndAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -649725,6 +649843,7 @@ export namespace Prisma {
     passcode?: string | null
     waitingRoom?: boolean
     scheduledAt?: Date | string | null
+    scheduledEndAt?: Date | string | null
     startedAt?: Date | string | null
     endedAt?: Date | string | null
     createdAt?: Date | string
@@ -649746,6 +649865,7 @@ export namespace Prisma {
     passcode?: string | null
     waitingRoom?: boolean
     scheduledAt?: Date | string | null
+    scheduledEndAt?: Date | string | null
     startedAt?: Date | string | null
     endedAt?: Date | string | null
     createdAt?: Date | string
@@ -649781,6 +649901,7 @@ export namespace Prisma {
     passcode?: NullableStringFieldUpdateOperationsInput | string | null
     waitingRoom?: BoolFieldUpdateOperationsInput | boolean
     scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    scheduledEndAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -649802,6 +649923,7 @@ export namespace Prisma {
     passcode?: NullableStringFieldUpdateOperationsInput | string | null
     waitingRoom?: BoolFieldUpdateOperationsInput | boolean
     scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    scheduledEndAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -649821,6 +649943,7 @@ export namespace Prisma {
     passcode?: string | null
     waitingRoom?: boolean
     scheduledAt?: Date | string | null
+    scheduledEndAt?: Date | string | null
     startedAt?: Date | string | null
     endedAt?: Date | string | null
     createdAt?: Date | string
@@ -649842,6 +649965,7 @@ export namespace Prisma {
     passcode?: string | null
     waitingRoom?: boolean
     scheduledAt?: Date | string | null
+    scheduledEndAt?: Date | string | null
     startedAt?: Date | string | null
     endedAt?: Date | string | null
     createdAt?: Date | string
@@ -650336,6 +650460,7 @@ export namespace Prisma {
     passcode?: NullableStringFieldUpdateOperationsInput | string | null
     waitingRoom?: BoolFieldUpdateOperationsInput | boolean
     scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    scheduledEndAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -650357,6 +650482,7 @@ export namespace Prisma {
     passcode?: NullableStringFieldUpdateOperationsInput | string | null
     waitingRoom?: BoolFieldUpdateOperationsInput | boolean
     scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    scheduledEndAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -650841,6 +650967,7 @@ export namespace Prisma {
     passcode?: string | null
     waitingRoom?: boolean
     scheduledAt?: Date | string | null
+    scheduledEndAt?: Date | string | null
     startedAt?: Date | string | null
     endedAt?: Date | string | null
     createdAt?: Date | string
@@ -650862,6 +650989,7 @@ export namespace Prisma {
     passcode?: string | null
     waitingRoom?: boolean
     scheduledAt?: Date | string | null
+    scheduledEndAt?: Date | string | null
     startedAt?: Date | string | null
     endedAt?: Date | string | null
     createdAt?: Date | string
@@ -651356,6 +651484,7 @@ export namespace Prisma {
     passcode?: NullableStringFieldUpdateOperationsInput | string | null
     waitingRoom?: BoolFieldUpdateOperationsInput | boolean
     scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    scheduledEndAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -651377,6 +651506,7 @@ export namespace Prisma {
     passcode?: NullableStringFieldUpdateOperationsInput | string | null
     waitingRoom?: BoolFieldUpdateOperationsInput | boolean
     scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    scheduledEndAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -653506,6 +653636,7 @@ export namespace Prisma {
     passcode?: string | null
     waitingRoom?: boolean
     scheduledAt?: Date | string | null
+    scheduledEndAt?: Date | string | null
     startedAt?: Date | string | null
     endedAt?: Date | string | null
     createdAt?: Date | string
@@ -653566,6 +653697,8 @@ export namespace Prisma {
     meetingId: string
     source?: string
     body: string
+    speakerName?: string | null
+    speakerPeerId?: string | null
     createdAt?: Date | string
   }
 
@@ -659308,6 +659441,7 @@ export namespace Prisma {
     passcode?: NullableStringFieldUpdateOperationsInput | string | null
     waitingRoom?: BoolFieldUpdateOperationsInput | boolean
     scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    scheduledEndAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -659328,6 +659462,7 @@ export namespace Prisma {
     passcode?: NullableStringFieldUpdateOperationsInput | string | null
     waitingRoom?: BoolFieldUpdateOperationsInput | boolean
     scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    scheduledEndAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -659348,6 +659483,7 @@ export namespace Prisma {
     passcode?: NullableStringFieldUpdateOperationsInput | string | null
     waitingRoom?: BoolFieldUpdateOperationsInput | boolean
     scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    scheduledEndAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -659505,6 +659641,8 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     source?: StringFieldUpdateOperationsInput | string
     body?: StringFieldUpdateOperationsInput | string
+    speakerName?: NullableStringFieldUpdateOperationsInput | string | null
+    speakerPeerId?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     meeting?: MeetMeetingUpdateOneRequiredWithoutNotesNestedInput
   }
@@ -659514,6 +659652,8 @@ export namespace Prisma {
     meetingId?: StringFieldUpdateOperationsInput | string
     source?: StringFieldUpdateOperationsInput | string
     body?: StringFieldUpdateOperationsInput | string
+    speakerName?: NullableStringFieldUpdateOperationsInput | string | null
+    speakerPeerId?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
@@ -659522,6 +659662,8 @@ export namespace Prisma {
     meetingId?: StringFieldUpdateOperationsInput | string
     source?: StringFieldUpdateOperationsInput | string
     body?: StringFieldUpdateOperationsInput | string
+    speakerName?: NullableStringFieldUpdateOperationsInput | string | null
+    speakerPeerId?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
@@ -676939,6 +677081,8 @@ export namespace Prisma {
     authorUserId?: string | null
     source?: string
     body: string
+    speakerName?: string | null
+    speakerPeerId?: string | null
     createdAt?: Date | string
   }
 
@@ -677080,6 +677224,8 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     source?: StringFieldUpdateOperationsInput | string
     body?: StringFieldUpdateOperationsInput | string
+    speakerName?: NullableStringFieldUpdateOperationsInput | string | null
+    speakerPeerId?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     author?: UserUpdateOneWithoutMeetNotesAuthoredNestedInput
   }
@@ -677089,6 +677235,8 @@ export namespace Prisma {
     authorUserId?: NullableStringFieldUpdateOperationsInput | string | null
     source?: StringFieldUpdateOperationsInput | string
     body?: StringFieldUpdateOperationsInput | string
+    speakerName?: NullableStringFieldUpdateOperationsInput | string | null
+    speakerPeerId?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
@@ -677097,6 +677245,8 @@ export namespace Prisma {
     authorUserId?: NullableStringFieldUpdateOperationsInput | string | null
     source?: StringFieldUpdateOperationsInput | string
     body?: StringFieldUpdateOperationsInput | string
+    speakerName?: NullableStringFieldUpdateOperationsInput | string | null
+    speakerPeerId?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
