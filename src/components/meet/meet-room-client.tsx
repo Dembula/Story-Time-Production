@@ -58,11 +58,14 @@ export function MeetRoomClient(props: Props) {
   const [pinnedId, setPinnedId] = useState<string | null>(null);
   const [phase, setPhase] = useState<CallPhase>("live");
   const [summaryId, setSummaryId] = useState<string | null>(null);
+  const [wrapProgress, setWrapProgress] = useState(0);
+  const [wrapLabel, setWrapLabel] = useState("Finishing call…");
   const screenRef = useRef<MediaStream | null>(null);
   const reactionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   localStreamRef.current = localStream;
   const leavingRef = useRef(false);
+  const backgroundFinalizeRef = useRef(false);
   const recorder = useMeetRecorder();
 
   const [joined, setJoined] = useState(Boolean(props.guestMode));
@@ -99,27 +102,23 @@ export function MeetRoomClient(props: Props) {
     [props, router],
   );
 
+  const continueInBackground = useCallback(() => {
+    backgroundFinalizeRef.current = true;
+    props.onEnded?.();
+    if (!props.guestMode) router.push("/creator/meet");
+    else router.push(`/meet/${props.code}?left=1`);
+  }, [props, router]);
+
   const leaveCall = useCallback(
     async (opts?: { endReport?: boolean; endForAllAlready?: boolean }) => {
       if (leavingRef.current) return;
       leavingRef.current = true;
+      backgroundFinalizeRef.current = false;
       setPhase("ending");
+      setWrapProgress(8);
+      setWrapLabel("Leaving the call…");
 
-      let recordingUrl: string | null = null;
-      try {
-        const blob = await recorder.stop();
-        if (blob && !props.guestMode) {
-          const file = new File([blob], `meet-${props.meetingId}.webm`, {
-            type: blob.type || "video/webm",
-          });
-          const { uploadContentMediaViaApi } = await import("@/lib/upload-content-media-client");
-          recordingUrl = await uploadContentMediaViaApi(file);
-        }
-      } catch {
-        /* recording optional */
-      }
-
-      cleanupMedia();
+      // Leave RTC immediately so peers aren't stuck waiting on upload.
       try {
         await fetch(`/api/meet/rtc/${props.meetingId}/leave`, {
           method: "POST",
@@ -128,28 +127,92 @@ export function MeetRoomClient(props: Props) {
       } catch {
         /* ignore */
       }
+      setWrapProgress(22);
+      setWrapLabel("Stopping recording…");
 
-      let nextSummaryId: string | null = null;
-      if (opts?.endReport !== false && !props.guestMode) {
-        try {
-          const res = await fetch("/api/meet/va", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({
-              mode: "report",
-              meetingId: props.meetingId,
-              endMeeting: true,
-              recordingUrl,
-            }),
-          });
-          const json = await res.json().catch(() => ({}));
-          nextSummaryId = json?.summary?.id ?? null;
-        } catch {
-          /* ignore */
-        }
+      let blob: Blob | null = null;
+      try {
+        blob = await Promise.race([
+          recorder.stop(),
+          new Promise<null>((r) => setTimeout(() => r(null), 8000)),
+        ]);
+      } catch {
+        blob = null;
       }
 
+      cleanupMedia();
+      setWrapProgress(40);
+
+      if (props.guestMode || opts?.endReport === false) {
+        setWrapProgress(100);
+        finishToEnded({});
+        return;
+      }
+
+      setWrapLabel(blob ? "Uploading recording…" : "Building VA summary…");
+
+      const finalizePromise = (async () => {
+        let recordingUrl: string | null = null;
+        if (blob) {
+          try {
+            const file = new File([blob], `meet-${props.meetingId}.webm`, {
+              type: blob.type || "video/webm",
+            });
+            const { uploadContentMediaViaApi } = await import(
+              "@/lib/upload-content-media-client"
+            );
+            recordingUrl = await uploadContentMediaViaApi(file);
+            setWrapProgress((p) => Math.max(p, 70));
+            setWrapLabel("Building VA summary…");
+          } catch {
+            setWrapLabel("Recording upload skipped — building summary…");
+          }
+        } else {
+          setWrapProgress(65);
+          setWrapLabel("Building VA summary…");
+        }
+
+        const res = await fetch("/api/meet/finalize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            meetingId: props.meetingId,
+            recordingUrl,
+            notify: true,
+          }),
+        });
+        const json = await res.json().catch(() => ({}));
+        return (json?.summary?.id as string | undefined) ?? null;
+      })();
+
+      // Never trap the host on this screen forever.
+      const nextSummaryId = await Promise.race([
+        finalizePromise,
+        new Promise<null>((r) => {
+          setTimeout(() => {
+            setWrapLabel("Still saving in the background…");
+            setWrapProgress((p) => Math.max(p, 85));
+            r(null);
+          }, 25000);
+        }),
+      ]);
+
+      if (backgroundFinalizeRef.current) {
+        // User already left the wrap-up UI — keep finalize running without flipping UI.
+        if (nextSummaryId == null) void finalizePromise;
+        return;
+      }
+
+      if (nextSummaryId == null) {
+        // Timed out — continue finalize quietly and unlock the exit UI.
+        void finalizePromise;
+        setWrapProgress(100);
+        finishToEnded({});
+        return;
+      }
+
+      setWrapProgress(100);
       finishToEnded({ summaryId: nextSummaryId });
     },
     [cleanupMedia, finishToEnded, props.guestMode, props.meetingId, recorder],
@@ -368,7 +431,7 @@ export function MeetRoomClient(props: Props) {
 
   if (phase === "ending" || phase === "ended") {
     return (
-      <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 text-center">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-black px-4 text-center">
         <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#121214]/95 p-8 shadow-2xl backdrop-blur-xl">
           <Image
             src="/st-mark.png"
@@ -382,12 +445,53 @@ export function MeetRoomClient(props: Props) {
           </h1>
           <p className="mt-2 text-sm text-slate-400">
             {phase === "ending"
-              ? "Saving VA notes and recording, then you can exit."
+              ? wrapLabel
               : props.guestMode
                 ? "Thanks for joining Story Time Meet."
                 : "Your VA summary is ready when you are."}
           </p>
-          {phase === "ended" ? (
+
+          {phase === "ending" ? (
+            <div className="mt-6 space-y-4">
+              <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-orange-500 transition-[width] duration-500 ease-out"
+                  style={{ width: `${Math.min(100, Math.max(6, wrapProgress))}%` }}
+                />
+              </div>
+              <p className="text-[11px] text-slate-500">
+                {Math.min(100, Math.round(wrapProgress))}% — you can keep working while this
+                finishes.
+              </p>
+              <div className="flex flex-col gap-2">
+                {!props.guestMode ? (
+                  <button
+                    type="button"
+                    className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-orange-400"
+                    onClick={continueInBackground}
+                  >
+                    Continue in background
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-slate-200 hover:bg-white/[0.08]"
+                  onClick={() => {
+                    backgroundFinalizeRef.current = true;
+                    exitMeeting(props.guestMode ? "guest" : "hub");
+                  }}
+                >
+                  Exit meeting
+                </button>
+              </div>
+              {!props.guestMode ? (
+                <p className="text-[11px] text-slate-500">
+                  We’ll notify you on the bell when the summary{recorder.recording ? "" : ""} is
+                  ready.
+                </p>
+              ) : null}
+            </div>
+          ) : (
             <div className="mt-6 flex flex-col gap-2">
               {!props.guestMode ? (
                 <button
@@ -407,10 +511,12 @@ export function MeetRoomClient(props: Props) {
               </button>
               {summaryId ? (
                 <p className="text-[11px] text-slate-500">Summary saved for this Meet.</p>
-              ) : null}
+              ) : (
+                <p className="text-[11px] text-slate-500">
+                  If saving is still running, check Summaries or your notification bell shortly.
+                </p>
+              )}
             </div>
-          ) : (
-            <div className="mx-auto mt-6 h-8 w-8 animate-pulse rounded-full border border-orange-400/30 bg-orange-500/10" />
           )}
         </div>
       </div>
@@ -440,23 +546,23 @@ export function MeetRoomClient(props: Props) {
 
   if (props.minimized) {
     return (
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#121214] shadow-2xl ring-1 ring-orange-400/20">
-        <button
-          type="button"
-          onClick={props.onExpand}
-          className="flex w-full items-center justify-between gap-2 border-b border-white/8 px-3 py-2 text-left hover:bg-white/[0.03]"
-        >
-          <div className="min-w-0">
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#121214] shadow-2xl ring-1 ring-orange-400/25">
+        <div className="flex items-center justify-between gap-2 border-b border-white/8 px-3 py-2">
+          <div className="min-w-0 select-none">
             <p className="truncate text-sm font-medium text-white">{props.title}</p>
             <p className="text-[10px] uppercase tracking-wide text-orange-300/80">
               {isScreenSharing ? "Sharing · " : ""}
-              Meet minimized
+              Drag to move · Meet minimized
             </p>
           </div>
-          <span className="shrink-0 rounded-md bg-orange-500/15 px-2 py-1 text-[10px] text-orange-100">
+          <button
+            type="button"
+            onClick={props.onExpand}
+            className="shrink-0 rounded-md bg-orange-500/20 px-2 py-1 text-[10px] font-medium text-orange-100 ring-1 ring-orange-400/30"
+          >
             Expand
-          </span>
-        </button>
+          </button>
+        </div>
         <div className="aspect-video bg-black">
           <MeetVideoGrid
             local={{
@@ -470,7 +576,7 @@ export function MeetRoomClient(props: Props) {
             }}
             remotes={rtc.remotes}
             screenStream={screenStream}
-            pinnedId={pinnedId ?? (isScreenSharing ? "screen-local" : null)}
+            pinnedId={pinnedId}
             onPin={setPinnedId}
           />
         </div>
@@ -509,7 +615,7 @@ export function MeetRoomClient(props: Props) {
         }}
         remotes={rtc.remotes}
         screenStream={screenStream}
-        pinnedId={pinnedId ?? (isScreenSharing ? "screen-local" : null)}
+        pinnedId={pinnedId}
         onPin={(id) => {
           setPinnedId(id);
           void rtc.sendPin(id, id === "screen-local");
@@ -545,6 +651,18 @@ export function MeetRoomClient(props: Props) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            {pinnedId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setPinnedId(null);
+                  void rtc.sendPin(null);
+                }}
+                className="rounded-xl border border-orange-400/30 bg-orange-500/20 px-3 py-2 text-sm text-orange-50 backdrop-blur hover:bg-orange-500/30"
+              >
+                Unpin view
+              </button>
+            ) : null}
             {!props.guestMode ? (
               <>
                 <button

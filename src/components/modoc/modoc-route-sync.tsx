@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useModocOptional } from "./use-modoc";
@@ -11,13 +11,24 @@ import {
   describeClientSurface,
   detectModocClientSurface,
 } from "@/lib/modoc/client-surface";
+import {
+  getActiveMeetSnapshot,
+  subscribeActiveMeet,
+} from "@/lib/meet/active-session";
 
 /** Keeps MODOC request context in sync with the current route and user role. */
 export function ModocRouteSync() {
   const pathname = usePathname();
   const { data: session, status: sessionStatus } = useSession();
   const modoc = useModocOptional();
+  const meetSnap = useSyncExternalStore(
+    subscribeActiveMeet,
+    getActiveMeetSnapshot,
+    getActiveMeetSnapshot,
+  );
   const role = (session?.user as { role?: string } | undefined)?.role;
+  const activeMeet = meetSnap.call;
+  const meetMinimized = meetSnap.minimized;
 
   useEffect(() => {
     if (!modoc) return;
@@ -37,6 +48,18 @@ export function ModocRouteSync() {
     }
     if (pageContext.contentId) {
       clientContext += ` Viewing content ID: ${pageContext.contentId}.`;
+    }
+    if (activeMeet) {
+      clientContext += ` The creator is currently in a live Story Time Meet titled "${activeMeet.title}" (code ${activeMeet.code}, meetingId ${activeMeet.meetingId})${
+        meetMinimized ? " — Meet is minimized while they multitask in the creator dashboard" : ""
+      }. Prefer Meet-aware help (notes, invites, waiting room, summaries) and do not assume they left the call.`;
+      pageContext.area = "meet";
+      pageContext.tool = "meet";
+      pageContext.inMeet = "true";
+      pageContext.meetingId = activeMeet.meetingId;
+      pageContext.meetingCode = activeMeet.code;
+      pageContext.meetingTitle = activeMeet.title;
+      pageContext.meetMinimized = meetMinimized ? "true" : "false";
     }
     if (creatorVaActive) {
       clientContext +=
@@ -58,7 +81,7 @@ export function ModocRouteSync() {
         clientSurface: surface,
       },
     });
-  }, [pathname, role, sessionStatus, modoc]);
+  }, [pathname, role, sessionStatus, modoc, activeMeet, meetMinimized]);
 
   return null;
 }

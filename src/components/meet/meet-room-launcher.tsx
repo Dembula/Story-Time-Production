@@ -10,16 +10,16 @@ export function MeetRoomLauncher(props: {
   code: string;
   displayName: string;
 }) {
-  const live = useMeetLive();
+  const ensureCall = useMeetLive().ensureCall;
 
   useEffect(() => {
-    live.ensureCall({
+    ensureCall({
       meetingId: props.meetingId,
       title: props.title,
       code: props.code,
       displayName: props.displayName,
     });
-  }, [live, props.meetingId, props.title, props.code, props.displayName]);
+  }, [ensureCall, props.meetingId, props.title, props.code, props.displayName]);
 
   return (
     <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 px-4 text-center">
@@ -28,7 +28,7 @@ export function MeetRoomLauncher(props: {
       </p>
       <p className="text-sm text-slate-400">Opening your call…</p>
       <p className="text-xs text-slate-500">
-        Minimize anytime to keep sharing while you use the rest of Story Time.
+        Minimize anytime — drag the dock while you keep using Story Time.
       </p>
     </div>
   );

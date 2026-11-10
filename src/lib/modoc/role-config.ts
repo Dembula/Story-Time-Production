@@ -168,9 +168,18 @@ export function derivePageContext(pathname: string): Record<string, string> {
   const contentMatch = pathname.match(/\/browse\/content\/([^/]+)/);
   if (contentMatch) ctx.contentId = contentMatch[1];
   else if (pathname.includes("/command-center")) ctx.area = "command-center";
-  else if (pathname.includes("/pre-production")) ctx.area = "pre-production";
+  else if (pathname.includes("/creator/meet")) {
+    ctx.area = "meet";
+    ctx.tool = "meet";
+  } else if (pathname.includes("/pre-production")) ctx.area = "pre-production";
   else if (pathname.includes("/production")) ctx.area = "production";
   else if (pathname.includes("/post-production")) ctx.area = "post-production";
+
+  const meetRoomMatch = pathname.match(/\/creator\/meet\/room\/([^/]+)/);
+  if (meetRoomMatch) {
+    ctx.meetingId = meetRoomMatch[1];
+    ctx.inMeet = "true";
+  }
 
   const task = toolSlugToModocTask(ctx.tool);
   if (task) ctx.task = task;
