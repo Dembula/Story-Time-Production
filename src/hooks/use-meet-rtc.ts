@@ -10,6 +10,7 @@ export type MeetRemotePeer = {
   isGuest: boolean;
   role?: string;
   isMuted?: boolean;
+  isScreenShare?: boolean;
   stream: MediaStream;
   reaction?: string | null;
 };
@@ -65,6 +66,7 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
         guestId?: string | null;
         role?: string;
         isMuted?: boolean;
+        isScreenShare?: boolean;
       }
     >
   >(new Map());
@@ -101,6 +103,7 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
         isGuest: Boolean(meta?.isGuest),
         role: meta?.role,
         isMuted: meta?.isMuted,
+        isScreenShare: Boolean(meta?.isScreenShare),
         stream,
       });
     }
@@ -146,7 +149,17 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
           remote = new MediaStream();
           streamsRef.current.set(remotePeerId, remote);
         }
-        remote.addTrack(ev.track);
+        // Screen-share replaceTrack can deliver a new video track — keep one per kind.
+        for (const existing of [...remote.getTracks()]) {
+          if (existing.kind === ev.track.kind && existing.id !== ev.track.id) {
+            remote.removeTrack(existing);
+          }
+        }
+        if (![...remote.getTracks()].some((t) => t.id === ev.track.id)) {
+          remote.addTrack(ev.track);
+        }
+        ev.track.addEventListener("unmute", () => publishRemotes());
+        ev.track.addEventListener("mute", () => publishRemotes());
         publishRemotes();
       };
 
@@ -218,8 +231,15 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
       }
       if (sig.type === "screen-share") {
         const payload = sig.payload as { active?: boolean; peerId?: string };
-        if (payload.active && payload.peerId) {
-          onRemotePinRef.current?.(payload.peerId, true);
+        const peer = String(payload.peerId ?? from);
+        const meta = namesRef.current.get(peer) ?? {
+          name: "Participant",
+          isGuest: false,
+        };
+        namesRef.current.set(peer, { ...meta, isScreenShare: Boolean(payload.active) });
+        publishRemotes();
+        if (payload.active && peer) {
+          onRemotePinRef.current?.(peer, true);
         }
         return;
       }
@@ -474,16 +494,35 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
     [meetingId],
   );
 
-  const setVideoOverride = useCallback((track: MediaStreamTrack | null) => {
-    videoOverrideRef.current = track;
-    for (const pc of pcsRef.current.values()) {
-      const sender = pc.getSenders().find((s) => s.track?.kind === "video");
-      if (sender) {
-        const fallback = localStreamRef.current?.getVideoTracks()[0] ?? null;
-        void sender.replaceTrack(track ?? fallback);
+  const setVideoOverride = useCallback(
+    (track: MediaStreamTrack | null) => {
+      videoOverrideRef.current = track;
+      if (track) {
+        try {
+          track.contentHint = "detail";
+        } catch {
+          /* ignore */
+        }
       }
-    }
-  }, []);
+      for (const [remotePeerId, pc] of pcsRef.current.entries()) {
+        const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+        if (!sender) continue;
+        const fallback = localStreamRef.current?.getVideoTracks()[0] ?? null;
+        void (async () => {
+          try {
+            await sender.replaceTrack(track ?? fallback);
+            // Renegotiate so mobile screen shares actually deliver frames to peers.
+            if ((selfPeerIdRef.current ?? "") < remotePeerId) {
+              await negotiate(remotePeerId);
+            }
+          } catch (err) {
+            console.warn("[meet-rtc] screen replaceTrack failed", err);
+          }
+        })();
+      }
+    },
+    [negotiate],
+  );
 
   const admit = useCallback(
     async (guestId: string, action: "admit" | "deny") => {

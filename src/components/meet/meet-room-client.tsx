@@ -331,6 +331,24 @@ export function MeetRoomClient(props: Props) {
     };
   }, []);
 
+  // Surface waiting-room guests immediately on the people panel.
+  useEffect(() => {
+    if (rtc.isManager && rtc.waiting.length > 0) {
+      setShowPeople(true);
+    }
+  }, [rtc.isManager, rtc.waiting.length]);
+
+  // Auto-start host recording once media is live so summaries keep a capture.
+  useEffect(() => {
+    if (props.guestMode || phase !== "live" || !localStream || recorder.recording) return;
+    void recorder
+      .start({ localStream, screenStream })
+      .then(() => flash("Recording started"))
+      .catch(() => undefined);
+    // Only kick once when local media first arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localStream, props.guestMode, phase]);
+
   const toggleMute = () => {
     const track = localStream?.getAudioTracks()[0];
     if (!track) return;
@@ -365,10 +383,22 @@ export function MeetRoomClient(props: Props) {
     }
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
+        video: {
+          // Helps phones deliver usable frames to laptops.
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 15, max: 30 },
+        } as MediaTrackConstraints,
         audio: false,
       });
       const track = stream.getVideoTracks()[0];
+      if (track) {
+        try {
+          track.contentHint = "detail";
+        } catch {
+          /* ignore */
+        }
+      }
       screenRef.current = stream;
       setScreenStream(stream);
       setIsScreenSharing(true);
@@ -899,6 +929,7 @@ export function MeetRoomClient(props: Props) {
             showMinimize={Boolean(props.onMinimize)}
             showHostMenu={rtc.isManager && !props.guestMode}
             waitingRoomLocked={waitingRoomLocked}
+            waitingCount={rtc.waiting.length}
             onToggleMute={toggleMute}
             onToggleVideo={toggleVideo}
             onToggleScreen={() => void toggleScreen()}

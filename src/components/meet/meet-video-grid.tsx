@@ -41,7 +41,6 @@ function usePreferContain(stream: MediaStream | null, forceContain?: boolean) {
       const s = track.getSettings?.() ?? {};
       const w = Number(s.width) || 0;
       const h = Number(s.height) || 0;
-      // Portrait phone shares and odd ratios fit better with contain.
       setContain(Boolean(w && h && h > w * 1.05));
     };
     apply();
@@ -66,9 +65,24 @@ function Tile({
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   const preferContain = usePreferContain(tile.stream, tile.isScreen);
+  const [hasFrames, setHasFrames] = useState(false);
 
   useEffect(() => {
-    if (ref.current) ref.current.srcObject = tile.stream;
+    const el = ref.current;
+    if (!el) return;
+    el.srcObject = tile.stream;
+    setHasFrames(false);
+    const tryPlay = () => {
+      void el.play().catch(() => undefined);
+    };
+    tryPlay();
+    const onPlaying = () => setHasFrames(true);
+    el.addEventListener("playing", onPlaying);
+    el.addEventListener("loadeddata", tryPlay);
+    return () => {
+      el.removeEventListener("playing", onPlaying);
+      el.removeEventListener("loadeddata", tryPlay);
+    };
   }, [tile.stream]);
 
   return (
@@ -87,7 +101,7 @@ function Tile({
           muted={tile.isLocal}
           className={[
             "h-full w-full bg-black",
-            preferContain ? "object-contain" : "object-cover",
+            preferContain || tile.isScreen ? "object-contain" : "object-cover",
             tile.mirrored && !tile.isScreen ? "scale-x-[-1]" : "",
           ].join(" ")}
         />
@@ -99,6 +113,12 @@ function Tile({
           <p className="text-xs text-slate-500">{tile.videoOff ? "Camera off" : "Connecting…"}</p>
         </div>
       )}
+
+      {tile.isScreen && tile.stream && !hasFrames ? (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/55 text-xs text-slate-300">
+          Waiting for screen frames…
+        </div>
+      ) : null}
 
       <div className="pointer-events-none absolute left-2 top-2 opacity-80">
         <Image
@@ -131,8 +151,9 @@ function Tile({
         </button>
       ) : null}
 
-      <div className="absolute bottom-2 left-2 right-2">
-        <span className="inline-block max-w-full truncate rounded-md border border-white/10 bg-black/55 px-2 py-0.5 text-[11px] text-white backdrop-blur-md">
+      {/* Keep name above the floating control bar */}
+      <div className="absolute bottom-3 left-2 right-2 sm:bottom-3">
+        <span className="inline-block max-w-full truncate rounded-md border border-white/10 bg-black/60 px-2 py-1 text-[11px] text-white backdrop-blur-md">
           {tile.name}
           {tile.isScreen ? " · screen" : ""}
           {tile.isGuest ? " · guest" : ""}
@@ -163,6 +184,7 @@ export function MeetVideoGrid(props: {
       stream: r.stream,
       isGuest: r.isGuest,
       reaction: r.reaction,
+      isScreen: Boolean(r.isScreenShare),
     }));
     const list: MeetTile[] = [props.local, ...remoteTiles];
     if (props.screenStream) {
@@ -177,21 +199,14 @@ export function MeetVideoGrid(props: {
     return list;
   }, [props.local, props.remotes, props.screenStream, props.screenName]);
 
-  // Only pin when explicitly set — never trap the user in a pin they can't clear.
   const pinned = props.pinnedId ? tiles.find((t) => t.id === props.pinnedId) ?? null : null;
   const others = pinned ? tiles.filter((t) => t.id !== pinned.id) : tiles;
 
   if (pinned) {
     return (
-      <div className="flex h-full min-h-0 flex-col gap-2 p-2 sm:flex-row sm:gap-3 sm:p-3">
+      <div className="flex h-full min-h-0 flex-col gap-2 p-2 pb-28 sm:flex-row sm:gap-3 sm:p-3 sm:pb-28">
         <div className="relative min-h-[42%] flex-1 sm:min-h-0">
-          <Tile
-            tile={pinned}
-            pinned
-            fill
-            showPin
-            onPin={() => props.onPin(null)}
-          />
+          <Tile tile={pinned} pinned fill showPin onPin={() => props.onPin(null)} />
         </div>
         {others.length ? (
           <div className="flex max-h-[34%] gap-2 overflow-x-auto pb-1 sm:max-h-none sm:w-44 sm:flex-col sm:overflow-y-auto lg:w-52">
@@ -208,7 +223,7 @@ export function MeetVideoGrid(props: {
 
   return (
     <div
-      className={`grid h-full min-h-0 auto-rows-fr gap-2 p-2 sm:gap-3 sm:p-3 ${gridClass(tiles.length)}`}
+      className={`grid h-full min-h-0 auto-rows-fr gap-2 p-2 pb-28 sm:gap-3 sm:p-3 sm:pb-28 ${gridClass(tiles.length)}`}
     >
       {tiles.map((t) => (
         <Tile key={t.id} tile={t} fill showPin onPin={() => props.onPin(t.id)} />

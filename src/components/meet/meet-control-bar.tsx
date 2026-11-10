@@ -26,6 +26,7 @@ type Props = {
   showMinimize?: boolean;
   showHostMenu?: boolean;
   waitingRoomLocked?: boolean;
+  waitingCount?: number;
   onToggleMute: () => void;
   onToggleVideo: () => void;
   onToggleScreen: () => void;
@@ -133,9 +134,23 @@ export function MeetControlBar(props: Props) {
         ))}
       </div>
 
-      <CtrlBtn onClick={props.onToggleParticipants} title="Participants">
+      <button
+        type="button"
+        onClick={props.onToggleParticipants}
+        title={
+          props.waitingCount
+            ? `Participants · ${props.waitingCount} waiting`
+            : "Participants"
+        }
+        className="relative rounded-full bg-white/[0.08] p-3 text-white ring-1 ring-white/10 hover:bg-white/[0.14]"
+      >
         <Users className="h-5 w-5" />
-      </CtrlBtn>
+        {props.waitingCount && props.waitingCount > 0 ? (
+          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-bold text-black">
+            {props.waitingCount > 9 ? "9+" : props.waitingCount}
+          </span>
+        ) : null}
+      </button>
       <CtrlBtn onClick={props.onToggleNotes} title="VA notes">
         <StickyNote className="h-5 w-5" />
       </CtrlBtn>

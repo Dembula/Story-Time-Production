@@ -2,6 +2,22 @@
 
 import { useCallback, useRef, useState } from "react";
 
+function pickMimeType() {
+  const candidates = [
+    "video/webm;codecs=vp9,opus",
+    "video/webm;codecs=vp8,opus",
+    "video/webm",
+    "video/mp4",
+    "audio/webm",
+  ];
+  for (const type of candidates) {
+    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type)) {
+      return type;
+    }
+  }
+  return "";
+}
+
 /** Records mic (+ optional screen/camera video) for Meet archival. */
 export function useMeetRecorder() {
   const [recording, setRecording] = useState(false);
@@ -18,43 +34,63 @@ export function useMeetRecorder() {
     const screenVideo = input.screenStream?.getVideoTracks()[0];
     const camVideo = input.localStream?.getVideoTracks()[0];
     const audio = input.localStream?.getAudioTracks()[0];
-    if (screenVideo) tracks.push(screenVideo);
-    else if (camVideo) tracks.push(camVideo);
-    if (audio) tracks.push(audio);
+    if (screenVideo && screenVideo.readyState === "live") tracks.push(screenVideo);
+    else if (camVideo && camVideo.readyState === "live") tracks.push(camVideo);
+    if (audio && audio.readyState === "live") tracks.push(audio);
     if (!tracks.length) throw new Error("Nothing to record — enable mic or camera first");
 
-    const stream = new MediaStream(tracks.map((t) => t.clone()));
+    // Prefer live tracks directly so we don't freeze a dead clone.
+    const stream = new MediaStream(tracks);
     streamRef.current = stream;
     chunksRef.current = [];
-    const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
-      ? "video/webm;codecs=vp9,opus"
-      : MediaRecorder.isTypeSupported("video/webm")
-        ? "video/webm"
-        : "audio/webm";
-    const recorder = new MediaRecorder(stream, { mimeType: mime });
+    const mime = pickMimeType();
+    const recorder = mime
+      ? new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 1_500_000 })
+      : new MediaRecorder(stream);
     recorder.ondataavailable = (ev) => {
-      if (ev.data.size > 0) chunksRef.current.push(ev.data);
+      if (ev.data && ev.data.size > 0) chunksRef.current.push(ev.data);
+    };
+    recorder.onerror = () => {
+      /* keep chunks collected so far */
     };
     recorderRef.current = recorder;
-    recorder.start(2000);
+    recorder.start(1000);
     setRecording(true);
   }, []);
 
   const stop = useCallback(async (): Promise<Blob | null> => {
     const recorder = recorderRef.current;
     if (!recorder) return null;
+
     const blob = await new Promise<Blob | null>((resolve) => {
-      recorder.onstop = () => {
-        const type = recorder.mimeType || "video/webm";
+      const finish = () => {
+        const type = recorder.mimeType || pickMimeType() || "video/webm";
         resolve(chunksRef.current.length ? new Blob(chunksRef.current, { type }) : null);
       };
+      recorder.onstop = finish;
       try {
-        recorder.stop();
+        if (recorder.state === "recording") {
+          try {
+            recorder.requestData();
+          } catch {
+            /* ignore */
+          }
+          setTimeout(() => {
+            try {
+              recorder.stop();
+            } catch {
+              finish();
+            }
+          }, 120);
+        } else {
+          finish();
+        }
       } catch {
-        resolve(null);
+        finish();
       }
     });
-    streamRef.current?.getTracks().forEach((t) => t.stop());
+
+    // Don't stop source camera/screen tracks — only clear recorder refs.
     streamRef.current = null;
     recorderRef.current = null;
     chunksRef.current = [];

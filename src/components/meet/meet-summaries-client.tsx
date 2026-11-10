@@ -97,13 +97,37 @@ export function MeetSummariesClient() {
                         Watch recording
                       </a>
                     ) : null}
-                    <a
-                      href={`/api/meet/summaries/${s.id}/pdf`}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void (async () => {
+                          try {
+                            const res = await fetch(`/api/meet/summaries/${s.id}/pdf`, {
+                              credentials: "include",
+                            });
+                            if (!res.ok) {
+                              const json = await res.json().catch(() => ({}));
+                              throw new Error(json.error || "PDF download failed");
+                            }
+                            const blob = await res.blob();
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `story-time-meet-${s.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "summary"}.pdf`;
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                            URL.revokeObjectURL(url);
+                          } catch (err) {
+                            alert(err instanceof Error ? err.message : "PDF download failed");
+                          }
+                        })();
+                      }}
                       className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500/15 px-3 py-2 text-xs font-medium text-orange-100 ring-1 ring-orange-400/25 hover:bg-orange-500/25"
                     >
                       <Download className="h-3.5 w-3.5" />
                       Download PDF
-                    </a>
+                    </button>
                   </div>
                 </div>
                 <div>
