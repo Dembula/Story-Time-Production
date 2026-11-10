@@ -54,7 +54,7 @@ export default async function PublicMeetGuestPage({
           code={meeting.code}
           meetingId={meeting.id}
           meetingTitle={meeting.title}
-          ended={meeting.status === "ENDED"}
+          ended={meeting.status === "ENDED" || meeting.status === "CANCELLED"}
           requiresPasscode={Boolean(meeting.passcode)}
           waitingRoom={meeting.waitingRoom}
         />

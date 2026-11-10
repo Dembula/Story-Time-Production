@@ -272,9 +272,13 @@ export function MeetGuestClient(props: Props) {
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 bg-[#0a0a0b] px-6 text-center">
         <Video className="h-10 w-10 text-slate-600" />
-        <h1 className="text-lg font-semibold text-white">You’ve left the meeting</h1>
+        <h1 className="text-lg font-semibold text-white">
+          {left ? "You’ve left the meeting" : "This meeting isn’t available"}
+        </h1>
         <p className="max-w-md text-sm text-slate-400">
-          Thanks for joining Story Time Meet. You can close this tab.
+          {left
+            ? "Thanks for joining Story Time Meet. You can close this tab."
+            : "This Meet ended or was cancelled by the host. Ask them for a new invite if you still need to meet."}
         </p>
       </div>
     );

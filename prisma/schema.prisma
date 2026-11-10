@@ -5545,7 +5545,7 @@ model MeetMeeting {
   title        String
   hostUserId   String
   host         User      @relation("MeetHost", fields: [hostUserId], references: [id], onDelete: Cascade)
-  /// SCHEDULED | LIVE | ENDED
+  /// SCHEDULED | LIVE | ENDED | CANCELLED
   status       String    @default("SCHEDULED")
   passcode     String?
   waitingRoom  Boolean   @default(true)

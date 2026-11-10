@@ -33,6 +33,15 @@ function parseInviteEmails(raw: string) {
   return out;
 }
 
+/** Convert ISO / Date to value for <input type="datetime-local"> in local time. */
+function toDatetimeLocalValue(iso: string | null | undefined) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function MeetHubClient() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -44,6 +53,9 @@ export function MeetHubClient() {
   const [inviteEmails, setInviteEmails] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [inviteMeeting, setInviteMeeting] = useState<MeetingRow | null>(null);
+  const [editingMeeting, setEditingMeeting] = useState<MeetingRow | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editScheduledAt, setEditScheduledAt] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["meet-meetings"],
@@ -138,6 +150,54 @@ export function MeetHubClient() {
       return json as { dbMeetingId: string };
     },
     onSuccess: (json) => router.push(`/creator/meet/room/${json.dbMeetingId}`),
+    onError: (err: Error) => setMsg(err.message),
+  });
+
+  const updateScheduled = useMutation({
+    mutationFn: async (input: {
+      id: string;
+      title?: string;
+      scheduledAt?: string;
+      cancel?: boolean;
+    }) => {
+      const res = await fetch(`/api/meet/meetings/${input.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(
+          input.cancel
+            ? { status: "CANCELLED", notifyInvitees: true }
+            : {
+                title: input.title,
+                scheduledAt: input.scheduledAt
+                  ? new Date(input.scheduledAt).toISOString()
+                  : undefined,
+                notifyInvitees: true,
+              },
+        ),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Update failed");
+      return json as { meeting: MeetingRow; notified?: number; notifyFailed?: number };
+    },
+    onSuccess: (json, vars) => {
+      void queryClient.invalidateQueries({ queryKey: ["meet-meetings"] });
+      setEditingMeeting(null);
+      const notified = json.notified ?? 0;
+      if (vars.cancel) {
+        setMsg(
+          `Cancelled “${json.meeting.title}”${
+            notified ? ` · notified ${notified} invitee${notified === 1 ? "" : "s"}` : ""
+          }.`,
+        );
+      } else {
+        setMsg(
+          `Updated “${json.meeting.title}”${
+            notified ? ` · notified ${notified} invitee${notified === 1 ? "" : "s"}` : ""
+          }.`,
+        );
+      }
+    },
     onError: (err: Error) => setMsg(err.message),
   });
 
@@ -360,48 +420,139 @@ export function MeetHubClient() {
             <CalendarPlus className="h-4 w-4 text-sky-300" />
             <h2 className="font-semibold text-white">Scheduled</h2>
           </div>
-          <ul className="space-y-2">
-            {scheduled.map((m) => (
-              <li
-                key={m.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-500/20 bg-sky-500/5 px-4 py-3"
-              >
-                <div>
-                  <p className="text-sm font-medium text-white">{m.title}</p>
-                  <p className="text-xs text-slate-400">
-                    {m.scheduledAt
-                      ? new Date(m.scheduledAt).toLocaleString(undefined, {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                        })
-                      : "Time TBD"}
-                    {" · "}
-                    <span className="font-mono text-slate-500">{m.code}</span>
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <a
-                    href={`/api/meet/meetings/${m.id}/calendar`}
-                    className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-200 hover:bg-white/[0.08]"
-                  >
-                    Save .ics
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => setInviteMeeting(m)}
-                    className="rounded-lg bg-sky-500/20 px-3 py-1.5 text-xs font-medium text-sky-100 ring-1 ring-sky-400/30"
-                  >
-                    Email invites
-                  </button>
-                  <Link
-                    href={`/creator/meet/room/${m.id}`}
-                    className="rounded-lg bg-orange-500/15 px-3 py-1.5 text-xs text-orange-100 ring-1 ring-orange-400/25"
-                  >
-                    Open
-                  </Link>
-                </div>
-              </li>
-            ))}
+          <ul className="space-y-3">
+            {scheduled.map((m) => {
+              const isEditing = editingMeeting?.id === m.id;
+              return (
+                <li
+                  key={m.id}
+                  className="rounded-xl border border-sky-500/20 bg-sky-500/5 px-4 py-3"
+                >
+                  {!isEditing ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-white">{m.title}</p>
+                        <p className="text-xs text-slate-400">
+                          {m.scheduledAt
+                            ? new Date(m.scheduledAt).toLocaleString(undefined, {
+                                dateStyle: "medium",
+                                timeStyle: "short",
+                              })
+                            : "Time TBD"}
+                          {" · "}
+                          <span className="font-mono text-slate-500">{m.code}</span>
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingMeeting(m);
+                            setEditTitle(m.title);
+                            setEditScheduledAt(toDatetimeLocalValue(m.scheduledAt));
+                            setMsg(null);
+                          }}
+                          className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-200 hover:bg-white/[0.08]"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          disabled={updateScheduled.isPending}
+                          onClick={() => {
+                            if (
+                              !window.confirm(
+                                `Cancel “${m.title}”? Invitees will be emailed that it was cancelled.`,
+                              )
+                            ) {
+                              return;
+                            }
+                            setMsg(null);
+                            updateScheduled.mutate({ id: m.id, cancel: true });
+                          }}
+                          className="rounded-lg border border-rose-400/25 bg-rose-500/15 px-3 py-1.5 text-xs text-rose-100 hover:bg-rose-500/25 disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                        <a
+                          href={`/api/meet/meetings/${m.id}/calendar`}
+                          className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-200 hover:bg-white/[0.08]"
+                        >
+                          Save .ics
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => setInviteMeeting(m)}
+                          className="rounded-lg bg-sky-500/20 px-3 py-1.5 text-xs font-medium text-sky-100 ring-1 ring-sky-400/30"
+                        >
+                          Email invites
+                        </button>
+                        <Link
+                          href={`/creator/meet/room/${m.id}`}
+                          className="rounded-lg bg-orange-500/15 px-3 py-1.5 text-xs text-orange-100 ring-1 ring-orange-400/25"
+                        >
+                          Open
+                        </Link>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-200/80">
+                        Edit scheduled Meet
+                      </p>
+                      <label className="block space-y-1.5">
+                        <span className="text-xs text-slate-400">Title</span>
+                        <input
+                          className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none focus:border-orange-400/40"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                        />
+                      </label>
+                      <label className="block space-y-1.5">
+                        <span className="text-xs text-slate-400">Date &amp; time</span>
+                        <input
+                          type="datetime-local"
+                          className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none focus:border-orange-400/40"
+                          value={editScheduledAt}
+                          onChange={(e) => setEditScheduledAt(e.target.value)}
+                        />
+                      </label>
+                      <p className="text-[11px] text-slate-500">
+                        Saving notifies people who already received an invite email.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={
+                            updateScheduled.isPending ||
+                            !editTitle.trim() ||
+                            !editScheduledAt
+                          }
+                          onClick={() => {
+                            setMsg(null);
+                            updateScheduled.mutate({
+                              id: m.id,
+                              title: editTitle.trim(),
+                              scheduledAt: editScheduledAt,
+                            });
+                          }}
+                          className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-400 disabled:opacity-50"
+                        >
+                          {updateScheduled.isPending ? "Saving…" : "Save changes"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingMeeting(null)}
+                          className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-200 hover:bg-white/[0.08]"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </section>
       ) : null}

@@ -32,8 +32,16 @@ export async function POST(req: Request) {
 
   const meeting = await resolveMeetByIdOrCode(code);
   if (!meeting) return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
-  if (meeting.status === "ENDED") {
-    return NextResponse.json({ error: "This meeting has ended" }, { status: 410 });
+  if (meeting.status === "ENDED" || meeting.status === "CANCELLED") {
+    return NextResponse.json(
+      {
+        error:
+          meeting.status === "CANCELLED"
+            ? "This meeting was cancelled by the host"
+            : "This meeting has ended",
+      },
+      { status: 410 },
+    );
   }
   if (meeting.passcode && String(body?.passcode ?? "").trim() !== meeting.passcode) {
     return NextResponse.json(
