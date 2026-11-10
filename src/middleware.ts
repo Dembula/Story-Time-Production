@@ -54,6 +54,15 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // Story Time Meet guest lobby (no account required)
+  if (
+    path === "/meet" ||
+    path.startsWith("/meet/") ||
+    path.startsWith("/api/meet/rtc/guest/")
+  ) {
+    return NextResponse.next();
+  }
+
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
   if (!token) {
     return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));

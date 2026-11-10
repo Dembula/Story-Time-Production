@@ -3527,6 +3527,94 @@ exports.Prisma.FestivalStage2ReviewScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.MeetMeetingScalarFieldEnum = {
+  id: 'id',
+  code: 'code',
+  title: 'title',
+  hostUserId: 'hostUserId',
+  status: 'status',
+  passcode: 'passcode',
+  waitingRoom: 'waitingRoom',
+  scheduledAt: 'scheduledAt',
+  startedAt: 'startedAt',
+  endedAt: 'endedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.MeetParticipantScalarFieldEnum = {
+  id: 'id',
+  meetingId: 'meetingId',
+  userId: 'userId',
+  role: 'role',
+  peerId: 'peerId',
+  isMuted: 'isMuted',
+  isVideoOff: 'isVideoOff',
+  joinedAt: 'joinedAt',
+  leftAt: 'leftAt',
+  lastSeenAt: 'lastSeenAt'
+};
+
+exports.Prisma.MeetGuestScalarFieldEnum = {
+  id: 'id',
+  meetingId: 'meetingId',
+  name: 'name',
+  sessionToken: 'sessionToken',
+  peerId: 'peerId',
+  status: 'status',
+  joinedAt: 'joinedAt',
+  admittedAt: 'admittedAt',
+  leftAt: 'leftAt',
+  lastSeenAt: 'lastSeenAt',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.MeetInviteScalarFieldEnum = {
+  id: 'id',
+  meetingId: 'meetingId',
+  invitedByUserId: 'invitedByUserId',
+  invitedUserId: 'invitedUserId',
+  email: 'email',
+  token: 'token',
+  status: 'status',
+  createdAt: 'createdAt',
+  respondedAt: 'respondedAt'
+};
+
+exports.Prisma.MeetSignalScalarFieldEnum = {
+  id: 'id',
+  meetingId: 'meetingId',
+  fromPeer: 'fromPeer',
+  toPeer: 'toPeer',
+  type: 'type',
+  payload: 'payload',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.MeetNoteScalarFieldEnum = {
+  id: 'id',
+  meetingId: 'meetingId',
+  authorUserId: 'authorUserId',
+  source: 'source',
+  body: 'body',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.MeetSummaryScalarFieldEnum = {
+  id: 'id',
+  meetingId: 'meetingId',
+  createdByUserId: 'createdByUserId',
+  title: 'title',
+  summary: 'summary',
+  keyPoints: 'keyPoints',
+  decisions: 'decisions',
+  actionItems: 'actionItems',
+  transcript: 'transcript',
+  durationSec: 'durationSec',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -3808,7 +3896,14 @@ exports.Prisma.ModelName = {
   FestivalFlagDef: 'FestivalFlagDef',
   FestivalSubmission: 'FestivalSubmission',
   FestivalStage1Review: 'FestivalStage1Review',
-  FestivalStage2Review: 'FestivalStage2Review'
+  FestivalStage2Review: 'FestivalStage2Review',
+  MeetMeeting: 'MeetMeeting',
+  MeetParticipant: 'MeetParticipant',
+  MeetGuest: 'MeetGuest',
+  MeetInvite: 'MeetInvite',
+  MeetSignal: 'MeetSignal',
+  MeetNote: 'MeetNote',
+  MeetSummary: 'MeetSummary'
 };
 
 /**

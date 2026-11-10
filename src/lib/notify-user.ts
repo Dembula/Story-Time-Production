@@ -8,7 +8,7 @@ export type NotifyUserParams = {
   body: string;
   metadata?: Record<string, unknown>;
   /** If set, sends email when user has email and notifyEmail preference is not false */
-  email?: { subject: string; text: string };
+  email?: { subject: string; text: string; html?: string };
 };
 
 export async function notifyUser(params: NotifyUserParams): Promise<void> {
@@ -45,5 +45,6 @@ export async function notifyUser(params: NotifyUserParams): Promise<void> {
     to: user.email,
     subject: params.email.subject,
     text: params.email.text,
+    html: params.email.html,
   });
 }

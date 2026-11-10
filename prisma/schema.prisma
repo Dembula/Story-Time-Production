@@ -257,6 +257,14 @@ model User {
   storyboardBoardsCreated StoryboardBoard[] @relation("StoryboardBoardCreator")
   storyboardGuestInvites StoryboardGuestInvite[]
 
+  // Story Time Meet
+  meetMeetingsHosted      MeetMeeting[]     @relation("MeetHost")
+  meetParticipants        MeetParticipant[]
+  meetInvitesSent         MeetInvite[]      @relation("MeetInviteSender")
+  meetInvitesReceived     MeetInvite[]      @relation("MeetInviteRecipient")
+  meetSummaries           MeetSummary[]
+  meetNotesAuthored       MeetNote[]
+
   // Creator-owned script and notes
   creatorScripts        CreatorScript[]
   creatorTreatments     CreatorTreatment[]
@@ -5527,5 +5535,144 @@ model FestivalStage2Review {
 
   @@unique([submissionId, reviewerUserId])
   @@index([reviewerUserId])
+}
+
+/// Story Time Meet — built-in WebRTC meetings (not pipeline).
+model MeetMeeting {
+  id           String    @id @default(cuid())
+  /// Short join code shown in links (/meet/{code})
+  code         String    @unique
+  title        String
+  hostUserId   String
+  host         User      @relation("MeetHost", fields: [hostUserId], references: [id], onDelete: Cascade)
+  /// SCHEDULED | LIVE | ENDED
+  status       String    @default("SCHEDULED")
+  passcode     String?
+  waitingRoom  Boolean   @default(true)
+  scheduledAt  DateTime?
+  startedAt    DateTime?
+  endedAt      DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  participants MeetParticipant[]
+  guests       MeetGuest[]
+  invites      MeetInvite[]
+  signals      MeetSignal[]
+  notes        MeetNote[]
+  summary      MeetSummary?
+
+  @@index([hostUserId])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+model MeetParticipant {
+  id          String    @id @default(cuid())
+  meetingId   String
+  meeting     MeetMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// HOST | CO_HOST | PARTICIPANT
+  role        String    @default("PARTICIPANT")
+  peerId      String?
+  isMuted     Boolean   @default(false)
+  isVideoOff  Boolean   @default(false)
+  joinedAt    DateTime  @default(now())
+  leftAt      DateTime?
+  lastSeenAt  DateTime  @default(now())
+
+  @@index([meetingId])
+  @@index([userId])
+  @@index([meetingId, leftAt])
+}
+
+model MeetGuest {
+  id          String    @id @default(cuid())
+  meetingId   String
+  meeting     MeetMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  name        String
+  /// Opaque token stored in httpOnly cookie st_meet_guest
+  sessionToken String   @unique
+  peerId      String?
+  /// WAITING | ADMITTED | DENIED | LEFT
+  status      String    @default("WAITING")
+  joinedAt    DateTime  @default(now())
+  admittedAt  DateTime?
+  leftAt      DateTime?
+  lastSeenAt  DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+
+  @@index([meetingId])
+  @@index([status])
+}
+
+model MeetInvite {
+  id              String    @id @default(cuid())
+  meetingId       String
+  meeting         MeetMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  invitedByUserId String
+  invitedBy       User      @relation("MeetInviteSender", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  invitedUserId   String?
+  invitedUser     User?     @relation("MeetInviteRecipient", fields: [invitedUserId], references: [id], onDelete: SetNull)
+  email           String?
+  token           String    @unique
+  /// PENDING | ACCEPTED | DECLINED | REVOKED
+  status          String    @default("PENDING")
+  createdAt       DateTime  @default(now())
+  respondedAt     DateTime?
+
+  @@index([meetingId])
+  @@index([invitedUserId])
+  @@index([email])
+}
+
+model MeetSignal {
+  id        Int      @id @default(autoincrement())
+  meetingId String
+  meeting   MeetMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  fromPeer  String
+  /// Peer id, or "*" for broadcast
+  toPeer    String
+  /// offer | answer | candidate | speech | reaction | peer-join | peer-leave | media-state
+  type      String
+  payload   Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([meetingId, id])
+  @@index([createdAt])
+}
+
+model MeetNote {
+  id          String   @id @default(cuid())
+  meetingId   String
+  meeting     MeetMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  authorUserId String?
+  author      User?    @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  /// MANUAL | VA | SPEECH
+  source      String   @default("MANUAL")
+  body        String
+  createdAt   DateTime @default(now())
+
+  @@index([meetingId])
+}
+
+model MeetSummary {
+  id           String   @id @default(cuid())
+  meetingId    String   @unique
+  meeting      MeetMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  createdByUserId String
+  createdBy    User     @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+  title        String
+  summary      String
+  keyPoints    Json?
+  decisions    Json?
+  actionItems  Json?
+  transcript   String?
+  durationSec  Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([createdByUserId])
 }
 

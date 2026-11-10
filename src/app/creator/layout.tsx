@@ -12,6 +12,7 @@ import { CreatorPackageGate } from "@/components/creator/creator-package-gate";
 import { CreatorPipelineRouteGate } from "@/components/creator/creator-pipeline-route-gate";
 import { CreatorStudioActingLabel } from "@/components/creator/creator-studio-switcher";
 import { CatalogueUploadProvider } from "@/components/creator/catalogue-upload-provider";
+import { MeetLiveProvider } from "@/components/meet/meet-live-provider";
 import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY, CREATOR_STUDIO_PROFILES_QUERY_KEY } from "@/lib/pricing";
 import { isCreatorPipelineToolPath } from "@/lib/project-tools";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
@@ -19,6 +20,7 @@ import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 const operatingNavItems = [
   { href: "/creator/command-center", label: "Command Center" },
   { href: "/creator/dashboard", label: "My Projects" },
+  { href: "/creator/meet", label: "Meet" },
   { href: "/creator/network", label: "Network" },
   { href: "/creator/messages", label: "Messages" },
   { href: "/creator/account", label: "My Account" },
@@ -92,6 +94,7 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
 
   return (
     <CatalogueUploadProvider>
+    <MeetLiveProvider>
     <DashboardSidebarShell
       className="text-slate-100 adaptive-tv-surface"
       sidebarAutoCollapse={isCreatorPipelineToolPath}
@@ -326,6 +329,7 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
         </CreatorPackageGate>
       </div>
     </DashboardSidebarShell>
+    </MeetLiveProvider>
     </CatalogueUploadProvider>
   );
 }
