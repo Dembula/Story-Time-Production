@@ -114,22 +114,60 @@ export function MeetInviteDialog({ meetingId, open, onClose, guestUrl, scheduled
     setMsg(null);
     try {
       const emails = email
-        .split(/[,;\s]+/)
-        .map((e) => e.trim().toLowerCase())
-        .filter(Boolean);
+        .split(/[,;\n\r]+/)
+        .flatMap((chunk) => chunk.trim().split(/\s+/))
+        .map((e) => e.trim().toLowerCase().replace(/^mailto:/i, ""))
+        .map((e) => {
+          const angle = e.match(/<([^>\s]+@[^>\s]+)>/);
+          return (angle?.[1] || e).trim();
+        })
+        .filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e));
+
+      if (!selected.length && !emails.length) {
+        setMsg("Enter a valid email address (or pick someone from Network).");
+        return;
+      }
+
       const res = await fetch(`/api/meet/meetings/${meetingId}/invite`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ userIds: selected, emails }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Invite failed");
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        invites?: unknown[];
+        invitesSent?: number;
+        invitesFailed?: number;
+        inviteErrors?: string[];
+        emailTransportConfigured?: boolean;
+      };
+      if (!res.ok && !json.invites?.length) {
+        throw new Error(json.error || "Invite failed");
+      }
       if (emails.length) {
         rememberLocalEmails(emails);
         setLocalEmails(loadLocalEmails());
       }
-      setMsg(`Sent ${json.invites?.length ?? 0} invite(s).`);
+      const sent = json.invitesSent ?? 0;
+      const failed = json.invitesFailed ?? 0;
+      if (sent > 0 && failed === 0) {
+        setMsg(`Sent ${sent} invite email${sent === 1 ? "" : "s"}. Check inbox (and spam).`);
+      } else if (sent > 0 && failed > 0) {
+        setMsg(
+          `Sent ${sent}, failed ${failed}${json.inviteErrors?.[0] ? ` — ${json.inviteErrors[0]}` : ""}.`,
+        );
+      } else if (failed > 0 || (emails.length > 0 && sent === 0)) {
+        setMsg(
+          json.emailTransportConfigured === false
+            ? "Invites saved, but email delivery is not configured on the server."
+            : `Could not send invite emails${json.inviteErrors?.[0] ? `: ${json.inviteErrors[0]}` : "."}`,
+        );
+      } else if (selected.length && sent === 0) {
+        setMsg("In-app invites created. No email on file for those people.");
+      } else {
+        setMsg(`Created ${json.invites?.length ?? 0} invite(s).`);
+      }
       setSelected([]);
       setEmail("");
     } catch (err) {

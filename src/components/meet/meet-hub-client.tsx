@@ -19,14 +19,18 @@ type MeetingRow = {
 };
 
 function parseInviteEmails(raw: string) {
-  return [
-    ...new Set(
-      raw
-        .split(/[,;\s]+/)
-        .map((e) => e.trim().toLowerCase())
-        .filter((e) => e.includes("@")),
-    ),
-  ].slice(0, 40);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const part of raw.split(/[,;\n\r]+/).flatMap((c) => c.split(/\s+/))) {
+    const s = part.trim().toLowerCase();
+    const angle = s.match(/<([^>\s]+@[^>\s]+)>/);
+    const email = (angle?.[1] || s.replace(/^mailto:/i, "")).trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || seen.has(email)) continue;
+    seen.add(email);
+    out.push(email);
+    if (out.length >= 40) break;
+  }
+  return out;
 }
 
 export function MeetHubClient() {
@@ -83,6 +87,9 @@ export function MeetHubClient() {
         meeting: MeetingRow;
         calendarEventId?: string | null;
         invitesSent?: number;
+        invitesFailed?: number;
+        inviteErrors?: string[];
+        emailTransportConfigured?: boolean;
         absoluteGuestUrl?: string;
       };
     },
@@ -92,11 +99,23 @@ export function MeetHubClient() {
         router.push(`/creator/meet/room/${json.meeting.id}`);
         return;
       }
+      const requested = parseInviteEmails(inviteEmails).length;
       const parts = [
         `Scheduled “${json.meeting.title}”. Code ${json.meeting.code}.`,
         json.calendarEventId ? "Added to your production calendar." : null,
         json.invitesSent
-          ? `Sent ${json.invitesSent} email invite${json.invitesSent === 1 ? "" : "s"} with calendar attach.`
+          ? `Sent ${json.invitesSent} email invite${json.invitesSent === 1 ? "" : "s"}.`
+          : null,
+        requested > 0 && (json.invitesFailed ?? 0) > 0
+          ? `Could not deliver ${json.invitesFailed} invite email${json.invitesFailed === 1 ? "" : "s"}${
+              json.inviteErrors?.[0] ? ` (${json.inviteErrors[0]})` : ""
+            }. Use Email invites to retry.`
+          : null,
+        requested > 0 && !json.invitesSent && !json.emailTransportConfigured
+          ? "Email delivery is not configured on the server — invites were saved but not emailed."
+          : null,
+        requested > 0 && !json.invitesSent && json.emailTransportConfigured && !(json.invitesFailed ?? 0)
+          ? "No invite emails were parsed — check the addresses and try Email invites."
           : null,
       ].filter(Boolean);
       setMsg(parts.join(" "));

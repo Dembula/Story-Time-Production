@@ -101,7 +101,7 @@ export function buildMeetIcs(input: MeetCalendarInput): {
   const safeTitle = input.title.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "meet";
   return {
     filename: `story-time-meet-${safeTitle}.ics`,
-    contentType: "text/calendar; charset=utf-8",
+    contentType: "text/calendar",
     body,
   };
 }

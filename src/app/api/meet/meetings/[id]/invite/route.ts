@@ -3,7 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { requireCreatorSession, resolveMeetByIdOrCode } from "@/lib/meet/access";
 import { generateMeetInviteToken } from "@/lib/meet/codes";
 import { buildMeetInviteEmail } from "@/lib/meet/invite-email";
-import { sendTransactionalEmail } from "@/lib/email";
+import {
+  dispatchMeetEmailInvites,
+  parseInviteEmailList,
+  sendMeetInviteMail,
+} from "@/lib/meet/invite-dispatch";
+import { isEmailTransportConfigured } from "@/lib/email";
 import { notifyUser } from "@/lib/notify-user";
 
 export const runtime = "nodejs";
@@ -28,13 +33,19 @@ export async function POST(
     emails?: string[];
   } | null;
 
-  const userIds = Array.isArray(body?.userIds) ? body!.userIds.map(String).filter(Boolean) : [];
-  const emails = Array.isArray(body?.emails)
-    ? body!.emails.map((e) => String(e).trim().toLowerCase()).filter(Boolean)
+  const userIds = Array.isArray(body?.userIds)
+    ? [...new Set(body!.userIds.map(String).filter(Boolean))]
     : [];
+  const emails = parseInviteEmailList(body?.emails);
 
   if (!userIds.length && !emails.length) {
-    return NextResponse.json({ error: "Provide userIds and/or emails" }, { status: 400 });
+    return NextResponse.json(
+      {
+        error:
+          "Add at least one email address or select someone from your network.",
+      },
+      { status: 400 },
+    );
   }
 
   const inviteEmail = buildMeetInviteEmail({
@@ -45,30 +56,39 @@ export async function POST(
     passcode: meeting.passcode,
     scheduledAt: meeting.scheduledAt ?? meeting.startedAt ?? new Date(),
   });
-  const icsAttachment = {
-    filename: inviteEmail.ics.filename,
-    contentType: inviteEmail.ics.contentType,
-    content: inviteEmail.ics.body,
-  };
+
   const created: { id: string; email?: string | null; invitedUserId?: string | null }[] = [];
+  const networkEmailResults: Array<{
+    userId: string;
+    email?: string | null;
+    sent: boolean;
+    error?: string;
+  }> = [];
 
   for (const userId of userIds) {
     if (userId === session.userId) continue;
-    const token = generateMeetInviteToken();
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, name: true },
+    });
+    if (!user) continue;
+
     const invite = await prisma.meetInvite.create({
       data: {
         meetingId: meeting.id,
         invitedByUserId: session.userId,
         invitedUserId: userId,
-        token,
+        email: user.email?.toLowerCase() || null,
+        token: generateMeetInviteToken(),
       },
     });
-    created.push({ id: invite.id, invitedUserId: userId });
+    created.push({ id: invite.id, invitedUserId: userId, email: user.email });
+
     await notifyUser({
       userId,
       type: "meet_invite",
       title: "Story Time Meet invite",
-      body: `${session.name} invited you to “${meeting.title}”. Code ${meeting.code}.`,
+      body: `${session.name} invited you to “${meeting.title}”. Join from your invite link.`,
       metadata: {
         meetingId: meeting.id,
         code: meeting.code,
@@ -77,63 +97,75 @@ export async function POST(
         googleCalUrl: inviteEmail.googleCalUrl,
         outlookCalUrl: inviteEmail.outlookCalUrl,
       },
-      email: {
+    });
+
+    if (user.email) {
+      const sent = await sendMeetInviteMail({
+        to: user.email,
         subject: inviteEmail.subject,
         text: inviteEmail.text,
         html: inviteEmail.html,
-        attachments: [icsAttachment],
-      },
-    });
-  }
-
-  for (const email of emails) {
-    const existingUser = await prisma.user.findFirst({
-      where: { email: { equals: email, mode: "insensitive" } },
-      select: { id: true },
-    });
-    const token = generateMeetInviteToken();
-    const invite = await prisma.meetInvite.create({
-      data: {
-        meetingId: meeting.id,
-        invitedByUserId: session.userId,
-        invitedUserId: existingUser?.id ?? null,
-        email,
-        token,
-      },
-    });
-    created.push({ id: invite.id, email, invitedUserId: existingUser?.id ?? null });
-
-    await sendTransactionalEmail({
-      to: email,
-      subject: inviteEmail.subject,
-      text: inviteEmail.text,
-      html: inviteEmail.html,
-      attachments: [icsAttachment],
-    });
-
-    if (existingUser?.id) {
-      await notifyUser({
-        userId: existingUser.id,
-        type: "meet_invite",
-        title: "Story Time Meet invite",
-        body: `${session.name} invited you to “${meeting.title}”. Code ${meeting.code}.`,
-        metadata: {
-          meetingId: meeting.id,
-          code: meeting.code,
-          href: `/creator/meet/room/${meeting.id}`,
-          guestUrl: inviteEmail.guestUrl,
-          googleCalUrl: inviteEmail.googleCalUrl,
-          outlookCalUrl: inviteEmail.outlookCalUrl,
-        },
+        ics: inviteEmail.ics,
+      });
+      networkEmailResults.push({
+        userId,
+        email: user.email,
+        sent: sent.ok,
+        error: sent.ok ? undefined : sent.error,
+      });
+      if (!sent.ok) {
+        console.error("[meet-invite] network user email failed", user.email, sent.error);
+      }
+    } else {
+      networkEmailResults.push({
+        userId,
+        email: null,
+        sent: false,
+        error: "User has no email on file (in-app invite only)",
       });
     }
   }
 
+  let emailDispatch: Awaited<ReturnType<typeof dispatchMeetEmailInvites>> | null = null;
+  if (emails.length) {
+    emailDispatch = await dispatchMeetEmailInvites({
+      meeting,
+      hostUserId: session.userId,
+      hostName: session.name,
+      emails,
+    });
+    for (const r of emailDispatch.results) {
+      created.push({
+        id: r.inviteId,
+        email: r.email,
+        invitedUserId: r.invitedUserId ?? null,
+      });
+    }
+  }
+
+  const emailsSent =
+    (emailDispatch?.sentCount ?? 0) + networkEmailResults.filter((r) => r.sent).length;
+  const emailsFailed =
+    (emailDispatch?.failedCount ?? 0) +
+    networkEmailResults.filter((r) => !r.sent && r.email).length;
+  const inviteErrors = [
+    ...(emailDispatch?.results ?? [])
+      .filter((r) => !r.sent)
+      .map((r) => `${r.email}: ${r.error || "send failed"}`),
+    ...networkEmailResults
+      .filter((r) => !r.sent)
+      .map((r) => `${r.email || r.userId}: ${r.error || "send failed"}`),
+  ];
+
   return NextResponse.json({
-    ok: true,
+    ok: emailsFailed === 0 && (emailsSent > 0 || created.length > 0),
     invites: created,
     guestUrl: inviteEmail.guestUrl,
     googleCalUrl: inviteEmail.googleCalUrl,
     outlookCalUrl: inviteEmail.outlookCalUrl,
+    invitesSent: emailsSent,
+    invitesFailed: emailsFailed,
+    inviteErrors,
+    emailTransportConfigured: isEmailTransportConfigured(),
   });
 }

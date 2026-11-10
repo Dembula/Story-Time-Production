@@ -44,7 +44,8 @@ async function sendViaSendGrid(input: SendEmailInput): Promise<SendEmailResult> 
   const attachments = (input.attachments ?? []).map((a) => ({
     content: Buffer.from(a.content, "utf8").toString("base64"),
     filename: a.filename,
-    type: a.contentType,
+    // SendGrid rejects types with parameters like "text/calendar; charset=utf-8".
+    type: a.contentType.split(";")[0]?.trim() || "application/octet-stream",
     disposition: a.disposition ?? "attachment",
   }));
 
@@ -85,7 +86,7 @@ async function sendViaResend(input: SendEmailInput): Promise<SendEmailResult> {
   const attachments = (input.attachments ?? []).map((a) => ({
     filename: a.filename,
     content: Buffer.from(a.content, "utf8").toString("base64"),
-    content_type: a.contentType,
+    content_type: a.contentType.split(";")[0]?.trim() || "application/octet-stream",
   }));
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -209,5 +210,15 @@ export async function sendTransactionalEmailDetailed(input: SendEmailInput): Pro
  */
 export async function sendTransactionalEmail(input: SendEmailInput): Promise<boolean> {
   const result = await sendTransactionalEmailDetailed(input);
-  return result.ok;
+  if (result.ok) return true;
+  // Last-resort: some providers reject calendar/ICS attachments — retry HTML-only.
+  if (input.attachments?.length) {
+    const retry = await sendTransactionalEmailDetailed({ ...input, attachments: undefined });
+    if (retry.ok) {
+      console.warn("[email] sent without attachments after attachment failure:", result.error);
+      return true;
+    }
+  }
+  if (result.error) console.error("[email] send failed:", input.to, result.error);
+  return false;
 }
