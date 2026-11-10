@@ -5649,12 +5649,12 @@ model MeetNote {
   meeting     MeetMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
   authorUserId String?
   author      User?    @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
-  /// MANUAL | VA | SPEECH
+  /// MANUAL | VA | SPEECH | CHAT
   source      String   @default("MANUAL")
   body        String
-  /// Display name of the speaker (SPEECH) or note author label.
+  /// Display name of the speaker (SPEECH/CHAT) or note author label.
   speakerName String?
-  /// RTC peer id when the note came from live speech.
+  /// RTC peer id when the note came from live speech or chat.
   speakerPeerId String?
   createdAt   DateTime @default(now())
 

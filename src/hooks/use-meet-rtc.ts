@@ -44,6 +44,13 @@ type UseMeetRtcOptions = {
   enabled: boolean;
   localStream: MediaStream | null;
   onSpeech?: (fromPeer: string, text: string, speakerName?: string | null) => void;
+  onChat?: (msg: {
+    fromPeer: string;
+    text: string;
+    speakerName?: string | null;
+    at?: string | null;
+    noteId?: string | null;
+  }) => void;
   onReaction?: (fromPeer: string, emoji: string) => void;
   onHostForceMute?: () => void;
   onRemovedByHost?: (reason: "removed" | "ended") => void;
@@ -57,12 +64,18 @@ function preferVideoQuality(sender: RTCRtpSender, detail?: boolean) {
     if (!params.encodings?.length) {
       params.encodings = [{}];
     }
-    params.encodings[0].maxBitrate = detail ? 2_500_000 : 1_200_000;
-    params.encodings[0].maxFramerate = detail ? 30 : 24;
+    // Prefer crisp camera + sharp screen share over bandwidth savings.
+    params.encodings[0].maxBitrate = detail ? 3_500_000 : 2_500_000;
+    params.encodings[0].maxFramerate = detail ? 30 : 30;
+    params.encodings[0].scaleResolutionDownBy = 1;
     void sender.setParameters(params);
   } catch {
     /* ignore */
   }
+}
+
+function isPolitePeer(selfId: string | null | undefined, remoteId: string) {
+  return String(selfId ?? "") > remoteId;
 }
 
 export function useMeetRtc(options: UseMeetRtcOptions) {
@@ -99,6 +112,8 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
   localStreamRef.current = localStream;
   const onSpeechRef = useRef(options.onSpeech);
   onSpeechRef.current = options.onSpeech;
+  const onChatRef = useRef(options.onChat);
+  onChatRef.current = options.onChat;
   const onReactionRef = useRef(options.onReaction);
   onReactionRef.current = options.onReaction;
   const onHostForceMuteRef = useRef(options.onHostForceMute);
@@ -151,12 +166,27 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
     let needNegotiate = false;
     const screenSender = screenSendersRef.current.get(remotePeerId);
 
+    const findSenderForKind = (kind: string) => {
+      const live = pc
+        .getSenders()
+        .find((s) => s !== screenSender && s.track?.kind === kind);
+      if (live) return live;
+      // Vacant sender after replaceTrack(null) — match via transceiver receiver kind.
+      return (
+        pc.getTransceivers().find(
+          (t) =>
+            t.sender !== screenSender &&
+            !t.sender.track &&
+            t.receiver.track?.kind === kind,
+        )?.sender ?? null
+      );
+    };
+
     if (stream) {
       for (const track of stream.getTracks()) {
-        const camSenders = pc.getSenders().filter((s) => s !== screenSender);
-        if (camSenders.some((s) => s.track === track)) continue;
+        if (pc.getSenders().some((s) => s !== screenSender && s.track === track)) continue;
 
-        const kindSender = camSenders.find((s) => s.track?.kind === track.kind);
+        const kindSender = findSenderForKind(track.kind);
         if (kindSender) {
           if (kindSender.track !== track) {
             void kindSender.replaceTrack(track).then(() => {
@@ -301,6 +331,7 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
       const pc = ensurePc(remotePeerId);
       makingOfferRef.current.add(remotePeerId);
       try {
+        attachOutboundTracks(pc, remotePeerId);
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         await fetch(`/api/meet/rtc/${meetingId}/signal`, {
@@ -319,7 +350,7 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
         makingOfferRef.current.delete(remotePeerId);
       }
     },
-    [ensurePc, meetingId],
+    [attachOutboundTracks, ensurePc, meetingId],
   );
 
   const handleSignal = useCallback(
@@ -335,6 +366,25 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
         const payload = sig.payload as { text?: string; speakerName?: string };
         const text = String(payload.text ?? "").trim();
         if (text) onSpeechRef.current?.(from, text, payload.speakerName ?? null);
+        return;
+      }
+      if (sig.type === "chat") {
+        const payload = sig.payload as {
+          text?: string;
+          speakerName?: string;
+          at?: string;
+          noteId?: string;
+        };
+        const text = String(payload.text ?? "").trim();
+        if (text) {
+          onChatRef.current?.({
+            fromPeer: from,
+            text,
+            speakerName: payload.speakerName ?? null,
+            at: payload.at ?? null,
+            noteId: payload.noteId ?? null,
+          });
+        }
         return;
       }
       if (sig.type === "media-state") {
@@ -411,11 +461,23 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
         const pc = ensurePc(from);
         try {
           if (sig.type === "offer") {
+            const polite = isPolitePeer(selfPeerIdRef.current, from);
+            const offerCollision =
+              makingOfferRef.current.has(from) || pc.signalingState !== "stable";
+            if (offerCollision) {
+              if (!polite) {
+                // Impolite peer ignores colliding remote offers (perfect negotiation).
+                return;
+              }
+              try {
+                await pc.setLocalDescription({ type: "rollback" });
+              } catch {
+                /* ignore */
+              }
+            }
             await pc.setRemoteDescription(sig.payload as RTCSessionDescriptionInit);
             // Late media may have arrived — ensure our tracks are on the PC before answering.
-            if (attachOutboundTracks(pc, from)) {
-              /* tracks added; answer still valid for current remote offer */
-            }
+            attachOutboundTracks(pc, from);
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             await fetch(`/api/meet/rtc/${meetingId}/signal`, {
@@ -429,9 +491,15 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
               }),
             });
           } else if (sig.type === "answer") {
-            await pc.setRemoteDescription(sig.payload as RTCSessionDescriptionInit);
+            if (pc.signalingState === "have-local-offer") {
+              await pc.setRemoteDescription(sig.payload as RTCSessionDescriptionInit);
+            }
           } else if (sig.type === "candidate") {
-            await pc.addIceCandidate(sig.payload as RTCIceCandidateInit);
+            try {
+              await pc.addIceCandidate(sig.payload as RTCIceCandidateInit);
+            } catch {
+              // Candidate before remote description — ignore; later candidates still apply.
+            }
           }
         } catch (err) {
           console.warn("[meet-rtc] signal error", sig.type, err);
@@ -527,15 +595,20 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
             isMuted: p.isMuted,
             isScreenShare: prev?.isScreenShare,
           });
-          if (!pcsRef.current.has(p.peerId) && localStreamRef.current) {
-            if ((data.peerId ?? "") < p.peerId) {
+          const selfId = data.peerId ?? selfPeerIdRef.current ?? "";
+          // Create PCs immediately so we can receive remote media even before
+          // local camera/mic finishes starting (common on mobile).
+          if (!pcsRef.current.has(p.peerId)) {
+            if (selfId && selfId < p.peerId) {
               void negotiate(p.peerId);
             } else {
               ensurePc(p.peerId);
             }
-          } else if (pcsRef.current.has(p.peerId) && localStreamRef.current) {
+          } else {
             const pc = pcsRef.current.get(p.peerId)!;
-            if (attachOutboundTracks(pc, p.peerId) && (data.peerId ?? "") < p.peerId) {
+            const need = attachOutboundTracks(pc, p.peerId);
+            if (need) {
+              // Whoever added tracks must renegotiate — don't wait on peer-id order.
               void negotiate(p.peerId);
             }
           }
@@ -554,7 +627,7 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
     };
 
     void tick();
-    const interval = setInterval(() => void tick(), 1500);
+    const interval = setInterval(() => void tick(), 900);
     return () => {
       cancelled = true;
       clearInterval(interval);
@@ -604,6 +677,42 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
           payload: { text: text.trim(), speakerName: speakerName?.trim() || undefined },
         }),
       });
+    },
+    [meetingId],
+  );
+
+  const sendChat = useCallback(
+    async (text: string, speakerName?: string | null) => {
+      if (!meetingId || !text.trim()) {
+        return { ok: false as const, error: "Empty message" };
+      }
+      const res = await fetch(`/api/meet/rtc/${meetingId}/signal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          toPeer: "*",
+          type: "chat",
+          payload: { text: text.trim().slice(0, 2000), speakerName: speakerName?.trim() || undefined },
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        noteId?: string;
+        at?: string;
+        speakerName?: string;
+        text?: string;
+      };
+      if (!res.ok) {
+        return { ok: false as const, error: json.error || "Chat send failed" };
+      }
+      return {
+        ok: true as const,
+        noteId: json.noteId ?? null,
+        at: json.at ?? new Date().toISOString(),
+        speakerName: json.speakerName ?? speakerName ?? null,
+        text: json.text ?? text.trim(),
+      };
     },
     [meetingId],
   );
@@ -695,6 +804,7 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
       for (const [remotePeerId, pc] of pcsRef.current.entries()) {
         void (async () => {
           try {
+            let needNegotiate = false;
             if (track && screenOutboundStreamRef.current) {
               const existing = screenSendersRef.current.get(remotePeerId);
               if (existing && pc.getSenders().includes(existing)) {
@@ -704,15 +814,14 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
                 const sender = pc.addTrack(track, screenOutboundStreamRef.current);
                 screenSendersRef.current.set(remotePeerId, sender);
                 preferVideoQuality(sender, true);
-              }
-              if ((selfPeerIdRef.current ?? "") < remotePeerId) {
-                await negotiate(remotePeerId);
+                needNegotiate = true;
               }
             } else {
               const sender = screenSendersRef.current.get(remotePeerId);
               if (sender) {
                 try {
                   pc.removeTrack(sender);
+                  needNegotiate = true;
                 } catch {
                   try {
                     await sender.replaceTrack(null);
@@ -722,10 +831,10 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
                 }
                 screenSendersRef.current.delete(remotePeerId);
               }
-              if ((selfPeerIdRef.current ?? "") < remotePeerId) {
-                await negotiate(remotePeerId);
-              }
             }
+            // Always renegotiate after add/removeTrack — peer-id gating left many
+            // devices (especially mobile) unable to send/receive screen share.
+            if (needNegotiate) await negotiate(remotePeerId);
           } catch (err) {
             console.warn("[meet-rtc] screen share track update failed", err);
           }
@@ -734,6 +843,41 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
 
       if (!track) {
         screenOutboundStreamRef.current = null;
+      }
+    },
+    [negotiate],
+  );
+
+  /** Swap the outbound camera track on every peer (used when restarting mobile camera). */
+  const replaceCameraTrack = useCallback(
+    async (track: MediaStreamTrack | null) => {
+      for (const [remotePeerId, pc] of pcsRef.current.entries()) {
+        const screenSender = screenSendersRef.current.get(remotePeerId);
+        const videoSender =
+          pc.getSenders().find((s) => s !== screenSender && s.track?.kind === "video") ??
+          pc.getTransceivers().find(
+            (t) =>
+              t.sender !== screenSender &&
+              !t.sender.track &&
+              t.receiver.track?.kind === "video",
+          )?.sender ??
+          null;
+        try {
+          if (track) {
+            if (videoSender) {
+              await videoSender.replaceTrack(track);
+              preferVideoQuality(videoSender, false);
+            } else if (localStreamRef.current) {
+              const sender = pc.addTrack(track, localStreamRef.current);
+              preferVideoQuality(sender, false);
+              await negotiate(remotePeerId);
+            }
+          } else if (videoSender) {
+            await videoSender.replaceTrack(null);
+          }
+        } catch (err) {
+          console.warn("[meet-rtc] replaceCameraTrack failed", remotePeerId, err);
+        }
       }
     },
     [negotiate],
@@ -775,11 +919,13 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
     peerId,
     capacity,
     sendSpeech,
+    sendChat,
     sendReaction,
     sendMediaState,
     sendPin,
     sendScreenShareState,
     setScreenShareTrack,
+    replaceCameraTrack,
     /** @deprecated use setScreenShareTrack — kept briefly for call sites mid-migrate */
     setVideoOverride: setScreenShareTrack,
     admit,

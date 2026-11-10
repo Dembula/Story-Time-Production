@@ -57,9 +57,10 @@ async function acquireMedia(): Promise<MediaStream> {
   };
   const video: MediaTrackConstraints = {
     facingMode: "user",
-    width: { ideal: mobile ? 720 : 1280 },
-    height: { ideal: mobile ? 1280 : 720 },
-    frameRate: { ideal: mobile ? 24 : 30, max: 30 },
+    width: { ideal: mobile ? 1280 : 1280 },
+    height: { ideal: mobile ? 720 : 720 },
+    frameRate: { ideal: 30, max: 30 },
+    aspectRatio: { ideal: 16 / 9 },
   };
 
   let stream: MediaStream;
@@ -85,10 +86,62 @@ async function acquireMedia(): Promise<MediaStream> {
       } catch {
         /* ignore */
       }
+      try {
+        await track.applyConstraints({
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30, max: 30 },
+        });
+      } catch {
+        /* device may not support ideal — keep what we got */
+      }
     }
     await waitTrackReady(track);
   }
   return stream;
+}
+
+function canShareScreen(): boolean {
+  return (
+    typeof navigator !== "undefined" &&
+    !!navigator.mediaDevices &&
+    typeof navigator.mediaDevices.getDisplayMedia === "function"
+  );
+}
+
+async function acquireDisplayMedia(): Promise<MediaStream> {
+  const attempts: DisplayMediaStreamOptions[] = [
+    {
+      video: {
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        frameRate: { ideal: 30, max: 30 },
+      } as MediaTrackConstraints,
+      audio: false,
+    },
+    {
+      video: {
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        frameRate: { ideal: 24, max: 30 },
+      } as MediaTrackConstraints,
+      audio: false,
+    },
+    { video: true, audio: false },
+  ];
+
+  let lastError: unknown;
+  for (const opts of attempts) {
+    try {
+      return await navigator.mediaDevices.getDisplayMedia(opts);
+    } catch (err) {
+      lastError = err;
+      const name = err instanceof DOMException ? err.name : "";
+      // User cancelled — don't keep retrying.
+      if (name === "NotAllowedError" || name === "AbortError") throw err;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Screen share failed");
 }
 
 /** Merge consecutive same-speaker speech into one attentive note row. */
@@ -136,11 +189,29 @@ export function MeetRoomClient(props: Props) {
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [showPeople, setShowPeople] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  const [showChat, setShowChat] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [notes, setNotes] = useState<MeetNoteView[]>([]);
   const [noteDraft, setNoteDraft] = useState("");
+  const [chatMessages, setChatMessages] = useState<
+    Array<{
+      id: string;
+      text: string;
+      speakerName: string | null;
+      speakerPeerId?: string | null;
+      at: string;
+      isLocal?: boolean;
+    }>
+  >([]);
+  const [chatDraft, setChatDraft] = useState("");
+  const [chatUnread, setChatUnread] = useState(0);
+  const [chatSending, setChatSending] = useState(false);
   const [speechInterim, setSpeechInterim] = useState("");
   const [localReaction, setLocalReaction] = useState<string | null>(null);
+  const showChatRef = useRef(false);
+  showChatRef.current = showChat;
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const selfPeerIdRef = useRef<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [waitingRoomLocked, setWaitingRoomLocked] = useState(true);
   const [hostMenuPeer, setHostMenuPeer] = useState<string | null>(null);
@@ -319,6 +390,39 @@ export function MeetRoomClient(props: Props) {
         "Participant";
       setNotes((prev) => appendSpeechNote(prev, { text, speakerName: name, speakerPeerId: fromPeer }));
     },
+    onChat: (msg) => {
+      const isLocal = Boolean(
+        selfPeerIdRef.current && msg.fromPeer === selfPeerIdRef.current,
+      );
+      // Own echo arrives via poll too — skip if we already added the optimistic/local row.
+      setChatMessages((prev) => {
+        if (msg.noteId && prev.some((m) => m.id === msg.noteId)) return prev;
+        const duplicate = prev.some(
+          (m) =>
+            m.speakerPeerId === msg.fromPeer &&
+            m.text === msg.text &&
+            Math.abs(new Date(m.at).getTime() - new Date(msg.at || Date.now()).getTime()) < 4000,
+        );
+        if (duplicate) return prev;
+        return [
+          ...prev,
+          {
+            id: msg.noteId || `chat-${msg.fromPeer}-${Date.now()}`,
+            text: msg.text,
+            speakerName:
+              msg.speakerName?.trim() ||
+              remotesRef.current.find((r) => r.peerId === msg.fromPeer)?.name ||
+              "Participant",
+            speakerPeerId: msg.fromPeer,
+            at: msg.at || new Date().toISOString(),
+            isLocal,
+          },
+        ];
+      });
+      if (!showChatRef.current && !isLocal) {
+        setChatUnread((n) => n + 1);
+      }
+    },
     onReaction: (_from, emoji) => {
       setLocalReaction(emoji);
       if (reactionTimer.current) clearTimeout(reactionTimer.current);
@@ -345,6 +449,7 @@ export function MeetRoomClient(props: Props) {
   });
 
   remotesRef.current = rtc.remotes.map((r) => ({ peerId: r.peerId, name: r.name }));
+  selfPeerIdRef.current = rtc.peerId;
 
   useMeetSpeech({
     // Capture speech for hosts and guests so the VA can attribute everyone.
@@ -388,7 +493,7 @@ export function MeetRoomClient(props: Props) {
         if (cancelled || !json.notes?.length) return;
         setNotes((prev) => {
           if (prev.length) return prev;
-          return json.notes!.map((n) => noteFromDbRow(n));
+          return json.notes!.filter((n) => n.source !== "CHAT").map((n) => noteFromDbRow(n));
         });
       } catch {
         /* ignore */
@@ -398,6 +503,54 @@ export function MeetRoomClient(props: Props) {
       cancelled = true;
     };
   }, [joined, phase, props.guestMode, props.meetingId]);
+
+  // Hydrate meeting chat for hosts + guests (admitted).
+  useEffect(() => {
+    if (!joined || phase !== "live" || rtc.status === "waiting") return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/meet/rtc/${encodeURIComponent(props.meetingId)}/chat`, {
+          credentials: "include",
+        });
+        if (!res.ok || cancelled) return;
+        const json = (await res.json()) as {
+          messages?: Array<{
+            id?: string;
+            text: string;
+            speakerName: string | null;
+            speakerPeerId?: string | null;
+            at: string;
+          }>;
+        };
+        if (cancelled || !json.messages?.length) return;
+        setChatMessages((prev) => {
+          if (prev.length) return prev;
+          return json.messages!.map((m) => ({
+            id: m.id || `chat-${m.at}-${m.text.slice(0, 12)}`,
+            text: m.text,
+            speakerName: m.speakerName,
+            speakerPeerId: m.speakerPeerId,
+            at: m.at,
+            isLocal: Boolean(
+              selfPeerIdRef.current && m.speakerPeerId === selfPeerIdRef.current,
+            ),
+          }));
+        });
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [joined, phase, props.meetingId, rtc.status]);
+
+  useEffect(() => {
+    if (!showChat) return;
+    const el = chatScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [showChat, chatMessages.length]);
 
   useEffect(() => {
     let cancelled = false;
@@ -425,7 +578,26 @@ export function MeetRoomClient(props: Props) {
       try {
         let stream = props.initialStream ?? null;
         if (stream) {
-          for (const track of stream.getTracks()) track.enabled = true;
+          for (const track of stream.getTracks()) {
+            track.enabled = true;
+            if (track.kind === "video") {
+              try {
+                track.contentHint = "motion";
+              } catch {
+                /* ignore */
+              }
+              try {
+                await track.applyConstraints({
+                  width: { ideal: 1280 },
+                  height: { ideal: 720 },
+                  frameRate: { ideal: 30, max: 30 },
+                });
+              } catch {
+                /* ignore */
+              }
+              await waitTrackReady(track);
+            }
+          }
         } else {
           stream = await acquireMedia();
         }
@@ -467,12 +639,65 @@ export function MeetRoomClient(props: Props) {
     void rtc.sendMediaState({ isMuted: !track.enabled });
   };
 
-  const toggleVideo = () => {
-    const track = localStream?.getVideoTracks()[0];
-    if (!track) return;
-    track.enabled = !track.enabled;
-    setIsVideoOff(!track.enabled);
-    void rtc.sendMediaState({ isVideoOff: !track.enabled });
+  const toggleVideo = async () => {
+    const stream = localStreamRef.current;
+    const existing = stream?.getVideoTracks()[0];
+
+    // Turning camera off — keep the track so peers stay negotiated.
+    if (existing?.enabled) {
+      existing.enabled = false;
+      setIsVideoOff(true);
+      void rtc.sendMediaState({ isVideoOff: true });
+      return;
+    }
+
+    // Turning camera on — re-enable, or reacquire if the track died (common on mobile).
+    if (existing && existing.readyState === "live") {
+      existing.enabled = true;
+      setIsVideoOff(false);
+      void rtc.replaceCameraTrack(existing);
+      void rtc.sendMediaState({ isVideoOff: false });
+      return;
+    }
+
+    try {
+      const fresh = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "user",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30, max: 30 },
+        },
+        audio: false,
+      });
+      const videoTrack = fresh.getVideoTracks()[0];
+      if (!videoTrack) {
+        flash("Could not restart camera");
+        return;
+      }
+      try {
+        videoTrack.contentHint = "motion";
+      } catch {
+        /* ignore */
+      }
+      await waitTrackReady(videoTrack);
+
+      if (stream) {
+        for (const old of stream.getVideoTracks()) {
+          stream.removeTrack(old);
+          old.stop();
+        }
+        stream.addTrack(videoTrack);
+        setLocalStream(stream);
+      } else {
+        setLocalStream(fresh);
+      }
+      setIsVideoOff(false);
+      await rtc.replaceCameraTrack(videoTrack);
+      void rtc.sendMediaState({ isVideoOff: false });
+    } catch {
+      flash("Could not restart camera — check browser permissions");
+    }
   };
 
   const stopScreen = useCallback(() => {
@@ -493,36 +718,50 @@ export function MeetRoomClient(props: Props) {
       flash("Screen sharing stopped");
       return;
     }
+    if (!canShareScreen()) {
+      flash(
+        isMobileUa()
+          ? "Screen share needs a browser that supports it (Safari 16+ / Chrome). Try the Share Sheet → Safari if you’re in an in-app browser."
+          : "Screen share isn’t supported in this browser",
+      );
+      return;
+    }
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 15, max: 30 },
-        } as MediaTrackConstraints,
-        audio: false,
-      });
+      const stream = await acquireDisplayMedia();
       const track = stream.getVideoTracks()[0];
-      if (track) {
-        try {
-          track.contentHint = "detail";
-        } catch {
-          /* ignore */
-        }
+      if (!track) {
+        flash("No screen track available");
+        return;
+      }
+      try {
+        track.contentHint = "detail";
+      } catch {
+        /* ignore */
       }
       screenRef.current = stream;
       setScreenStream(stream);
       setIsScreenSharing(true);
       // Sharer pins the Shared screen status tile (not a live mirror of their window).
       setPinnedId("screen-local");
-      track?.addEventListener("ended", () => stopScreen());
-      if (track) rtc.setScreenShareTrack(track);
+      track.addEventListener("ended", () => stopScreen());
+      rtc.setScreenShareTrack(track);
       void rtc.sendScreenShareState(true);
       // Viewers normalize this to screen-{peerId} and pin the real shared feed.
       void rtc.sendPin(rtc.peerId ?? "screen-local", true);
       flash("Sharing screen — Shared screen is pinned for others");
-    } catch {
-      flash("Screen share cancelled");
+    } catch (err) {
+      const name = err instanceof DOMException ? err.name : "";
+      if (name === "NotAllowedError" || name === "AbortError") {
+        flash("Screen share cancelled");
+      } else if (name === "NotSupportedError" || name === "NotFoundError") {
+        flash(
+          isMobileUa()
+            ? "This device/browser can’t share the screen yet. Use Safari or Chrome, or share from a laptop."
+            : "Screen share isn’t available here",
+        );
+      } else {
+        flash("Could not start screen share");
+      }
     }
   };
 
@@ -572,6 +811,60 @@ export function MeetRoomClient(props: Props) {
         credentials: "include",
         body: JSON.stringify({ mode: "note", meetingId: props.meetingId, body, source: "MANUAL" }),
       });
+    }
+  };
+
+  const openChat = () => {
+    setShowChat(true);
+    setShowPeople(false);
+    setShowNotes(false);
+    setChatUnread(0);
+  };
+
+  const sendChatMessage = async () => {
+    const text = chatDraft.trim();
+    if (!text || chatSending) return;
+    setChatSending(true);
+    setChatDraft("");
+    const tempId = `local-${Date.now()}`;
+    const optimisticAt = new Date().toISOString();
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        id: tempId,
+        text,
+        speakerName: props.displayName,
+        speakerPeerId: selfPeerIdRef.current,
+        at: optimisticAt,
+        isLocal: true,
+      },
+    ]);
+    try {
+      const result = await rtc.sendChat(text, props.displayName);
+      if (!result.ok) {
+        setChatMessages((prev) => prev.filter((m) => m.id !== tempId));
+        setChatDraft(text);
+        flash(result.error || "Could not send chat");
+        return;
+      }
+      setChatMessages((prev) => {
+        if (result.noteId && prev.some((m) => m.id === result.noteId && m.id !== tempId)) {
+          return prev.filter((m) => m.id !== tempId);
+        }
+        return prev.map((m) =>
+          m.id === tempId
+            ? {
+                ...m,
+                id: result.noteId || m.id,
+                at: result.at || m.at,
+                speakerName: result.speakerName || m.speakerName,
+                text: result.text || m.text,
+              }
+            : m,
+        );
+      });
+    } finally {
+      setChatSending(false);
     }
   };
 
@@ -744,6 +1037,7 @@ export function MeetRoomClient(props: Props) {
             isMuted={isMuted}
             isVideoOff={isVideoOff}
             isScreenSharing={isScreenSharing}
+            chatUnreadCount={chatUnread}
             onToggleMute={toggleMute}
             onToggleVideo={toggleVideo}
             onToggleScreen={() => void toggleScreen()}
@@ -892,8 +1186,8 @@ export function MeetRoomClient(props: Props) {
         </div>
       ) : null}
 
-      {(showPeople || showNotes) && (
-        <aside className="absolute bottom-28 right-3 top-24 z-20 w-[min(92vw,20rem)] space-y-3 overflow-y-auto">
+      {(showPeople || showNotes || showChat) && (
+        <aside className="absolute bottom-28 right-3 top-24 z-20 flex w-[min(92vw,20rem)] flex-col gap-3 overflow-y-auto">
           {showPeople ? (
             <div className="rounded-2xl border border-white/10 bg-black/55 p-4 backdrop-blur-xl">
               <div className="mb-3 flex items-center justify-between gap-2">
@@ -1012,6 +1306,79 @@ export function MeetRoomClient(props: Props) {
             </div>
           ) : null}
 
+          {showChat ? (
+            <div className="flex max-h-full min-h-[22rem] flex-col rounded-2xl border border-white/10 bg-black/55 p-4 backdrop-blur-xl">
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-white">Meeting chat</h2>
+                <span className="text-[10px] uppercase tracking-wide text-slate-500">
+                  {chatMessages.length} msg{chatMessages.length === 1 ? "" : "s"}
+                </span>
+              </div>
+              <p className="mb-3 text-[11px] leading-relaxed text-slate-400">
+                Type if you prefer not to speak — everyone sees it, and the VA includes these messages
+                (with time) in the summary.
+              </p>
+              <div
+                ref={chatScrollRef}
+                className="mb-3 min-h-[12rem] flex-1 space-y-2 overflow-y-auto text-xs text-slate-300"
+              >
+                {chatMessages.length === 0 ? (
+                  <p className="text-slate-500">No messages yet. Say hello in chat…</p>
+                ) : (
+                  chatMessages.map((m) => {
+                    const clock = new Date(m.at).toLocaleTimeString(undefined, {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    });
+                    return (
+                      <div
+                        key={m.id}
+                        className={[
+                          "rounded-lg px-2.5 py-1.5",
+                          m.isLocal
+                            ? "border border-orange-400/25 bg-orange-500/10"
+                            : "border border-white/6 bg-black/35",
+                        ].join(" ")}
+                      >
+                        <div className="mb-0.5 flex items-center justify-between gap-2">
+                          <span className="font-semibold text-orange-100/95">
+                            {m.isLocal ? "You" : m.speakerName || "Participant"}
+                          </span>
+                          <span className="text-[10px] tabular-nums text-slate-500">{clock}</span>
+                        </div>
+                        <p className="whitespace-pre-wrap leading-relaxed text-slate-200">{m.text}</p>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  className="flex-1 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-sm text-white"
+                  value={chatDraft}
+                  onChange={(e) => setChatDraft(e.target.value)}
+                  placeholder="Type a message…"
+                  maxLength={2000}
+                  disabled={chatSending}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      void sendChatMessage();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => void sendChatMessage()}
+                  disabled={chatSending || !chatDraft.trim()}
+                  className="rounded-lg bg-orange-500 px-3 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  Send
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {showNotes ? (
             <div className="rounded-2xl border border-white/10 bg-black/55 p-4 backdrop-blur-xl">
               <div className="mb-1 flex items-center justify-between gap-2">
@@ -1097,6 +1464,7 @@ export function MeetRoomClient(props: Props) {
             showHostMenu={rtc.isManager && !props.guestMode}
             waitingRoomLocked={waitingRoomLocked}
             waitingCount={rtc.waiting.length}
+            chatUnreadCount={chatUnread}
             onToggleMute={toggleMute}
             onToggleVideo={toggleVideo}
             onToggleScreen={() => void toggleScreen()}
@@ -1105,8 +1473,23 @@ export function MeetRoomClient(props: Props) {
               void navigator.clipboard.writeText(guestUrl);
               flash("Invite link copied");
             }}
-            onToggleParticipants={() => setShowPeople((v) => !v)}
-            onToggleNotes={() => setShowNotes((v) => !v)}
+            onToggleParticipants={() => {
+              setShowPeople((v) => !v);
+              setShowNotes(false);
+              setShowChat(false);
+            }}
+            onToggleNotes={() => {
+              setShowNotes((v) => !v);
+              setShowPeople(false);
+              setShowChat(false);
+            }}
+            onToggleChat={() => {
+              if (showChat) {
+                setShowChat(false);
+                return;
+              }
+              openChat();
+            }}
             onMinimize={props.onMinimize}
             onToggleLock={() => {
               void (async () => {

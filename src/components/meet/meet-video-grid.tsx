@@ -53,6 +53,14 @@ function usePreferContain(stream: MediaStream | null, forceContain?: boolean) {
   return contain;
 }
 
+function streamVideoSignature(stream: MediaStream | null | undefined) {
+  if (!stream) return "none";
+  return stream
+    .getTracks()
+    .map((t) => `${t.kind}:${t.id}:${t.readyState}:${t.enabled}:${t.muted ? 1 : 0}`)
+    .join("|");
+}
+
 function Tile({
   tile,
   pinned,
@@ -69,34 +77,72 @@ function Tile({
   const ref = useRef<HTMLVideoElement>(null);
   const preferContain = usePreferContain(tile.stream, tile.isScreen);
   const [hasFrames, setHasFrames] = useState(false);
+  const [trackSig, setTrackSig] = useState(() => streamVideoSignature(tile.stream));
+
+  // MediaStream identity is stable while tracks are added later — watch the stream.
+  useEffect(() => {
+    const stream = tile.stream;
+    if (!stream) {
+      setTrackSig("none");
+      return;
+    }
+    const bump = () => setTrackSig(streamVideoSignature(stream));
+    bump();
+    stream.addEventListener("addtrack", bump);
+    stream.addEventListener("removetrack", bump);
+    const tracks = stream.getTracks();
+    for (const t of tracks) {
+      t.addEventListener("unmute", bump);
+      t.addEventListener("mute", bump);
+      t.addEventListener("ended", bump);
+    }
+    const poll = window.setInterval(bump, 1000);
+    return () => {
+      stream.removeEventListener("addtrack", bump);
+      stream.removeEventListener("removetrack", bump);
+      for (const t of tracks) {
+        t.removeEventListener("unmute", bump);
+        t.removeEventListener("mute", bump);
+        t.removeEventListener("ended", bump);
+      }
+      window.clearInterval(poll);
+    };
+  }, [tile.stream]);
 
   useEffect(() => {
     const el = ref.current;
     if (!el || tile.screenPlaceholder) return;
-    el.srcObject = tile.stream;
     setHasFrames(false);
     el.muted = Boolean(tile.isLocal);
-    const tryPlay = () => {
+
+    const bindAndPlay = () => {
+      // Safari often keeps a black frame unless srcObject is reassigned after tracks arrive.
+      if (el.srcObject !== tile.stream) {
+        el.srcObject = tile.stream;
+      } else if (tile.stream) {
+        el.srcObject = null;
+        el.srcObject = tile.stream;
+      }
       void el.play().catch(() => undefined);
     };
-    tryPlay();
-    // Mobile Safari often needs a second play kick after tracks unmute.
+
+    bindAndPlay();
     const track = tile.stream?.getVideoTracks()[0];
-    const onUnmute = () => tryPlay();
+    const onUnmute = () => bindAndPlay();
     track?.addEventListener("unmute", onUnmute);
     const onPlaying = () => setHasFrames(true);
     el.addEventListener("playing", onPlaying);
-    el.addEventListener("loadeddata", tryPlay);
-    el.addEventListener("canplay", tryPlay);
-    const kick = window.setTimeout(tryPlay, 400);
+    el.addEventListener("loadeddata", bindAndPlay);
+    el.addEventListener("canplay", bindAndPlay);
+    const kicks = [120, 400, 1000, 2200].map((ms) => window.setTimeout(bindAndPlay, ms));
     return () => {
-      window.clearTimeout(kick);
+      for (const id of kicks) window.clearTimeout(id);
       track?.removeEventListener("unmute", onUnmute);
       el.removeEventListener("playing", onPlaying);
-      el.removeEventListener("loadeddata", tryPlay);
-      el.removeEventListener("canplay", tryPlay);
+      el.removeEventListener("loadeddata", bindAndPlay);
+      el.removeEventListener("canplay", bindAndPlay);
     };
-  }, [tile.stream, tile.isLocal, tile.screenPlaceholder]);
+  }, [tile.stream, tile.isLocal, tile.screenPlaceholder, tile.videoOff, trackSig]);
 
   return (
     <div
@@ -141,9 +187,9 @@ function Tile({
         </div>
       )}
 
-      {tile.isScreen && tile.stream && !tile.screenPlaceholder && !hasFrames ? (
+      {!tile.screenPlaceholder && !tile.videoOff && tile.stream && !hasFrames ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/55 text-xs text-slate-300">
-          Waiting for screen frames…
+          {tile.isScreen ? "Waiting for screen frames…" : "Connecting video…"}
         </div>
       ) : null}
 

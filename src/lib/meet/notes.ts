@@ -1,4 +1,4 @@
-export type MeetNoteSource = "MANUAL" | "VA" | "SPEECH";
+export type MeetNoteSource = "MANUAL" | "VA" | "SPEECH" | "CHAT";
 
 export type MeetNoteView = {
   id?: string;
@@ -35,6 +35,13 @@ export function parseSpeakerLine(body: string): { speakerName: string | null; te
   return { speakerName: name, text };
 }
 
+function formatNoteClock(at?: Date | string | null): string {
+  if (!at) return "";
+  const d = typeof at === "string" ? new Date(at) : at;
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
 export function noteFromDbRow(row: {
   id: string;
   body: string;
@@ -44,7 +51,10 @@ export function noteFromDbRow(row: {
   createdAt: Date | string;
 }): MeetNoteView {
   const source: MeetNoteSource =
-    row.source === "SPEECH" || row.source === "VA" || row.source === "MANUAL"
+    row.source === "SPEECH" ||
+    row.source === "VA" ||
+    row.source === "MANUAL" ||
+    row.source === "CHAT"
       ? row.source
       : "MANUAL";
   const parsed = parseSpeakerLine(row.body);
@@ -60,18 +70,39 @@ export function noteFromDbRow(row: {
   };
 }
 
-/** Split curated host notes from live speech for the VA report. */
-export function splitNotesForVa(notes: Array<{ body: string; source: string; speakerName?: string | null }>) {
+/** Split curated host notes from live speech + typed chat for the VA report. */
+export function splitNotesForVa(
+  notes: Array<{
+    body: string;
+    source: string;
+    speakerName?: string | null;
+    createdAt?: Date | string | null;
+  }>,
+) {
   const curated: string[] = [];
   const transcript: string[] = [];
   for (const n of notes) {
-    const line =
-      n.source === "SPEECH"
-        ? formatSpeakerLine(n.speakerName || parseSpeakerLine(n.body).speakerName, parseSpeakerLine(n.body).text || n.body)
-        : n.body.trim();
-    if (!line) continue;
-    if (n.source === "SPEECH") transcript.push(line);
-    else curated.push(line);
+    const parsed = parseSpeakerLine(n.body);
+    const speaker = n.speakerName || parsed.speakerName;
+    const text = parsed.speakerName ? parsed.text : n.body.trim();
+    if (!text && !n.body.trim()) continue;
+
+    if (n.source === "SPEECH") {
+      const line = formatSpeakerLine(speaker, text || n.body);
+      if (line) transcript.push(line);
+      continue;
+    }
+
+    if (n.source === "CHAT") {
+      const clock = formatNoteClock(n.createdAt);
+      const spoken = formatSpeakerLine(speaker, text || n.body);
+      if (!spoken) continue;
+      transcript.push(clock ? `[chat ${clock}] ${spoken}` : `[chat] ${spoken}`);
+      continue;
+    }
+
+    const line = n.body.trim();
+    if (line) curated.push(line);
   }
   return { curated, transcript };
 }

@@ -48,9 +48,9 @@ export type MeetInviteSendResult = {
 };
 
 /**
- * Deliver a Meet invite email.
- * HTML-first (calendar links already in the body) — ICS attachment is best-effort only,
- * because several providers reject text/calendar and were silently killing all invites.
+ * Deliver a Meet invite as one email: HTML body + .ics attachment.
+ * If a provider rejects the calendar attachment, retry once as HTML-only
+ * (still a single message — never send a separate ICS follow-up).
  */
 export async function sendMeetInviteMail(input: {
   to: string;
@@ -67,40 +67,53 @@ export async function sendMeetInviteMail(input: {
     };
   }
 
-  const plain = await sendTransactionalEmailDetailed({
+  const icsFilename = input.ics?.body
+    ? input.ics.filename.endsWith(".ics")
+      ? input.ics.filename
+      : `${input.ics.filename}.ics`
+    : null;
+
+  // Prefer a generic type + .ics filename so providers that reject text/calendar
+  // still deliver the invite with the calendar file attached in the same message.
+  const attachments =
+    input.ics?.body && icsFilename
+      ? [
+          {
+            filename: icsFilename,
+            contentType: "application/octet-stream",
+            content: input.ics.body,
+          },
+        ]
+      : undefined;
+
+  const withIcs = await sendTransactionalEmailDetailed({
     to: input.to,
     subject: input.subject,
     text: input.text,
     html: input.html,
+    attachments,
   });
-  if (plain.ok) {
-    // Best-effort calendar file — never fail the invite if this bounces.
-    if (input.ics?.body) {
-      void sendTransactionalEmailDetailed({
-        to: input.to,
-        subject: `${input.subject} — calendar file`,
-        text: "Open the attached .ics file to save this Story Time Meet to your calendar.",
-        html: `<p>Open the attached <strong>.ics</strong> file to save this Story Time Meet to your calendar.</p>`,
-        attachments: [
-          {
-            filename: input.ics.filename.endsWith(".ics")
-              ? input.ics.filename
-              : `${input.ics.filename}.ics`,
-            contentType: "text/calendar",
-            content: input.ics.body,
-          },
-        ],
-      }).then((icsResult) => {
-        if (!icsResult.ok) {
-          console.warn("[meet-invite] ICS follow-up skipped/failed", input.to, icsResult.error);
-        }
-      });
-    }
+  if (withIcs.ok) return withIcs;
+
+  if (attachments?.length) {
+    console.warn(
+      "[meet-invite] ICS attachment rejected; retrying HTML-only",
+      input.to,
+      withIcs.error,
+    );
+    const plain = await sendTransactionalEmailDetailed({
+      to: input.to,
+      subject: input.subject,
+      text: input.text,
+      html: input.html,
+    });
+    if (plain.ok) return plain;
+    console.error("[meet-invite] HTML invite failed", input.to, plain.error);
     return plain;
   }
 
-  console.error("[meet-invite] HTML invite failed", input.to, plain.error);
-  return plain;
+  console.error("[meet-invite] HTML invite failed", input.to, withIcs.error);
+  return withIcs;
 }
 
 /**

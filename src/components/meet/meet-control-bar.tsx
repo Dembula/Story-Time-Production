@@ -11,6 +11,7 @@ import {
   Users,
   Link2,
   StickyNote,
+  MessageSquare,
   Minimize2,
   Maximize2,
   Shield,
@@ -27,6 +28,8 @@ type Props = {
   showHostMenu?: boolean;
   waitingRoomLocked?: boolean;
   waitingCount?: number;
+  /** Unread in-meeting chat messages (clears when chat is opened). */
+  chatUnreadCount?: number;
   onToggleMute: () => void;
   onToggleVideo: () => void;
   onToggleScreen: () => void;
@@ -34,6 +37,7 @@ type Props = {
   onCopyLink: () => void;
   onToggleParticipants: () => void;
   onToggleNotes: () => void;
+  onToggleChat?: () => void;
   onReact: (emoji: string) => void;
   onMinimize?: () => void;
   onExpand?: () => void;
@@ -88,9 +92,23 @@ export function MeetControlBar(props: Props) {
           <MonitorUp className="h-4 w-4" />
         </CtrlBtn>
         {props.onExpand ? (
-          <CtrlBtn onClick={props.onExpand} title="Expand Meet">
+          <button
+            type="button"
+            onClick={props.onExpand}
+            title={
+              props.chatUnreadCount
+                ? `Expand Meet · ${props.chatUnreadCount} unread chat`
+                : "Expand Meet"
+            }
+            className="relative inline-flex min-h-11 min-w-11 items-center justify-center rounded-full bg-white/[0.08] p-3 text-white ring-1 ring-white/10 touch-manipulation hover:bg-white/[0.14]"
+          >
             <Maximize2 className="h-4 w-4" />
-          </CtrlBtn>
+            {props.chatUnreadCount && props.chatUnreadCount > 0 ? (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold text-white">
+                {props.chatUnreadCount > 9 ? "9+" : props.chatUnreadCount}
+              </span>
+            ) : null}
+          </button>
         ) : null}
         <CtrlBtn onClick={props.onLeave} danger title="Leave">
           <PhoneOff className="h-4 w-4" />
@@ -151,6 +169,25 @@ export function MeetControlBar(props: Props) {
           </span>
         ) : null}
       </button>
+      {props.onToggleChat ? (
+        <button
+          type="button"
+          onClick={props.onToggleChat}
+          title={
+            props.chatUnreadCount
+              ? `Chat · ${props.chatUnreadCount} unread`
+              : "Meeting chat"
+          }
+          className="relative inline-flex min-h-11 min-w-11 items-center justify-center rounded-full bg-white/[0.08] p-3 text-white ring-1 ring-white/10 touch-manipulation hover:bg-white/[0.14]"
+        >
+          <MessageSquare className="h-5 w-5" />
+          {props.chatUnreadCount && props.chatUnreadCount > 0 ? (
+            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold text-white">
+              {props.chatUnreadCount > 9 ? "9+" : props.chatUnreadCount}
+            </span>
+          ) : null}
+        </button>
+      ) : null}
       <CtrlBtn onClick={props.onToggleNotes} title="VA notes">
         <StickyNote className="h-5 w-5" />
       </CtrlBtn>

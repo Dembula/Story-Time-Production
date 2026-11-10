@@ -115,6 +115,7 @@ export function MeetGuestClient(props: Props) {
                 facingMode: "user",
                 width: { ideal: 1280 },
                 height: { ideal: 720 },
+                frameRate: { ideal: 30, max: 30 },
                 ...(opts?.videoDeviceId || cameraId
                   ? { deviceId: { exact: opts?.videoDeviceId || cameraId } }
                   : {}),

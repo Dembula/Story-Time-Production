@@ -38,6 +38,7 @@ export async function POST(
     "answer",
     "candidate",
     "speech",
+    "chat",
     "reaction",
     "peer-join",
     "peer-leave",
@@ -49,18 +50,47 @@ export async function POST(
     return NextResponse.json({ error: "Invalid signal type" }, { status: 400 });
   }
 
+  const incomingPayload = (body?.payload ?? {}) as Record<string, unknown>;
+  let outboundPayload: Record<string, unknown> = { ...incomingPayload };
+  let chatNoteId: string | null = null;
+
+  if (type === "chat") {
+    const text = String(incomingPayload.text ?? "").trim().slice(0, 2000);
+    if (!text) return NextResponse.json({ error: "Chat text required" }, { status: 400 });
+    const speakerName =
+      String(incomingPayload.speakerName ?? identity.name ?? "Participant").trim() ||
+      identity.name;
+    const note = await prisma.meetNote.create({
+      data: {
+        meetingId,
+        authorUserId: identity.kind === "user" ? identity.userId : null,
+        source: "CHAT",
+        body: `${speakerName}: ${text}`,
+        speakerName,
+        speakerPeerId: identity.peerId,
+      },
+    });
+    chatNoteId = note.id;
+    outboundPayload = {
+      text,
+      speakerName,
+      at: note.createdAt.toISOString(),
+      noteId: note.id,
+    };
+  }
+
   const signal = await prisma.meetSignal.create({
     data: {
       meetingId,
       fromPeer: identity.peerId,
       toPeer,
       type,
-      payload: (body?.payload ?? {}) as object,
+      payload: outboundPayload as object,
     },
   });
 
   if (type === "media-state" && identity.kind === "user") {
-    const payload = (body?.payload ?? {}) as { isMuted?: boolean; isVideoOff?: boolean };
+    const payload = outboundPayload as { isMuted?: boolean; isVideoOff?: boolean };
     await prisma.meetParticipant.updateMany({
       where: { id: identity.participantId },
       data: {
@@ -72,7 +102,7 @@ export async function POST(
   }
 
   if (type === "speech") {
-    const payload = (body?.payload ?? {}) as {
+    const payload = outboundPayload as {
       text?: string;
       speakerName?: string;
     };
@@ -117,5 +147,16 @@ export async function POST(
     }
   }
 
-  return NextResponse.json({ ok: true, id: signal.id });
+  return NextResponse.json({
+    ok: true,
+    id: signal.id,
+    ...(chatNoteId
+      ? {
+          noteId: chatNoteId,
+          at: outboundPayload.at,
+          speakerName: outboundPayload.speakerName,
+          text: outboundPayload.text,
+        }
+      : {}),
+  });
 }

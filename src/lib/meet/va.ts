@@ -35,12 +35,14 @@ export async function generateMeetSummaryReport(input: {
   const prompt = `You are the Story Time Meet VA — an attentive production note-taker for film, series, and creative studio calls.
 
 You receive:
-1) A speaker-attributed live transcript (who said what)
+1) A speaker-attributed live transcript that mixes spoken lines and typed chat messages
 2) Optional curated host notes
+
+Chat lines are prefixed like "[chat HH:MM] Name: message" — treat them as first-class conversation context (especially for people who type instead of speaking). Use the chat timestamp when sequencing what happened.
 
 Your job is NOT to paste random lines. Be attentive:
 - Read the whole conversation for intent, decisions, blockers, creative direction, and next steps.
-- Credit speakers by name when attributing quotes, decisions, or action owners.
+- Credit speakers/authors by name when attributing quotes, decisions, or action owners.
 - Ignore filler, greetings, and repeated fragments unless they carry meaning.
 - Prefer substance over volume. If the transcript is long, compress intelligently.
 
@@ -53,6 +55,7 @@ Write a polished meeting report as JSON with exactly these keys:
 Rules:
 - Do not invent attendees, dates, or deliverables that are not supported by the transcript/notes.
 - Do not treat every spoken sentence as a key point.
+- Typed chat counts as part of the meeting — include meaningful chat content in summary/key points/actions.
 - If transcript/notes are thin, say so briefly in summary and keep lists short.
 - Film/production vocabulary is welcome when it fits (table read, sides, coverage, VFX, deliverables).
 
@@ -63,7 +66,7 @@ Participants (approx): ${input.participantCount ?? "unknown"}
 Curated host / VA notes:
 ${curated.map((n, i) => `${i + 1}. ${n}`).join("\n") || "(none)"}
 
-Speaker-attributed transcript:
+Speaker-attributed transcript (speech + timed chat):
 ${transcript || "(none)"}
 
 Return ONLY valid JSON.`;

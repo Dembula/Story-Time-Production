@@ -39,6 +39,7 @@ export async function POST(req: Request) {
       body: n.body,
       source: n.source,
       speakerName: (n as { speakerName?: string | null }).speakerName ?? null,
+      createdAt: n.createdAt,
     })),
   );
   const report = await generateMeetSummaryReport({
