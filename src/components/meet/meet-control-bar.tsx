@@ -60,7 +60,7 @@ function CtrlBtn({
       onClick={onClick}
       title={title}
       className={[
-        "rounded-full p-3 transition",
+        "inline-flex min-h-11 min-w-11 items-center justify-center rounded-full p-3 transition touch-manipulation",
         danger
           ? "bg-rose-600 text-white hover:bg-rose-500"
           : active
@@ -100,7 +100,7 @@ export function MeetControlBar(props: Props) {
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-white/15 bg-black/45 px-3 py-3 shadow-2xl backdrop-blur-xl">
+    <div className="flex max-w-[100vw] flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-white/15 bg-black/55 px-2 py-2.5 shadow-2xl backdrop-blur-xl sm:gap-2 sm:px-3 sm:py-3">
       <CtrlBtn onClick={props.onToggleMute} active={props.isMuted} title={props.isMuted ? "Unmute" : "Mute"}>
         {props.isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
       </CtrlBtn>
@@ -119,13 +119,13 @@ export function MeetControlBar(props: Props) {
         <MonitorUp className="h-5 w-5" />
       </CtrlBtn>
 
-      <div className="mx-1 hidden items-center gap-0.5 rounded-full border border-white/8 bg-black/40 px-2 py-1 sm:flex">
-        <Smile className="mr-1 h-3.5 w-3.5 text-slate-500" />
-        {REACTIONS.map((emoji) => (
+      <div className="mx-0.5 flex items-center gap-0.5 rounded-full border border-white/8 bg-black/40 px-1.5 py-1 sm:mx-1 sm:px-2">
+        <Smile className="mr-0.5 hidden h-3.5 w-3.5 text-slate-500 sm:block" />
+        {REACTIONS.slice(0, 4).map((emoji) => (
           <button
             key={emoji}
             type="button"
-            className="rounded-md px-1.5 py-0.5 text-base transition hover:bg-white/10"
+            className="min-h-9 min-w-9 rounded-md px-1 text-base transition hover:bg-white/10 touch-manipulation sm:min-h-0 sm:min-w-0 sm:px-1.5 sm:py-0.5"
             onClick={() => props.onReact(emoji)}
             title="React"
           >
@@ -142,7 +142,7 @@ export function MeetControlBar(props: Props) {
             ? `Participants · ${props.waitingCount} waiting`
             : "Participants"
         }
-        className="relative rounded-full bg-white/[0.08] p-3 text-white ring-1 ring-white/10 hover:bg-white/[0.14]"
+        className="relative inline-flex min-h-11 min-w-11 items-center justify-center rounded-full bg-white/[0.08] p-3 text-white ring-1 ring-white/10 touch-manipulation hover:bg-white/[0.14]"
       >
         <Users className="h-5 w-5" />
         {props.waitingCount && props.waitingCount > 0 ? (
@@ -154,14 +154,16 @@ export function MeetControlBar(props: Props) {
       <CtrlBtn onClick={props.onToggleNotes} title="VA notes">
         <StickyNote className="h-5 w-5" />
       </CtrlBtn>
-      <CtrlBtn onClick={props.onCopyLink} title="Copy invite link">
-        <Link2 className="h-5 w-5" />
-      </CtrlBtn>
-      {props.showMinimize && props.onMinimize ? (
-        <CtrlBtn onClick={props.onMinimize} title="Minimize — keep using Story Time">
-          <Minimize2 className="h-5 w-5" />
+      <span className="hidden sm:contents">
+        <CtrlBtn onClick={props.onCopyLink} title="Copy invite link">
+          <Link2 className="h-5 w-5" />
         </CtrlBtn>
-      ) : null}
+        {props.showMinimize && props.onMinimize ? (
+          <CtrlBtn onClick={props.onMinimize} title="Minimize — keep using Story Time">
+            <Minimize2 className="h-5 w-5" />
+          </CtrlBtn>
+        ) : null}
+      </span>
       {props.showHostMenu && props.onToggleLock ? (
         <CtrlBtn
           onClick={props.onToggleLock}
@@ -176,7 +178,7 @@ export function MeetControlBar(props: Props) {
           type="button"
           onClick={props.onEndForAll}
           title="End meeting for everyone"
-          className="rounded-full bg-rose-900/80 px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-rose-100 ring-1 ring-rose-500/40 hover:bg-rose-800"
+          className="rounded-full bg-rose-900/80 px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-rose-100 ring-1 ring-rose-500/40 touch-manipulation hover:bg-rose-800"
         >
           End for all
         </button>

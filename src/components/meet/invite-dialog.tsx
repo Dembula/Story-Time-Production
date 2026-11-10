@@ -20,6 +20,8 @@ type Props = {
   open: boolean;
   onClose: () => void;
   guestUrl: string;
+  /** Optional: show calendar save actions for scheduled Meets. */
+  scheduledAt?: string | Date | null;
 };
 
 const LOCAL_EMAIL_KEY = "st-meet-invite-emails";
@@ -54,7 +56,7 @@ function rememberLocalEmails(emails: string[]) {
   }
 }
 
-export function MeetInviteDialog({ meetingId, open, onClose, guestUrl }: Props) {
+export function MeetInviteDialog({ meetingId, open, onClose, guestUrl, scheduledAt }: Props) {
   const [selected, setSelected] = useState<string[]>([]);
   const [email, setEmail] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -172,8 +174,29 @@ export function MeetInviteDialog({ meetingId, open, onClose, guestUrl }: Props) 
           </button>
         </div>
 
+        <div className="mb-4 rounded-xl border border-white/8 bg-black/25 p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+            Save to calendar
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+            Invite emails include Google/Outlook links and an .ics attachment
+            {scheduledAt
+              ? ` for ${new Date(scheduledAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`
+              : ""}
+            .
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <a
+              href={`/api/meet/meetings/${meetingId}/calendar`}
+              className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[11px] text-slate-200 hover:bg-white/[0.08]"
+            >
+              Download .ics
+            </a>
+          </div>
+        </div>
+
         <label className="mb-2 block space-y-1.5">
-          <span className="text-xs text-slate-400">Email (comma-separated)</span>
+          <span className="text-xs text-slate-400">Email invites (comma-separated)</span>
           <Input
             className="border-white/10 bg-black/40 text-white"
             value={email}

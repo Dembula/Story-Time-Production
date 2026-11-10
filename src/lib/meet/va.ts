@@ -11,7 +11,9 @@ export type MeetVaReport = {
 
 export async function generateMeetSummaryReport(input: {
   title: string;
+  /** Curated host / manual / VA notes (not raw speech dump). */
   notes: string[];
+  /** Speaker-attributed dialogue transcript. */
   transcript?: string | null;
   elapsedMinutes?: number;
   participantCount?: number;
@@ -27,29 +29,42 @@ export async function generateMeetSummaryReport(input: {
   ].filter((m): m is string => Boolean(m?.trim()));
   const model = (await resolveWorkingModel(modelChain)) || "openai/gpt-4o-mini";
 
-  const prompt = `You are the Story Time Meet VA — a production-savvy note-taker for film, series, and creative studio calls.
+  const transcript = (input.transcript || "").trim().slice(0, 14000);
+  const curated = input.notes.map((n) => n.trim()).filter(Boolean);
+
+  const prompt = `You are the Story Time Meet VA — an attentive production note-taker for film, series, and creative studio calls.
+
+You receive:
+1) A speaker-attributed live transcript (who said what)
+2) Optional curated host notes
+
+Your job is NOT to paste random lines. Be attentive:
+- Read the whole conversation for intent, decisions, blockers, creative direction, and next steps.
+- Credit speakers by name when attributing quotes, decisions, or action owners.
+- Ignore filler, greetings, and repeated fragments unless they carry meaning.
+- Prefer substance over volume. If the transcript is long, compress intelligently.
 
 Write a polished meeting report as JSON with exactly these keys:
-- summary: 2–4 short paragraphs (string). Lead with what the meeting was for, then what moved forward. Plain professional prose, no fluff.
-- keyPoints: 4–10 crisp bullets (string[]). Facts, updates, blockers, creative direction — not filler.
-- decisions: concrete decisions that were made (string[]). Empty array if none are clear.
-- actionItems: each item should name the owner when known and the next step, e.g. "Alex — send revised beat sheet by Friday" (string[]). Empty if none.
+- summary: 2–4 short paragraphs (string). Open with purpose, then what moved forward, then open threads. Name key speakers when relevant.
+- keyPoints: 4–12 crisp bullets (string[]). Facts, updates, blockers, creative direction. When a point came from a specific person, start with their name (e.g. "Jordan — wants colder grade on night exteriors").
+- decisions: concrete decisions that were agreed (string[]). Include who drove/confirmed when clear. Empty array if none.
+- actionItems: owner + next step, e.g. "Alex — send revised beat sheet by Friday" (string[]). Infer owners from who volunteered or was assigned in the transcript. Empty if none.
 
 Rules:
-- Prefer specificity over vagueness. Use names/titles from the notes when present.
-- Do not invent attendees, dates, or deliverables that are not supported by the notes/transcript.
-- If notes are thin, say so briefly in summary and keep lists short.
+- Do not invent attendees, dates, or deliverables that are not supported by the transcript/notes.
+- Do not treat every spoken sentence as a key point.
+- If transcript/notes are thin, say so briefly in summary and keep lists short.
 - Film/production vocabulary is welcome when it fits (table read, sides, coverage, VFX, deliverables).
 
 Meeting title: ${input.title}
 Duration minutes: ${input.elapsedMinutes != null ? Math.round(input.elapsedMinutes) : "unknown"}
 Participants (approx): ${input.participantCount ?? "unknown"}
 
-Host / VA notes:
-${input.notes.map((n, i) => `${i + 1}. ${n}`).join("\n") || "(none)"}
+Curated host / VA notes:
+${curated.map((n, i) => `${i + 1}. ${n}`).join("\n") || "(none)"}
 
-Speech / transcript excerpts:
-${(input.transcript || "").slice(0, 10000) || "(none)"}
+Speaker-attributed transcript:
+${transcript || "(none)"}
 
 Return ONLY valid JSON.`;
 
@@ -68,14 +83,14 @@ Return ONLY valid JSON.`;
           {
             role: "system",
             content:
-              "You write clear, structured film-production meeting summaries for Story Time. Output valid JSON only.",
+              "You are an attentive Story Time Meet VA. Attribute speakers, extract decisions and actions, and never dump raw transcript lines as the report. Output valid JSON only.",
           },
           { role: "user", content: prompt },
         ],
-        temperature: 0.25,
+        temperature: 0.2,
         response_format: { type: "json_object" },
       }),
-      signal: AbortSignal.timeout(45_000),
+      signal: AbortSignal.timeout(55_000),
     });
     if (!res.ok) return fallback;
     const data = (await res.json()) as {
@@ -104,6 +119,7 @@ function cleanList(value: unknown, fallback: string[]): string[] {
 function buildFallbackReport(input: {
   title: string;
   notes: string[];
+  transcript?: string | null;
   elapsedMinutes?: number;
   participantCount?: number;
 }): MeetVaReport {
@@ -116,12 +132,18 @@ function buildFallbackReport(input: {
     .filter(Boolean)
     .join(" · ");
 
-  if (input.notes.length === 0) {
+  const curated = input.notes.map((n) => n.trim()).filter(Boolean);
+  const transcriptLines = (input.transcript || "")
+    .split(/\n+/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  if (!curated.length && !transcriptLines.length) {
     return {
       summary: [
         `“${input.title}” ended without captured notes.`,
         meta ? `Session length: ${meta}.` : null,
-        "Open a future Meet with VA notes open to capture decisions and action items live.",
+        "Keep mics unmuted in Chrome/Edge so the VA can attribute speakers and draft a real report next time.",
       ]
         .filter(Boolean)
         .join(" "),
@@ -131,12 +153,22 @@ function buildFallbackReport(input: {
     };
   }
 
+  const speakerHints = new Set<string>();
+  for (const line of transcriptLines) {
+    const m = /^([^:]{1,48}):\s+/.exec(line);
+    if (m) speakerHints.add(m[1].trim());
+  }
+
   return {
     summary: [
-      `“${input.title}” covered the topics captured in the meeting notes${meta ? ` (${meta})` : ""}.`,
-      "Review the key points below and convert any open threads into action items on your next sync.",
+      `“${input.title}” captured live discussion${meta ? ` (${meta})` : ""}${
+        speakerHints.size ? ` with ${[...speakerHints].slice(0, 6).join(", ")} contributing` : ""
+      }.`,
+      "Review the points below — regenerate with the VA online for a fuller speaker-aware report.",
     ].join("\n\n"),
-    keyPoints: input.notes.slice(0, 12),
+    keyPoints: [...curated, ...transcriptLines]
+      .filter((line, i, arr) => arr.indexOf(line) === i)
+      .slice(0, 10),
     decisions: [],
     actionItems: [],
   };

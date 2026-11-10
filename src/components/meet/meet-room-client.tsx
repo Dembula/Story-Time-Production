@@ -11,6 +11,7 @@ import { MeetVideoGrid } from "@/components/meet/meet-video-grid";
 import { MeetControlBar } from "@/components/meet/meet-control-bar";
 import { MeetInviteDialog } from "@/components/meet/invite-dialog";
 import { MEET_MAX_PARTICIPANTS } from "@/lib/meet/limits";
+import { noteFromDbRow, type MeetNoteView } from "@/lib/meet/notes";
 
 type Props = {
   meetingId: string;
@@ -18,6 +19,8 @@ type Props = {
   code: string;
   displayName: string;
   guestMode?: boolean;
+  /** Reuse preview camera/mic from guest lobby instead of re-prompting. */
+  initialStream?: MediaStream | null;
   minimized?: boolean;
   onMinimize?: () => void;
   onExpand?: () => void;
@@ -27,16 +30,101 @@ type Props = {
 
 type CallPhase = "live" | "ending" | "ended";
 
+function isMobileUa() {
+  if (typeof navigator === "undefined") return false;
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+}
+
+async function waitTrackReady(track: MediaStreamTrack, ms = 2800) {
+  if (track.readyState === "live" && !track.muted) return;
+  await new Promise<void>((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      track.removeEventListener("unmute", done);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    track.addEventListener("unmute", done, { once: true });
+  });
+}
+
 async function acquireMedia(): Promise<MediaStream> {
+  const mobile = isMobileUa();
+  const audio: MediaTrackConstraints = {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+  };
+  const video: MediaTrackConstraints = {
+    facingMode: "user",
+    width: { ideal: mobile ? 720 : 1280 },
+    height: { ideal: mobile ? 1280 : 720 },
+    frameRate: { ideal: mobile ? 24 : 30, max: 30 },
+  };
+
+  let stream: MediaStream;
   try {
-    return await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    stream = await navigator.mediaDevices.getUserMedia({ video, audio });
   } catch {
     try {
-      return await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ audio, video: true });
     } catch {
-      return await navigator.mediaDevices.getUserMedia({ video: true });
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
     }
   }
+
+  for (const track of stream.getTracks()) {
+    track.enabled = true;
+    if (track.kind === "video") {
+      try {
+        track.contentHint = "motion";
+      } catch {
+        /* ignore */
+      }
+    }
+    await waitTrackReady(track);
+  }
+  return stream;
+}
+
+/** Merge consecutive same-speaker speech into one attentive note row. */
+function appendSpeechNote(
+  prev: MeetNoteView[],
+  input: { text: string; speakerName: string; speakerPeerId?: string | null },
+): MeetNoteView[] {
+  const text = input.text.trim();
+  if (!text) return prev;
+  const last = prev[prev.length - 1];
+  const sameSpeaker =
+    last &&
+    last.source === "SPEECH" &&
+    ((input.speakerPeerId && last.speakerPeerId === input.speakerPeerId) ||
+      (!input.speakerPeerId && last.speakerName === input.speakerName));
+  const recent =
+    last && Date.now() - new Date(last.at).getTime() < 14_000;
+  if (sameSpeaker && recent) {
+    const next = [...prev];
+    next[next.length - 1] = {
+      ...last,
+      text: `${last.text} ${text}`.replace(/\s+/g, " ").trim(),
+      at: new Date().toISOString(),
+    };
+    return next;
+  }
+  return [
+    ...prev,
+    {
+      text,
+      speakerName: input.speakerName,
+      speakerPeerId: input.speakerPeerId ?? null,
+      source: "SPEECH",
+      at: new Date().toISOString(),
+    },
+  ];
 }
 
 export function MeetRoomClient(props: Props) {
@@ -49,8 +137,9 @@ export function MeetRoomClient(props: Props) {
   const [showPeople, setShowPeople] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
-  const [notes, setNotes] = useState<string[]>([]);
+  const [notes, setNotes] = useState<MeetNoteView[]>([]);
   const [noteDraft, setNoteDraft] = useState("");
+  const [speechInterim, setSpeechInterim] = useState("");
   const [localReaction, setLocalReaction] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [waitingRoomLocked, setWaitingRoomLocked] = useState(true);
@@ -64,6 +153,7 @@ export function MeetRoomClient(props: Props) {
   const reactionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   localStreamRef.current = localStream;
+  const remotesRef = useRef<{ peerId: string; name: string }[]>([]);
   const leavingRef = useRef(false);
   const backgroundFinalizeRef = useRef(false);
   const recorder = useMeetRecorder();
@@ -222,21 +312,12 @@ export function MeetRoomClient(props: Props) {
     meetingId: props.meetingId,
     enabled: joined && phase === "live",
     localStream,
-    onSpeech: (_from, text) => {
-      setNotes((n) => [...n, text]);
-      if (!props.guestMode && text.trim()) {
-        void fetch("/api/meet/va", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            mode: "note",
-            meetingId: props.meetingId,
-            body: text,
-            source: "SPEECH",
-          }),
-        });
-      }
+    onSpeech: (fromPeer, text, speakerName) => {
+      const name =
+        speakerName?.trim() ||
+        remotesRef.current.find((r) => r.peerId === fromPeer)?.name ||
+        "Participant";
+      setNotes((prev) => appendSpeechNote(prev, { text, speakerName: name, speakerPeerId: fromPeer }));
     },
     onReaction: (_from, emoji) => {
       setLocalReaction(emoji);
@@ -257,31 +338,66 @@ export function MeetRoomClient(props: Props) {
       if (leavingRef.current || phase !== "live") return;
       void leaveCall({ endReport: reason === "ended" && !props.guestMode });
     },
-    onRemotePin: (tileId, isScreen) => {
-      if (tileId) setPinnedId(isScreen ? "screen-local" : tileId);
-      else setPinnedId(null);
+    onRemotePin: (tileId) => {
+      // tileId is already normalized (e.g. screen-{peerId}) by the RTC hook.
+      setPinnedId(tileId);
     },
   });
 
+  remotesRef.current = rtc.remotes.map((r) => ({ peerId: r.peerId, name: r.name }));
+
   useMeetSpeech({
-    enabled: joined && phase === "live" && !props.guestMode,
+    // Capture speech for hosts and guests so the VA can attribute everyone.
+    enabled: joined && phase === "live",
     muted: isMuted,
+    onInterim: setSpeechInterim,
     onFinal: (text) => {
-      setNotes((n) => [...n, text]);
-      void rtc.sendSpeech(text);
-      void fetch("/api/meet/va", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          mode: "note",
-          meetingId: props.meetingId,
-          body: text,
-          source: "SPEECH",
+      setSpeechInterim("");
+      setNotes((prev) =>
+        appendSpeechNote(prev, {
+          text,
+          speakerName: props.displayName,
+          speakerPeerId: rtc.peerId,
         }),
-      });
+      );
+      // Canonical persist + broadcast (speaker-attributed). No /api/meet/va SPEECH double-write.
+      void rtc.sendSpeech(text, props.displayName);
     },
   });
+
+  // Hydrate speaker-attributed notes when (re)joining so the panel isn't session-only.
+  useEffect(() => {
+    if (!joined || props.guestMode || phase !== "live") return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/meet/va?meetingId=${encodeURIComponent(props.meetingId)}`, {
+          credentials: "include",
+        });
+        if (!res.ok || cancelled) return;
+        const json = (await res.json()) as {
+          notes?: Array<{
+            id: string;
+            body: string;
+            source: string;
+            speakerName?: string | null;
+            speakerPeerId?: string | null;
+            createdAt: string;
+          }>;
+        };
+        if (cancelled || !json.notes?.length) return;
+        setNotes((prev) => {
+          if (prev.length) return prev;
+          return json.notes!.map((n) => noteFromDbRow(n));
+        });
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [joined, phase, props.guestMode, props.meetingId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -307,14 +423,19 @@ export function MeetRoomClient(props: Props) {
       if (cancelled) return;
       setJoined(true);
       try {
-        const stream = await acquireMedia();
+        let stream = props.initialStream ?? null;
+        if (stream) {
+          for (const track of stream.getTracks()) track.enabled = true;
+        } else {
+          stream = await acquireMedia();
+        }
         if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
+          if (!props.initialStream) stream.getTracks().forEach((t) => t.stop());
           return;
         }
         setLocalStream(stream);
-        setIsMuted(!stream.getAudioTracks()[0]?.enabled);
-        setIsVideoOff(!stream.getVideoTracks()[0]?.enabled);
+        setIsMuted(!(stream.getAudioTracks()[0]?.enabled ?? false));
+        setIsVideoOff(!(stream.getVideoTracks()[0]?.enabled ?? true));
       } catch {
         setToast("Camera/mic permission denied — enable access to speak and be heard.");
       }
@@ -322,7 +443,7 @@ export function MeetRoomClient(props: Props) {
     return () => {
       cancelled = true;
     };
-  }, [props.guestMode, props.meetingId]);
+  }, [props.guestMode, props.initialStream, props.meetingId]);
 
   useEffect(() => {
     return () => {
@@ -337,17 +458,6 @@ export function MeetRoomClient(props: Props) {
       setShowPeople(true);
     }
   }, [rtc.isManager, rtc.waiting.length]);
-
-  // Auto-start host recording once media is live so summaries keep a capture.
-  useEffect(() => {
-    if (props.guestMode || phase !== "live" || !localStream || recorder.recording) return;
-    void recorder
-      .start({ localStream, screenStream })
-      .then(() => flash("Recording started"))
-      .catch(() => undefined);
-    // Only kick once when local media first arrives.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localStream, props.guestMode, phase]);
 
   const toggleMute = () => {
     const track = localStream?.getAudioTracks()[0];
@@ -370,9 +480,11 @@ export function MeetRoomClient(props: Props) {
     screenRef.current = null;
     setScreenStream(null);
     setIsScreenSharing(false);
-    rtc.setVideoOverride(null);
+    rtc.setScreenShareTrack(null);
     void rtc.sendScreenShareState(false);
-    if (pinnedId === "screen-local") setPinnedId(null);
+    if (pinnedId === "screen-local" || pinnedId?.startsWith("screen-")) {
+      setPinnedId(null);
+    }
   }, [pinnedId, rtc]);
 
   const toggleScreen = async () => {
@@ -384,7 +496,6 @@ export function MeetRoomClient(props: Props) {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
-          // Helps phones deliver usable frames to laptops.
           width: { ideal: 1280 },
           height: { ideal: 720 },
           frameRate: { ideal: 15, max: 30 },
@@ -402,12 +513,14 @@ export function MeetRoomClient(props: Props) {
       screenRef.current = stream;
       setScreenStream(stream);
       setIsScreenSharing(true);
+      // Sharer pins the Shared screen status tile (not a live mirror of their window).
       setPinnedId("screen-local");
       track?.addEventListener("ended", () => stopScreen());
-      if (track) rtc.setVideoOverride(track);
+      if (track) rtc.setScreenShareTrack(track);
       void rtc.sendScreenShareState(true);
-      void rtc.sendPin("screen-local", true);
-      flash("Screen sharing — pinned for everyone");
+      // Viewers normalize this to screen-{peerId} and pin the real shared feed.
+      void rtc.sendPin(rtc.peerId ?? "screen-local", true);
+      flash("Sharing screen — Shared screen is pinned for others");
     } catch {
       flash("Screen share cancelled");
     }
@@ -442,14 +555,22 @@ export function MeetRoomClient(props: Props) {
   const addNote = async () => {
     const body = noteDraft.trim();
     if (!body) return;
-    setNotes((n) => [...n, body]);
+    setNotes((n) => [
+      ...n,
+      {
+        text: body,
+        speakerName: props.displayName,
+        source: "MANUAL",
+        at: new Date().toISOString(),
+      },
+    ]);
     setNoteDraft("");
     if (!props.guestMode) {
       await fetch("/api/meet/va", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ mode: "note", meetingId: props.meetingId, body }),
+        body: JSON.stringify({ mode: "note", meetingId: props.meetingId, body, source: "MANUAL" }),
       });
     }
   };
@@ -555,8 +676,8 @@ export function MeetRoomClient(props: Props) {
 
   if (rtc.status === "waiting") {
     return (
-      <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 text-center">
-        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#121214]/95 p-8 shadow-2xl backdrop-blur-xl">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#0a0a0b] px-4 py-10 text-center">
+        <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#121214]/95 p-7 shadow-2xl backdrop-blur-xl sm:p-8">
           <Image
             src="/st-mark.png"
             alt="Story Time"
@@ -564,11 +685,18 @@ export function MeetRoomClient(props: Props) {
             height={47}
             className="mx-auto h-10 w-auto object-contain opacity-90"
           />
-          <h1 className="mt-5 text-xl font-semibold text-white">Waiting for host…</h1>
-          <p className="mt-2 text-sm leading-relaxed text-slate-400">
-            You’re in the lobby for <span className="text-slate-200">{props.title}</span>.
+          <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.22em] text-orange-300/85">
+            Story Time Meet
           </p>
-          <p className="mt-3 font-mono text-xs text-slate-500">{props.code}</p>
+          <h1 className="mt-2 text-xl font-semibold text-white sm:text-2xl">Waiting for host…</h1>
+          <p className="mt-2 text-sm leading-relaxed text-slate-400">
+            You’re in the lobby for <span className="text-slate-200">{props.title}</span>. Keep this
+            screen open — you’ll join as soon as you’re admitted.
+          </p>
+          <p className="mt-4 font-mono text-xs text-slate-500">{props.code}</p>
+          <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-white/5">
+            <div className="h-full w-1/3 animate-pulse rounded-full bg-orange-500/70" />
+          </div>
         </div>
       </div>
     );
@@ -599,13 +727,13 @@ export function MeetRoomClient(props: Props) {
               id: "local",
               name: props.displayName,
               stream: localStream,
-              mirrored: !isScreenSharing,
+              mirrored: true,
               isLocal: true,
               videoOff: isVideoOff,
               reaction: localReaction,
             }}
             remotes={rtc.remotes}
-            screenStream={screenStream}
+            localScreenSharing={isScreenSharing}
             pinnedId={pinnedId}
             onPin={setPinnedId}
           />
@@ -644,34 +772,40 @@ export function MeetRoomClient(props: Props) {
           reaction: localReaction,
         }}
         remotes={rtc.remotes}
-        screenStream={screenStream}
+        localScreenSharing={isScreenSharing}
         pinnedId={pinnedId}
         onPin={(id) => {
           setPinnedId(id);
-          void rtc.sendPin(id, id === "screen-local");
+          const isScreen = Boolean(id && (id === "screen-local" || id.startsWith("screen-")));
+          void rtc.sendPin(id, isScreen);
         }}
       />
 
       {/* Hovering chrome */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-black/70 via-black/25 to-transparent p-3 md:p-4">
-        <div className="pointer-events-auto flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-white/10 bg-black/35 px-3 py-2.5 backdrop-blur-xl md:px-4">
-          <div className="min-w-0">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-black/70 via-black/25 to-transparent p-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:p-3 md:p-4">
+        <div className="pointer-events-auto flex flex-wrap items-start justify-between gap-2 rounded-2xl border border-white/10 bg-black/35 px-2.5 py-2 backdrop-blur-xl sm:gap-3 sm:px-3 sm:py-2.5 md:px-4">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <Image
                 src="/st-mark.png"
                 alt="Story Time"
                 width={64}
                 height={30}
-                className="h-6 w-auto object-contain"
+                className="h-5 w-auto object-contain sm:h-6"
               />
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-orange-300/85">
                 Meet
               </p>
+              {isScreenSharing ? (
+                <span className="rounded-md border border-orange-400/35 bg-orange-500/20 px-1.5 py-0.5 text-[10px] font-medium text-orange-100">
+                  Sharing screen
+                </span>
+              ) : null}
             </div>
-            <h1 className="mt-1 truncate text-base font-semibold text-white md:text-lg">
+            <h1 className="mt-1 truncate text-sm font-semibold text-white sm:text-base md:text-lg">
               {props.title}
             </h1>
-            <p className="text-xs text-slate-300/90">
+            <p className="truncate text-[11px] text-slate-300/90 sm:text-xs">
               <span className="font-mono">{props.code}</span>
               {` · ${rtc.capacity?.occupied ?? rtc.remotes.length + 1}/${
                 rtc.capacity?.capacity ?? MEET_MAX_PARTICIPANTS
@@ -680,7 +814,7 @@ export function MeetRoomClient(props: Props) {
               {rtc.status !== "admitted" ? " · Connecting…" : ""}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap justify-end gap-1.5 sm:gap-2">
             {pinnedId ? (
               <button
                 type="button"
@@ -688,9 +822,9 @@ export function MeetRoomClient(props: Props) {
                   setPinnedId(null);
                   void rtc.sendPin(null);
                 }}
-                className="rounded-xl border border-orange-400/30 bg-orange-500/20 px-3 py-2 text-sm text-orange-50 backdrop-blur hover:bg-orange-500/30"
+                className="min-h-10 rounded-xl border border-orange-400/30 bg-orange-500/20 px-2.5 py-2 text-xs text-orange-50 backdrop-blur touch-manipulation hover:bg-orange-500/30 sm:px-3 sm:text-sm"
               >
-                Unpin view
+                Unpin
               </button>
             ) : null}
             {!props.guestMode ? (
@@ -698,7 +832,7 @@ export function MeetRoomClient(props: Props) {
                 <button
                   type="button"
                   onClick={() => setShowInvite(true)}
-                  className="rounded-xl bg-orange-500/20 px-3 py-2 text-sm text-orange-50 ring-1 ring-orange-400/30 backdrop-blur hover:bg-orange-500/30"
+                  className="min-h-10 rounded-xl bg-orange-500/20 px-2.5 py-2 text-xs text-orange-50 ring-1 ring-orange-400/30 backdrop-blur touch-manipulation hover:bg-orange-500/30 sm:px-3 sm:text-sm"
                 >
                   Invite
                 </button>
@@ -720,13 +854,13 @@ export function MeetRoomClient(props: Props) {
                     })();
                   }}
                   className={[
-                    "rounded-xl px-3 py-2 text-sm backdrop-blur ring-1",
+                    "min-h-10 rounded-xl px-2.5 py-2 text-xs backdrop-blur ring-1 touch-manipulation sm:px-3 sm:text-sm",
                     recorder.recording
                       ? "bg-rose-500/25 text-rose-50 ring-rose-400/40"
                       : "border border-white/10 bg-white/10 text-white hover:bg-white/15",
                   ].join(" ")}
                 >
-                  {recorder.recording ? "Stop rec" : "Record"}
+                  {recorder.recording ? "Stop" : "Rec"}
                 </button>
               </>
             ) : null}
@@ -734,7 +868,7 @@ export function MeetRoomClient(props: Props) {
               <button
                 type="button"
                 onClick={props.onMinimize}
-                className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white backdrop-blur hover:bg-white/15"
+                className="hidden min-h-10 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white backdrop-blur touch-manipulation hover:bg-white/15 sm:inline-flex"
               >
                 Minimize
               </button>
@@ -880,19 +1014,52 @@ export function MeetRoomClient(props: Props) {
 
           {showNotes ? (
             <div className="rounded-2xl border border-white/10 bg-black/55 p-4 backdrop-blur-xl">
-              <h2 className="mb-1 text-sm font-semibold text-white">VA notes</h2>
-              <p className="mb-3 text-[11px] text-slate-400">
-                Live speech is captured when your mic is on (Chrome/Edge).
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-white">VA notes</h2>
+                <span className="text-[10px] uppercase tracking-wide text-slate-500">
+                  {notes.filter((n) => n.source === "SPEECH").length} spoken ·{" "}
+                  {notes.filter((n) => n.source !== "SPEECH").length} pinned
+                </span>
+              </div>
+              <p className="mb-3 text-[11px] leading-relaxed text-slate-400">
+                Attentive capture with speaker names. Keep your mic on in Chrome/Edge — the VA merges
+                what each person says instead of dumping random fragments.
               </p>
-              <div className="mb-3 max-h-40 space-y-1 overflow-y-auto text-xs text-slate-300">
-                {notes.length === 0 ? (
-                  <p className="text-slate-500">Notes appear here as people speak…</p>
+              <div className="mb-3 max-h-52 space-y-1.5 overflow-y-auto text-xs text-slate-300">
+                {notes.length === 0 && !speechInterim ? (
+                  <p className="text-slate-500">Speaker notes appear here as people talk…</p>
                 ) : (
-                  notes.map((n, i) => (
-                    <p key={`${i}-${n.slice(0, 12)}`} className="rounded bg-black/40 px-2 py-1">
-                      {n}
-                    </p>
-                  ))
+                  <>
+                    {notes.map((n, i) => (
+                      <div
+                        key={n.id ?? `${n.at}-${i}-${n.text.slice(0, 16)}`}
+                        className={[
+                          "rounded-lg px-2.5 py-1.5",
+                          n.source === "SPEECH"
+                            ? "border border-white/6 bg-black/35"
+                            : "border border-orange-400/20 bg-orange-500/10",
+                        ].join(" ")}
+                      >
+                        <div className="mb-0.5 flex items-center justify-between gap-2">
+                          <span className="font-semibold text-orange-100/95">
+                            {n.speakerName || (n.source === "MANUAL" ? props.displayName : "Speaker")}
+                          </span>
+                          <span className="text-[10px] uppercase tracking-wide text-slate-500">
+                            {n.source === "SPEECH" ? "said" : "note"}
+                          </span>
+                        </div>
+                        <p className="leading-relaxed text-slate-200">{n.text}</p>
+                      </div>
+                    ))}
+                    {speechInterim ? (
+                      <p className="rounded-lg border border-dashed border-white/10 bg-black/25 px-2.5 py-1.5 italic text-slate-500">
+                        <span className="font-semibold not-italic text-slate-400">
+                          {props.displayName}
+                        </span>{" "}
+                        · {speechInterim}
+                      </p>
+                    ) : null}
+                  </>
                 )}
               </div>
               {!props.guestMode ? (
@@ -901,7 +1068,7 @@ export function MeetRoomClient(props: Props) {
                     className="flex-1 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-sm text-white"
                     value={noteDraft}
                     onChange={(e) => setNoteDraft(e.target.value)}
-                    placeholder="Add a note…"
+                    placeholder="Pin a decision or action…"
                     onKeyDown={(e) => {
                       if (e.key === "Enter") void addNote();
                     }}
@@ -920,7 +1087,7 @@ export function MeetRoomClient(props: Props) {
         </aside>
       )}
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/80 via-black/30 to-transparent px-3 pb-4 pt-10">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/80 via-black/30 to-transparent px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-10 sm:px-3 sm:pb-4">
         <div className="pointer-events-auto mx-auto max-w-4xl">
           <MeetControlBar
             isMuted={isMuted}

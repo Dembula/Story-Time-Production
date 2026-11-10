@@ -10,8 +10,12 @@ export type MeetRemotePeer = {
   isGuest: boolean;
   role?: string;
   isMuted?: boolean;
+  /** True when this peer is currently sending a screen share. */
   isScreenShare?: boolean;
+  /** Camera (+ mic) stream. */
   stream: MediaStream;
+  /** Separate screen-share video stream (not the camera). */
+  screenStream?: MediaStream | null;
   reaction?: string | null;
 };
 
@@ -25,17 +29,41 @@ type PollSignal = {
   payload: unknown;
 };
 
+type PeerMeta = {
+  name: string;
+  isGuest: boolean;
+  participantId?: string | null;
+  guestId?: string | null;
+  role?: string;
+  isMuted?: boolean;
+  isScreenShare?: boolean;
+};
+
 type UseMeetRtcOptions = {
   meetingId: string | null;
   enabled: boolean;
   localStream: MediaStream | null;
-  onSpeech?: (fromPeer: string, text: string) => void;
+  onSpeech?: (fromPeer: string, text: string, speakerName?: string | null) => void;
   onReaction?: (fromPeer: string, emoji: string) => void;
   onHostForceMute?: () => void;
   onRemovedByHost?: (reason: "removed" | "ended") => void;
   onMeetingClosed?: (reason: "ended" | "left") => void;
   onRemotePin?: (tileId: string | null, isScreen?: boolean) => void;
 };
+
+function preferVideoQuality(sender: RTCRtpSender, detail?: boolean) {
+  try {
+    const params = sender.getParameters();
+    if (!params.encodings?.length) {
+      params.encodings = [{}];
+    }
+    params.encodings[0].maxBitrate = detail ? 2_500_000 : 1_200_000;
+    params.encodings[0].maxFramerate = detail ? 30 : 24;
+    void sender.setParameters(params);
+  } catch {
+    /* ignore */
+  }
+}
 
 export function useMeetRtc(options: UseMeetRtcOptions) {
   const { meetingId, enabled, localStream } = options;
@@ -55,25 +83,18 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
   } | null>(null);
 
   const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
-  const streamsRef = useRef<Map<string, MediaStream>>(new Map());
-  const namesRef = useRef<
-    Map<
-      string,
-      {
-        name: string;
-        isGuest: boolean;
-        participantId?: string | null;
-        guestId?: string | null;
-        role?: string;
-        isMuted?: boolean;
-        isScreenShare?: boolean;
-      }
-    >
-  >(new Map());
+  const cameraStreamsRef = useRef<Map<string, MediaStream>>(new Map());
+  const screenStreamsRef = useRef<Map<string, MediaStream>>(new Map());
+  /** Inbound MediaStream id used for each peer's camera (mic/cam share this id). */
+  const cameraInboundIdRef = useRef<Map<string, string>>(new Map());
+  const namesRef = useRef<Map<string, PeerMeta>>(new Map());
   const afterRef = useRef(0);
   const iceServersRef = useRef<IceServer[]>([{ urls: "stun:stun.l.google.com:19302" }]);
   const makingOfferRef = useRef<Set<string>>(new Set());
-  const videoOverrideRef = useRef<MediaStreamTrack | null>(null);
+  /** Outbound screen-share track (second video), kept alongside camera. */
+  const screenTrackRef = useRef<MediaStreamTrack | null>(null);
+  const screenOutboundStreamRef = useRef<MediaStream | null>(null);
+  const screenSendersRef = useRef<Map<string, RTCRtpSender>>(new Map());
   const localStreamRef = useRef(localStream);
   localStreamRef.current = localStream;
   const onSpeechRef = useRef(options.onSpeech);
@@ -93,21 +114,81 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
 
   const publishRemotes = useCallback(() => {
     const list: MeetRemotePeer[] = [];
-    for (const [peerId, stream] of streamsRef.current) {
-      const meta = namesRef.current.get(peerId);
+    for (const [id, stream] of cameraStreamsRef.current) {
+      const meta = namesRef.current.get(id);
       list.push({
-        peerId,
+        peerId: id,
         participantId: meta?.participantId ?? null,
         guestId: meta?.guestId ?? null,
         name: meta?.name ?? "Participant",
         isGuest: Boolean(meta?.isGuest),
         role: meta?.role,
         isMuted: meta?.isMuted,
-        isScreenShare: Boolean(meta?.isScreenShare),
+        isScreenShare: Boolean(meta?.isScreenShare) || screenStreamsRef.current.has(id),
         stream,
+        screenStream: screenStreamsRef.current.get(id) ?? null,
       });
     }
     setRemotes(list);
+  }, []);
+
+  const clearPeer = useCallback(
+    (remotePeerId: string) => {
+      pcsRef.current.get(remotePeerId)?.close();
+      pcsRef.current.delete(remotePeerId);
+      cameraStreamsRef.current.delete(remotePeerId);
+      screenStreamsRef.current.delete(remotePeerId);
+      cameraInboundIdRef.current.delete(remotePeerId);
+      namesRef.current.delete(remotePeerId);
+      screenSendersRef.current.delete(remotePeerId);
+      publishRemotes();
+    },
+    [publishRemotes],
+  );
+
+  const attachOutboundTracks = useCallback((pc: RTCPeerConnection, remotePeerId: string) => {
+    const stream = localStreamRef.current;
+    let needNegotiate = false;
+    const screenSender = screenSendersRef.current.get(remotePeerId);
+
+    if (stream) {
+      for (const track of stream.getTracks()) {
+        const camSenders = pc.getSenders().filter((s) => s !== screenSender);
+        if (camSenders.some((s) => s.track === track)) continue;
+
+        const kindSender = camSenders.find((s) => s.track?.kind === track.kind);
+        if (kindSender) {
+          if (kindSender.track !== track) {
+            void kindSender.replaceTrack(track).then(() => {
+              if (track.kind === "video") preferVideoQuality(kindSender, false);
+            });
+          }
+          continue;
+        }
+
+        const sender = pc.addTrack(track, stream);
+        if (track.kind === "video") preferVideoQuality(sender, false);
+        needNegotiate = true;
+      }
+    }
+
+    const screenTrack = screenTrackRef.current;
+    const screenStream = screenOutboundStreamRef.current;
+    if (screenTrack && screenStream) {
+      const current = screenSendersRef.current.get(remotePeerId);
+      if (current && pc.getSenders().includes(current)) {
+        if (current.track !== screenTrack) {
+          void current.replaceTrack(screenTrack).then(() => preferVideoQuality(current, true));
+        }
+      } else {
+        const sender = pc.addTrack(screenTrack, screenStream);
+        screenSendersRef.current.set(remotePeerId, sender);
+        preferVideoQuality(sender, true);
+        needNegotiate = true;
+      }
+    }
+
+    return needNegotiate;
   }, []);
 
   const ensurePc = useCallback(
@@ -118,16 +199,7 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
       pc = new RTCPeerConnection({ iceServers: iceServersRef.current });
       pcsRef.current.set(remotePeerId, pc);
 
-      const stream = localStreamRef.current;
-      if (stream) {
-        for (const track of stream.getTracks()) {
-          const sendTrack =
-            track.kind === "video" && videoOverrideRef.current
-              ? videoOverrideRef.current
-              : track;
-          pc.addTrack(sendTrack, stream);
-        }
-      }
+      attachOutboundTracks(pc, remotePeerId);
 
       pc.onicecandidate = (ev) => {
         if (!ev.candidate || !meetingId) return;
@@ -144,36 +216,83 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
       };
 
       pc.ontrack = (ev) => {
-        let remote = streamsRef.current.get(remotePeerId);
-        if (!remote) {
-          remote = new MediaStream();
-          streamsRef.current.set(remotePeerId, remote);
+        const track = ev.track;
+        const inboundId = ev.streams[0]?.id ?? null;
+        track.addEventListener("unmute", () => publishRemotes());
+        track.addEventListener("mute", () => publishRemotes());
+        track.addEventListener("ended", () => publishRemotes());
+
+        let cam = cameraStreamsRef.current.get(remotePeerId);
+        if (!cam) {
+          cam = new MediaStream();
+          cameraStreamsRef.current.set(remotePeerId, cam);
         }
-        // Screen-share replaceTrack can deliver a new video track — keep one per kind.
-        for (const existing of [...remote.getTracks()]) {
-          if (existing.kind === ev.track.kind && existing.id !== ev.track.id) {
-            remote.removeTrack(existing);
+
+        if (track.kind === "audio") {
+          if (inboundId) cameraInboundIdRef.current.set(remotePeerId, inboundId);
+          for (const existing of [...cam.getAudioTracks()]) {
+            if (existing.id !== track.id) cam.removeTrack(existing);
           }
+          if (![...cam.getAudioTracks()].some((t) => t.id === track.id)) {
+            cam.addTrack(track);
+          }
+          publishRemotes();
+          return;
         }
-        if (![...remote.getTracks()].some((t) => t.id === ev.track.id)) {
-          remote.addTrack(ev.track);
+
+        // Video routing: same inbound stream id as mic/cam → person tile;
+        // a different stream (our outbound screen MediaStream) → Shared screen.
+        const camInboundId = cameraInboundIdRef.current.get(remotePeerId);
+        const alreadyOnCam = cam.getVideoTracks().some((t) => t.id === track.id);
+        if (alreadyOnCam) {
+          publishRemotes();
+          return;
         }
-        ev.track.addEventListener("unmute", () => publishRemotes());
-        ev.track.addEventListener("mute", () => publishRemotes());
+
+        const treatAsScreen =
+          Boolean(inboundId && camInboundId && inboundId !== camInboundId) ||
+          (cam.getVideoTracks().length > 0 &&
+            (!inboundId || inboundId !== camInboundId));
+
+        if (!treatAsScreen) {
+          if (inboundId) cameraInboundIdRef.current.set(remotePeerId, inboundId);
+          for (const existing of [...cam.getVideoTracks()]) {
+            if (existing.id !== track.id) cam.removeTrack(existing);
+          }
+          cam.addTrack(track);
+          publishRemotes();
+          return;
+        }
+
+        const meta = namesRef.current.get(remotePeerId);
+        let screen = screenStreamsRef.current.get(remotePeerId);
+        if (!screen) {
+          screen = new MediaStream();
+          screenStreamsRef.current.set(remotePeerId, screen);
+        }
+        for (const existing of [...screen.getVideoTracks()]) {
+          if (existing.id !== track.id) screen.removeTrack(existing);
+        }
+        if (![...screen.getVideoTracks()].some((t) => t.id === track.id)) {
+          screen.addTrack(track);
+        }
+        namesRef.current.set(remotePeerId, {
+          ...(meta ?? { name: "Participant", isGuest: false }),
+          isScreenShare: true,
+        });
         publishRemotes();
+        onRemotePinRef.current?.(`screen-${remotePeerId}`, true);
       };
 
       pc.onconnectionstatechange = () => {
         if (pc!.connectionState === "failed" || pc!.connectionState === "closed") {
-          pcsRef.current.delete(remotePeerId);
-          streamsRef.current.delete(remotePeerId);
-          publishRemotes();
+          clearPeer(remotePeerId);
         }
       };
 
       return pc;
     },
-    [meetingId, publishRemotes],
+    [attachOutboundTracks, clearPeer, meetingId, publishRemotes],
   );
 
   const negotiate = useCallback(
@@ -213,8 +332,9 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
         return;
       }
       if (sig.type === "speech") {
-        const text = String((sig.payload as { text?: string })?.text ?? "");
-        if (text) onSpeechRef.current?.(from, text);
+        const payload = sig.payload as { text?: string; speakerName?: string };
+        const text = String(payload.text ?? "").trim();
+        if (text) onSpeechRef.current?.(from, text, payload.speakerName ?? null);
         return;
       }
       if (sig.type === "media-state") {
@@ -225,21 +345,43 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
         return;
       }
       if (sig.type === "pin") {
+        // Ignore our own broadcast so local pin state (e.g. screen-local) stays intact.
+        if (selfPeerIdRef.current && from === selfPeerIdRef.current) return;
         const payload = sig.payload as { tileId?: string | null; isScreen?: boolean };
-        onRemotePinRef.current?.(payload.tileId ?? null, Boolean(payload.isScreen));
+        const tileId = payload.tileId ?? null;
+        if (!tileId) {
+          onRemotePinRef.current?.(null, false);
+          return;
+        }
+        if (payload.isScreen) {
+          // Sharer may send "screen-local" or their peer id — normalize for viewers.
+          const screenTile =
+            tileId === "screen-local" || tileId === from
+              ? `screen-${from}`
+              : tileId.startsWith("screen-")
+                ? tileId
+                : `screen-${tileId}`;
+          onRemotePinRef.current?.(screenTile, true);
+          return;
+        }
+        onRemotePinRef.current?.(tileId, false);
         return;
       }
       if (sig.type === "screen-share") {
         const payload = sig.payload as { active?: boolean; peerId?: string };
         const peer = String(payload.peerId ?? from);
+        if (selfPeerIdRef.current && peer === selfPeerIdRef.current) return;
         const meta = namesRef.current.get(peer) ?? {
           name: "Participant",
           isGuest: false,
         };
         namesRef.current.set(peer, { ...meta, isScreenShare: Boolean(payload.active) });
+        if (!payload.active) {
+          screenStreamsRef.current.delete(peer);
+        }
         publishRemotes();
         if (payload.active && peer) {
-          onRemotePinRef.current?.(peer, true);
+          onRemotePinRef.current?.(`screen-${peer}`, true);
         }
         return;
       }
@@ -262,11 +404,7 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
           onRemovedByHostRef.current?.("removed");
           return;
         }
-        pcsRef.current.get(leaveId)?.close();
-        pcsRef.current.delete(leaveId);
-        streamsRef.current.delete(leaveId);
-        namesRef.current.delete(leaveId);
-        publishRemotes();
+        clearPeer(leaveId);
         return;
       }
       if (sig.type === "offer" || sig.type === "answer" || sig.type === "candidate") {
@@ -274,6 +412,10 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
         try {
           if (sig.type === "offer") {
             await pc.setRemoteDescription(sig.payload as RTCSessionDescriptionInit);
+            // Late media may have arrived — ensure our tracks are on the PC before answering.
+            if (attachOutboundTracks(pc, from)) {
+              /* tracks added; answer still valid for current remote offer */
+            }
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             await fetch(`/api/meet/rtc/${meetingId}/signal`, {
@@ -296,7 +438,7 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
         }
       }
     },
-    [ensurePc, meetingId, publishRemotes],
+    [attachOutboundTracks, clearPeer, ensurePc, meetingId, publishRemotes],
   );
 
   useEffect(() => {
@@ -375,6 +517,7 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
         setError(null);
 
         for (const p of data.peers ?? []) {
+          const prev = namesRef.current.get(p.peerId);
           namesRef.current.set(p.peerId, {
             name: p.name,
             isGuest: p.isGuest,
@@ -382,13 +525,18 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
             guestId: p.guestId,
             role: p.role,
             isMuted: p.isMuted,
+            isScreenShare: prev?.isScreenShare,
           });
           if (!pcsRef.current.has(p.peerId) && localStreamRef.current) {
-            // Perfect negotiation lite: lexicographic initiator
             if ((data.peerId ?? "") < p.peerId) {
               void negotiate(p.peerId);
             } else {
               ensurePc(p.peerId);
+            }
+          } else if (pcsRef.current.has(p.peerId) && localStreamRef.current) {
+            const pc = pcsRef.current.get(p.peerId)!;
+            if (attachOutboundTracks(pc, p.peerId) && (data.peerId ?? "") < p.peerId) {
+              void negotiate(p.peerId);
             }
           }
         }
@@ -411,24 +559,50 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [enabled, meetingId, ensurePc, handleSignal, negotiate, publishRemotes]);
+  }, [
+    attachOutboundTracks,
+    enabled,
+    ensurePc,
+    handleSignal,
+    meetingId,
+    negotiate,
+    publishRemotes,
+  ]);
+
+  // When local media arrives late (common on mobile), attach tracks and renegotiate.
+  useEffect(() => {
+    if (!localStream || !enabled) return;
+    for (const [remotePeerId, pc] of pcsRef.current.entries()) {
+      const need = attachOutboundTracks(pc, remotePeerId);
+      // Always offer when we newly add tracks — waiting for peer-id order left mobiles
+      // with silent/black video until a camera toggle forced a refresh.
+      if (need) void negotiate(remotePeerId);
+    }
+  }, [attachOutboundTracks, enabled, localStream, negotiate]);
 
   useEffect(() => {
     return () => {
       for (const pc of pcsRef.current.values()) pc.close();
       pcsRef.current.clear();
-      streamsRef.current.clear();
+      cameraStreamsRef.current.clear();
+      screenStreamsRef.current.clear();
+      cameraInboundIdRef.current.clear();
+      screenSendersRef.current.clear();
     };
   }, []);
 
   const sendSpeech = useCallback(
-    async (text: string) => {
+    async (text: string, speakerName?: string | null) => {
       if (!meetingId || !text.trim()) return;
       await fetch(`/api/meet/rtc/${meetingId}/signal`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ toPeer: "*", type: "speech", payload: { text } }),
+        body: JSON.stringify({
+          toPeer: "*",
+          type: "speech",
+          payload: { text: text.trim(), speakerName: speakerName?.trim() || undefined },
+        }),
       });
     },
     [meetingId],
@@ -494,31 +668,72 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
     [meetingId],
   );
 
-  const setVideoOverride = useCallback(
+  /** Add or remove a second outbound video track for screen share (camera stays). */
+  const setScreenShareTrack = useCallback(
     (track: MediaStreamTrack | null) => {
-      videoOverrideRef.current = track;
       if (track) {
         try {
           track.contentHint = "detail";
         } catch {
           /* ignore */
         }
+        screenTrackRef.current = track;
+        if (!screenOutboundStreamRef.current) {
+          screenOutboundStreamRef.current = new MediaStream([track]);
+        } else {
+          for (const t of screenOutboundStreamRef.current.getVideoTracks()) {
+            if (t.id !== track.id) screenOutboundStreamRef.current.removeTrack(t);
+          }
+          if (![...screenOutboundStreamRef.current.getVideoTracks()].some((t) => t.id === track.id)) {
+            screenOutboundStreamRef.current.addTrack(track);
+          }
+        }
+      } else {
+        screenTrackRef.current = null;
       }
+
       for (const [remotePeerId, pc] of pcsRef.current.entries()) {
-        const sender = pc.getSenders().find((s) => s.track?.kind === "video");
-        if (!sender) continue;
-        const fallback = localStreamRef.current?.getVideoTracks()[0] ?? null;
         void (async () => {
           try {
-            await sender.replaceTrack(track ?? fallback);
-            // Renegotiate so mobile screen shares actually deliver frames to peers.
-            if ((selfPeerIdRef.current ?? "") < remotePeerId) {
-              await negotiate(remotePeerId);
+            if (track && screenOutboundStreamRef.current) {
+              const existing = screenSendersRef.current.get(remotePeerId);
+              if (existing && pc.getSenders().includes(existing)) {
+                await existing.replaceTrack(track);
+                preferVideoQuality(existing, true);
+              } else {
+                const sender = pc.addTrack(track, screenOutboundStreamRef.current);
+                screenSendersRef.current.set(remotePeerId, sender);
+                preferVideoQuality(sender, true);
+              }
+              if ((selfPeerIdRef.current ?? "") < remotePeerId) {
+                await negotiate(remotePeerId);
+              }
+            } else {
+              const sender = screenSendersRef.current.get(remotePeerId);
+              if (sender) {
+                try {
+                  pc.removeTrack(sender);
+                } catch {
+                  try {
+                    await sender.replaceTrack(null);
+                  } catch {
+                    /* ignore */
+                  }
+                }
+                screenSendersRef.current.delete(remotePeerId);
+              }
+              if ((selfPeerIdRef.current ?? "") < remotePeerId) {
+                await negotiate(remotePeerId);
+              }
             }
           } catch (err) {
-            console.warn("[meet-rtc] screen replaceTrack failed", err);
+            console.warn("[meet-rtc] screen share track update failed", err);
           }
         })();
+      }
+
+      if (!track) {
+        screenOutboundStreamRef.current = null;
       }
     },
     [negotiate],
@@ -564,7 +779,9 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
     sendMediaState,
     sendPin,
     sendScreenShareState,
-    setVideoOverride,
+    setScreenShareTrack,
+    /** @deprecated use setScreenShareTrack — kept briefly for call sites mid-migrate */
+    setVideoOverride: setScreenShareTrack,
     admit,
   };
 }

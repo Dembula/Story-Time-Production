@@ -1,19 +1,44 @@
 import { absoluteMeetGuestUrl } from "@/lib/meet/codes";
+import {
+  buildGoogleCalendarUrl,
+  buildMeetIcs,
+  buildOutlookCalendarUrl,
+  resolveMeetWindow,
+} from "@/lib/meet/ics";
 
 export function buildMeetInviteEmail(input: {
   hostName: string;
   title: string;
   code: string;
+  meetingId: string;
   passcode?: string | null;
   scheduledAt?: Date | string | null;
+  durationMinutes?: number;
 }) {
   const guestUrl = absoluteMeetGuestUrl(input.code);
+  const { startAt, endAt } = resolveMeetWindow({
+    scheduledAt: input.scheduledAt,
+    durationMinutes: input.durationMinutes,
+  });
   const when = input.scheduledAt
-    ? new Date(input.scheduledAt).toLocaleString(undefined, {
+    ? startAt.toLocaleString(undefined, {
         dateStyle: "full",
         timeStyle: "short",
       })
     : "Starting now / join when ready";
+
+  const calInput = {
+    meetingId: input.meetingId,
+    title: input.title,
+    code: input.code,
+    passcode: input.passcode,
+    hostName: input.hostName,
+    startAt,
+    endAt,
+  };
+  const googleCalUrl = buildGoogleCalendarUrl(calInput);
+  const outlookCalUrl = buildOutlookCalendarUrl(calInput);
+  const ics = buildMeetIcs(calInput);
 
   const text = [
     `${input.hostName} invited you to a Story Time Meet.`,
@@ -24,6 +49,11 @@ export function buildMeetInviteEmail(input: {
     `Join link: ${guestUrl}`,
     `Meeting code: ${input.code}`,
     input.passcode ? `Passcode: ${input.passcode}` : null,
+    "",
+    "Save to your calendar:",
+    `Google Calendar: ${googleCalUrl}`,
+    `Outlook: ${outlookCalUrl}`,
+    "(An .ics calendar file is also attached to this email.)",
     "",
     "No Story Time account is required for guests.",
     "Open the link, enter your name, and wait for the host to admit you.",
@@ -71,10 +101,24 @@ export function buildMeetInviteEmail(input: {
             </td>
           </tr>
           <tr>
-            <td style="padding:0 28px 28px;" align="center">
+            <td style="padding:0 28px 20px;" align="center">
               <a href="${guestUrl}" style="display:inline-block;background:#f97316;color:#fff;text-decoration:none;font-family:Arial,sans-serif;font-size:14px;font-weight:600;padding:12px 22px;border-radius:12px;">
                 Join Story Time Meet
               </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 28px 28px;" align="center">
+              <div style="font-family:Arial,sans-serif;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#64748b;margin-bottom:10px;">Save to calendar</div>
+              <a href="${googleCalUrl}" style="display:inline-block;margin:0 4px 8px;background:rgba(255,255,255,0.06);color:#e2e8f0;text-decoration:none;font-family:Arial,sans-serif;font-size:12px;font-weight:600;padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);">
+                Google Calendar
+              </a>
+              <a href="${outlookCalUrl}" style="display:inline-block;margin:0 4px 8px;background:rgba(255,255,255,0.06);color:#e2e8f0;text-decoration:none;font-family:Arial,sans-serif;font-size:12px;font-weight:600;padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);">
+                Outlook
+              </a>
+              <p style="margin:10px 0 0;font-size:12px;line-height:1.5;color:#64748b;font-family:Arial,sans-serif;">
+                An <strong style="color:#94a3b8;">.ics</strong> file is attached — open it to add this Meet to Apple Calendar, Outlook, or any calendar app.
+              </p>
               <p style="margin:14px 0 0;font-size:12px;line-height:1.5;color:#64748b;font-family:Arial,sans-serif;">
                 Guests don’t need an account. Open the link, enter your name${
                   input.passcode ? " and passcode" : ""
@@ -97,6 +141,11 @@ export function buildMeetInviteEmail(input: {
     text,
     html,
     guestUrl,
+    ics,
+    googleCalUrl,
+    outlookCalUrl,
+    startAt,
+    endAt,
   };
 }
 

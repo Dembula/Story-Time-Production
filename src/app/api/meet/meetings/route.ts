@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCreatorSession } from "@/lib/meet/access";
-import { absoluteMeetGuestUrl, generateMeetCode } from "@/lib/meet/codes";
+import { absoluteMeetGuestUrl, generateMeetCode, generateMeetInviteToken } from "@/lib/meet/codes";
 import { joinMeetAsUser } from "@/lib/meet/join";
 import { createCreatorCalendarEvent } from "@/lib/creator-command-center-calendar";
+import { buildMeetInviteEmail } from "@/lib/meet/invite-email";
+import { sendTransactionalEmail } from "@/lib/email";
+import { notifyUser } from "@/lib/notify-user";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,6 +47,8 @@ export async function POST(req: Request) {
     waitingRoom?: boolean;
     scheduledAt?: string | null;
     joinNow?: boolean;
+    /** Optional invite emails sent when scheduling (or creating) a Meet. */
+    inviteEmails?: string[];
   } | null;
 
   const title = String(body?.title ?? "").trim() || "Story Time Meet";
@@ -106,10 +111,81 @@ export async function POST(req: Request) {
     console.warn("[meet] calendar event create failed", err);
   }
 
+  const inviteEmails = Array.isArray(body?.inviteEmails)
+    ? [
+        ...new Set(
+          body!.inviteEmails
+            .map((e) => String(e).trim().toLowerCase())
+            .filter((e) => e.includes("@")),
+        ),
+      ].slice(0, 40)
+    : [];
+
+  let invitesSent = 0;
+  if (inviteEmails.length) {
+    const inviteEmail = buildMeetInviteEmail({
+      hostName: session.name,
+      title: meeting.title,
+      code: meeting.code,
+      meetingId: meeting.id,
+      passcode: meeting.passcode,
+      scheduledAt: meeting.scheduledAt ?? meeting.startedAt ?? new Date(),
+    });
+    const icsAttachment = {
+      filename: inviteEmail.ics.filename,
+      contentType: inviteEmail.ics.contentType,
+      content: inviteEmail.ics.body,
+    };
+
+    for (const email of inviteEmails) {
+      const existingUser = await prisma.user.findFirst({
+        where: { email: { equals: email, mode: "insensitive" } },
+        select: { id: true },
+      });
+      await prisma.meetInvite.create({
+        data: {
+          meetingId: meeting.id,
+          invitedByUserId: session.userId,
+          invitedUserId: existingUser?.id ?? null,
+          email,
+          token: generateMeetInviteToken(),
+        },
+      });
+      const sent = await sendTransactionalEmail({
+        to: email,
+        subject: inviteEmail.subject,
+        text: inviteEmail.text,
+        html: inviteEmail.html,
+        attachments: [icsAttachment],
+      });
+      if (sent) invitesSent += 1;
+
+      if (existingUser?.id) {
+        await notifyUser({
+          userId: existingUser.id,
+          type: "meet_invite",
+          title: "Story Time Meet invite",
+          body: `${session.name} invited you to “${meeting.title}”. Code ${meeting.code}.`,
+          metadata: {
+            meetingId: meeting.id,
+            code: meeting.code,
+            href: `/creator/meet/room/${meeting.id}`,
+            guestUrl: inviteEmail.guestUrl,
+            googleCalUrl: inviteEmail.googleCalUrl,
+            outlookCalUrl: inviteEmail.outlookCalUrl,
+          },
+        });
+      }
+    }
+  }
+
   return NextResponse.json({
     meeting,
     participant,
     guestUrl: `/meet/${meeting.code}`,
+    absoluteGuestUrl: guestUrl,
     calendarEventId,
+    calendarDownloadPath: `/api/meet/meetings/${meeting.id}/calendar`,
+    invitesSent,
   });
 }

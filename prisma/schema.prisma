@@ -5652,9 +5652,14 @@ model MeetNote {
   /// MANUAL | VA | SPEECH
   source      String   @default("MANUAL")
   body        String
+  /// Display name of the speaker (SPEECH) or note author label.
+  speakerName String?
+  /// RTC peer id when the note came from live speech.
+  speakerPeerId String?
   createdAt   DateTime @default(now())
 
   @@index([meetingId])
+  @@index([meetingId, source])
 }
 
 model MeetSummary {

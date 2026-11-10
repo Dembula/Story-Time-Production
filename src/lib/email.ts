@@ -1,11 +1,21 @@
 import nodemailer from "nodemailer";
 import { formatAppMailFromHeader, parseAppMailFrom } from "@/lib/mail-from";
 
+export type EmailAttachment = {
+  filename: string;
+  contentType: string;
+  /** Raw UTF-8 / binary string content (will be base64-encoded for providers that need it). */
+  content: string;
+  /** Optional disposition; defaults to attachment. */
+  disposition?: "attachment" | "inline";
+};
+
 export type SendEmailInput = {
   to: string;
   subject: string;
   text: string;
   html?: string;
+  attachments?: EmailAttachment[];
 };
 
 export type SendEmailResult = {
@@ -31,6 +41,13 @@ async function sendViaSendGrid(input: SendEmailInput): Promise<SendEmailResult> 
     ? { email: parsedFrom.email, name: parsedFrom.name }
     : { email: parsedFrom.email };
 
+  const attachments = (input.attachments ?? []).map((a) => ({
+    content: Buffer.from(a.content, "utf8").toString("base64"),
+    filename: a.filename,
+    type: a.contentType,
+    disposition: a.disposition ?? "attachment",
+  }));
+
   const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
     method: "POST",
     headers: {
@@ -45,6 +62,7 @@ async function sendViaSendGrid(input: SendEmailInput): Promise<SendEmailResult> 
         { type: "text/plain", value: input.text },
         ...(input.html ? [{ type: "text/html", value: input.html }] : []),
       ],
+      ...(attachments.length ? { attachments } : {}),
     }),
   });
 
@@ -64,6 +82,11 @@ async function sendViaResend(input: SendEmailInput): Promise<SendEmailResult> {
   if (!apiKey) return { ok: false, error: "RESEND_API_KEY not set" };
 
   const parsedFrom = parseAppMailFrom();
+  const attachments = (input.attachments ?? []).map((a) => ({
+    filename: a.filename,
+    content: Buffer.from(a.content, "utf8").toString("base64"),
+    content_type: a.contentType,
+  }));
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -76,6 +99,7 @@ async function sendViaResend(input: SendEmailInput): Promise<SendEmailResult> {
       subject: input.subject,
       text: input.text,
       ...(input.html ? { html: input.html } : {}),
+      ...(attachments.length ? { attachments } : {}),
     }),
   });
 
@@ -110,6 +134,16 @@ async function sendViaNodemailer(input: SendEmailInput): Promise<SendEmailResult
       subject: input.subject,
       text: input.text,
       ...(input.html ? { html: input.html } : {}),
+      ...(input.attachments?.length
+        ? {
+            attachments: input.attachments.map((a) => ({
+              filename: a.filename,
+              content: a.content,
+              contentType: a.contentType,
+              contentDisposition: a.disposition ?? "attachment",
+            })),
+          }
+        : {}),
     });
     return {
       ok: true,

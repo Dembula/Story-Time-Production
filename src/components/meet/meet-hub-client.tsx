@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Video, FileText, Link2, Sparkles, ArrowRight } from "lucide-react";
+import { Video, FileText, Link2, Sparkles, ArrowRight, CalendarPlus } from "lucide-react";
+import { MeetInviteDialog } from "@/components/meet/invite-dialog";
 
 type MeetingRow = {
   id: string;
@@ -17,6 +18,17 @@ type MeetingRow = {
   host?: { name: string | null };
 };
 
+function parseInviteEmails(raw: string) {
+  return [
+    ...new Set(
+      raw
+        .split(/[,;\s]+/)
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes("@")),
+    ),
+  ].slice(0, 40);
+}
+
 export function MeetHubClient() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -25,7 +37,9 @@ export function MeetHubClient() {
   const [passcode, setPasscode] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [roomPasscode, setRoomPasscode] = useState("");
+  const [inviteEmails, setInviteEmails] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
+  const [inviteMeeting, setInviteMeeting] = useState<MeetingRow | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["meet-meetings"],
@@ -49,6 +63,7 @@ export function MeetHubClient() {
 
   const createMeeting = useMutation({
     mutationFn: async (mode: "now" | "schedule") => {
+      const emails = mode === "schedule" ? parseInviteEmails(inviteEmails) : [];
       const res = await fetch("/api/meet/meetings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -59,11 +74,17 @@ export function MeetHubClient() {
           waitingRoom: true,
           passcode: roomPasscode.trim() || null,
           scheduledAt: mode === "schedule" && scheduledAt ? new Date(scheduledAt).toISOString() : null,
+          inviteEmails: emails,
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Create failed");
-      return json as { meeting: MeetingRow; calendarEventId?: string | null };
+      return json as {
+        meeting: MeetingRow;
+        calendarEventId?: string | null;
+        invitesSent?: number;
+        absoluteGuestUrl?: string;
+      };
     },
     onSuccess: (json, mode) => {
       void queryClient.invalidateQueries({ queryKey: ["meet-meetings"] });
@@ -71,11 +92,16 @@ export function MeetHubClient() {
         router.push(`/creator/meet/room/${json.meeting.id}`);
         return;
       }
-      setMsg(
-        json.calendarEventId
-          ? `Scheduled “${json.meeting.title}” — added to your production calendar. Code ${json.meeting.code}.`
-          : `Scheduled “${json.meeting.title}”. Code ${json.meeting.code}.`,
-      );
+      const parts = [
+        `Scheduled “${json.meeting.title}”. Code ${json.meeting.code}.`,
+        json.calendarEventId ? "Added to your production calendar." : null,
+        json.invitesSent
+          ? `Sent ${json.invitesSent} email invite${json.invitesSent === 1 ? "" : "s"} with calendar attach.`
+          : null,
+      ].filter(Boolean);
+      setMsg(parts.join(" "));
+      setInviteEmails("");
+      setInviteMeeting(json.meeting);
     },
     onError: (err: Error) => setMsg(err.message),
   });
@@ -97,7 +123,10 @@ export function MeetHubClient() {
   });
 
   const live = (data?.meetings ?? []).filter((m) => m.status === "LIVE");
-  const recent = (data?.meetings ?? []).filter((m) => m.status !== "LIVE").slice(0, 8);
+  const scheduled = (data?.meetings ?? []).filter((m) => m.status === "SCHEDULED");
+  const recent = (data?.meetings ?? [])
+    .filter((m) => m.status !== "LIVE" && m.status !== "SCHEDULED")
+    .slice(0, 8);
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-8 pb-12">
@@ -143,7 +172,14 @@ export function MeetHubClient() {
       </header>
 
       {msg ? (
-        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+        <div
+          className={[
+            "rounded-xl border px-4 py-3 text-sm",
+            /failed|error|could not/i.test(msg)
+              ? "border-rose-500/30 bg-rose-500/10 text-rose-100"
+              : "border-emerald-500/25 bg-emerald-500/10 text-emerald-50",
+          ].join(" ")}
+        >
           {msg}
         </div>
       ) : null}
@@ -186,6 +222,22 @@ export function MeetHubClient() {
               onChange={(e) => setScheduledAt(e.target.value)}
             />
           </label>
+          {scheduledAt ? (
+            <label className="block space-y-1.5">
+              <span className="text-xs text-slate-400">
+                Email invites for this schedule (optional)
+              </span>
+              <textarea
+                className="min-h-[72px] w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none focus:border-orange-400/40"
+                value={inviteEmails}
+                onChange={(e) => setInviteEmails(e.target.value)}
+                placeholder="producer@studio.com, client@brand.com"
+              />
+              <span className="block text-[11px] leading-relaxed text-slate-500">
+                Recipients get the join link plus Google/Outlook buttons and an .ics calendar file.
+              </span>
+            </label>
+          ) : null}
           <p className="text-[11px] leading-relaxed text-slate-500">
             Instant and scheduled Meets are added to your production calendar with the join link,
             code, and passcode.
@@ -211,7 +263,7 @@ export function MeetHubClient() {
               }}
               className="rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2.5 text-sm font-medium text-white transition hover:bg-white/10 disabled:opacity-50"
             >
-              Schedule Meet
+              Schedule &amp; invite
             </button>
           </div>
         </div>
@@ -283,14 +335,68 @@ export function MeetHubClient() {
         </section>
       ) : null}
 
+      {scheduled.length > 0 ? (
+        <section className="storytime-plan-card p-5 md:p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <CalendarPlus className="h-4 w-4 text-sky-300" />
+            <h2 className="font-semibold text-white">Scheduled</h2>
+          </div>
+          <ul className="space-y-2">
+            {scheduled.map((m) => (
+              <li
+                key={m.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-500/20 bg-sky-500/5 px-4 py-3"
+              >
+                <div>
+                  <p className="text-sm font-medium text-white">{m.title}</p>
+                  <p className="text-xs text-slate-400">
+                    {m.scheduledAt
+                      ? new Date(m.scheduledAt).toLocaleString(undefined, {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })
+                      : "Time TBD"}
+                    {" · "}
+                    <span className="font-mono text-slate-500">{m.code}</span>
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href={`/api/meet/meetings/${m.id}/calendar`}
+                    className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-200 hover:bg-white/[0.08]"
+                  >
+                    Save .ics
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setInviteMeeting(m)}
+                    className="rounded-lg bg-sky-500/20 px-3 py-1.5 text-xs font-medium text-sky-100 ring-1 ring-sky-400/30"
+                  >
+                    Email invites
+                  </button>
+                  <Link
+                    href={`/creator/meet/room/${m.id}`}
+                    className="rounded-lg bg-orange-500/15 px-3 py-1.5 text-xs text-orange-100 ring-1 ring-orange-400/25"
+                  >
+                    Open
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       <section className="storytime-plan-card p-5 md:p-6">
         <h2 className="mb-4 font-semibold text-white">Recent meetings</h2>
         {isLoading ? (
           <p className="text-sm text-slate-500">Loading…</p>
-        ) : recent.length === 0 && live.length === 0 ? (
+        ) : recent.length === 0 && live.length === 0 && scheduled.length === 0 ? (
           <p className="text-sm text-slate-500">
             No meetings yet. Start one above, then invite from Network or share the guest link.
           </p>
+        ) : recent.length === 0 ? (
+          <p className="text-sm text-slate-500">Ended meetings will show up here.</p>
         ) : (
           <ul className="divide-y divide-white/5">
             {recent.map((m) => (
@@ -325,6 +431,19 @@ export function MeetHubClient() {
         )}
       </section>
 
+      {inviteMeeting ? (
+        <MeetInviteDialog
+          open
+          meetingId={inviteMeeting.id}
+          guestUrl={
+            typeof window !== "undefined"
+              ? `${window.location.origin}/meet/${inviteMeeting.code}`
+              : `/meet/${inviteMeeting.code}`
+          }
+          scheduledAt={inviteMeeting.scheduledAt}
+          onClose={() => setInviteMeeting(null)}
+        />
+      ) : null}
       <section className="storytime-plan-card p-5 md:p-6">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">

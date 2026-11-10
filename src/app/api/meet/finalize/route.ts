@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCreatorSession, resolveMeetByIdOrCode } from "@/lib/meet/access";
 import { generateMeetSummaryReport } from "@/lib/meet/va";
+import { splitNotesForVa } from "@/lib/meet/notes";
 import { notifyUser } from "@/lib/notify-user";
 
 export const runtime = "nodejs";
@@ -33,13 +34,17 @@ export async function POST(req: Request) {
   const ended = meeting.endedAt ?? new Date();
   const durationSec = Math.max(0, Math.floor((ended.getTime() - started.getTime()) / 1000));
 
+  const split = splitNotesForVa(
+    notes.map((n) => ({
+      body: n.body,
+      source: n.source,
+      speakerName: (n as { speakerName?: string | null }).speakerName ?? null,
+    })),
+  );
   const report = await generateMeetSummaryReport({
     title: meeting.title,
-    notes: notes.map((n) => n.body),
-    transcript: notes
-      .filter((n) => n.source === "SPEECH")
-      .map((n) => n.body)
-      .join("\n"),
+    notes: split.curated,
+    transcript: split.transcript.join("\n"),
     elapsedMinutes: durationSec / 60,
     participantCount,
   });
@@ -68,7 +73,7 @@ export async function POST(req: Request) {
       keyPoints: report.keyPoints,
       decisions: report.decisions,
       actionItems: report.actionItems,
-      transcript: notes.map((n) => n.body).join("\n"),
+      transcript: split.transcript.join("\n") || notes.map((n) => n.body).join("\n"),
       recordingUrl: recordingUrl ?? null,
       durationSec,
     },
@@ -77,7 +82,7 @@ export async function POST(req: Request) {
       keyPoints: report.keyPoints,
       decisions: report.decisions,
       actionItems: report.actionItems,
-      transcript: notes.map((n) => n.body).join("\n"),
+      transcript: split.transcript.join("\n") || notes.map((n) => n.body).join("\n"),
       durationSec,
       ...(recordingUrl ? { recordingUrl } : {}),
     },

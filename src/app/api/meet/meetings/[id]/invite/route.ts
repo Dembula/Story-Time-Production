@@ -41,9 +41,15 @@ export async function POST(
     hostName: session.name,
     title: meeting.title,
     code: meeting.code,
+    meetingId: meeting.id,
     passcode: meeting.passcode,
-    scheduledAt: meeting.scheduledAt,
+    scheduledAt: meeting.scheduledAt ?? meeting.startedAt ?? new Date(),
   });
+  const icsAttachment = {
+    filename: inviteEmail.ics.filename,
+    contentType: inviteEmail.ics.contentType,
+    content: inviteEmail.ics.body,
+  };
   const created: { id: string; email?: string | null; invitedUserId?: string | null }[] = [];
 
   for (const userId of userIds) {
@@ -68,11 +74,14 @@ export async function POST(
         code: meeting.code,
         href: `/creator/meet/room/${meeting.id}`,
         guestUrl: inviteEmail.guestUrl,
+        googleCalUrl: inviteEmail.googleCalUrl,
+        outlookCalUrl: inviteEmail.outlookCalUrl,
       },
       email: {
         subject: inviteEmail.subject,
         text: inviteEmail.text,
         html: inviteEmail.html,
+        attachments: [icsAttachment],
       },
     });
   }
@@ -99,6 +108,7 @@ export async function POST(
       subject: inviteEmail.subject,
       text: inviteEmail.text,
       html: inviteEmail.html,
+      attachments: [icsAttachment],
     });
 
     if (existingUser?.id) {
@@ -112,10 +122,18 @@ export async function POST(
           code: meeting.code,
           href: `/creator/meet/room/${meeting.id}`,
           guestUrl: inviteEmail.guestUrl,
+          googleCalUrl: inviteEmail.googleCalUrl,
+          outlookCalUrl: inviteEmail.outlookCalUrl,
         },
       });
     }
   }
 
-  return NextResponse.json({ ok: true, invites: created, guestUrl: inviteEmail.guestUrl });
+  return NextResponse.json({
+    ok: true,
+    invites: created,
+    guestUrl: inviteEmail.guestUrl,
+    googleCalUrl: inviteEmail.googleCalUrl,
+    outlookCalUrl: inviteEmail.outlookCalUrl,
+  });
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCreatorSession, resolveMeetByIdOrCode } from "@/lib/meet/access";
 import { generateMeetSummaryReport } from "@/lib/meet/va";
+import { splitNotesForVa } from "@/lib/meet/notes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,16 +45,22 @@ export async function POST(req: Request) {
   if (body?.mode === "note") {
     const text = String(body.body ?? "").trim();
     if (!text) return NextResponse.json({ error: "Note body required" }, { status: 400 });
-    const source =
-      body.source === "SPEECH" || body.source === "VA" || body.source === "MANUAL"
-        ? body.source
-        : "MANUAL";
+    // SPEECH notes are persisted via the RTC signal path with speaker attribution —
+    // reject accidental client double-writes so the VA doesn't get duplicate noise.
+    if (body.source === "SPEECH") {
+      return NextResponse.json(
+        { error: "Speech notes are captured automatically with speaker attribution" },
+        { status: 400 },
+      );
+    }
+    const source = body.source === "VA" ? "VA" : "MANUAL";
     const note = await prisma.meetNote.create({
       data: {
         meetingId: meeting.id,
         authorUserId: session.userId,
         source,
         body: text,
+        speakerName: session.name || null,
       },
     });
     return NextResponse.json({ ok: true, note });
@@ -71,13 +78,17 @@ export async function POST(req: Request) {
   const ended = meeting.endedAt ?? new Date();
   const durationSec = Math.max(0, Math.floor((ended.getTime() - started.getTime()) / 1000));
 
+  const split = splitNotesForVa(
+    notes.map((n) => ({
+      body: n.body,
+      source: n.source,
+      speakerName: (n as { speakerName?: string | null }).speakerName ?? null,
+    })),
+  );
   const report = await generateMeetSummaryReport({
     title: meeting.title,
-    notes: notes.map((n) => n.body),
-    transcript: notes
-      .filter((n) => n.source === "SPEECH")
-      .map((n) => n.body)
-      .join("\n"),
+    notes: split.curated,
+    transcript: split.transcript.join("\n"),
     elapsedMinutes: durationSec / 60,
     participantCount,
   });
@@ -108,7 +119,7 @@ export async function POST(req: Request) {
       keyPoints: report.keyPoints,
       decisions: report.decisions,
       actionItems: report.actionItems,
-      transcript: notes.map((n) => n.body).join("\n"),
+      transcript: split.transcript.join("\n") || notes.map((n) => n.body).join("\n"),
       recordingUrl: recordingUrl ?? null,
       durationSec,
     },
@@ -117,7 +128,7 @@ export async function POST(req: Request) {
       keyPoints: report.keyPoints,
       decisions: report.decisions,
       actionItems: report.actionItems,
-      transcript: notes.map((n) => n.body).join("\n"),
+      transcript: split.transcript.join("\n") || notes.map((n) => n.body).join("\n"),
       durationSec,
       ...(recordingUrl ? { recordingUrl } : {}),
     },

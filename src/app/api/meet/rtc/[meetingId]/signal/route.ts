@@ -72,16 +72,48 @@ export async function POST(
   }
 
   if (type === "speech") {
-    const text = String((body?.payload as { text?: string } | undefined)?.text ?? "").trim();
+    const payload = (body?.payload ?? {}) as {
+      text?: string;
+      speakerName?: string;
+    };
+    const text = String(payload.text ?? "").trim();
     if (text) {
-      await prisma.meetNote.create({
-        data: {
+      const speakerName = String(payload.speakerName ?? identity.name ?? "Participant").trim() || identity.name;
+      const labeled = `${speakerName}: ${text}`;
+      // Merge rapid follow-ups from the same speaker into one attentive utterance.
+      const recent = await prisma.meetNote.findFirst({
+        where: {
           meetingId,
-          authorUserId: identity.kind === "user" ? identity.userId : null,
           source: "SPEECH",
-          body: `${identity.name}: ${text}`,
+          speakerPeerId: identity.peerId,
         },
+        orderBy: { createdAt: "desc" },
       });
+      const recentAgeMs = recent ? Date.now() - new Date(recent.createdAt).getTime() : Infinity;
+      if (recent && recentAgeMs < 14_000) {
+        const nextBody = `${recent.body.trim()} ${text}`.replace(/\s+/g, " ").trim();
+        await prisma.meetNote.update({
+          where: { id: recent.id },
+          data: {
+            body: nextBody.startsWith(`${speakerName}:`)
+              ? nextBody
+              : `${speakerName}: ${nextBody.replace(/^[^:]+:\s*/, "")}`,
+            speakerName,
+            speakerPeerId: identity.peerId,
+          },
+        });
+      } else {
+        await prisma.meetNote.create({
+          data: {
+            meetingId,
+            authorUserId: identity.kind === "user" ? identity.userId : null,
+            source: "SPEECH",
+            body: labeled,
+            speakerName,
+            speakerPeerId: identity.peerId,
+          },
+        });
+      }
     }
   }
 
