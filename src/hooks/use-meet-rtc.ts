@@ -32,6 +32,8 @@ type UseMeetRtcOptions = {
   onReaction?: (fromPeer: string, emoji: string) => void;
   onHostForceMute?: () => void;
   onRemovedByHost?: (reason: "removed" | "ended") => void;
+  onMeetingClosed?: (reason: "ended" | "left") => void;
+  onRemotePin?: (tileId: string | null, isScreen?: boolean) => void;
 };
 
 export function useMeetRtc(options: UseMeetRtcOptions) {
@@ -80,7 +82,12 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
   onHostForceMuteRef.current = options.onHostForceMute;
   const onRemovedByHostRef = useRef(options.onRemovedByHost);
   onRemovedByHostRef.current = options.onRemovedByHost;
+  const onMeetingClosedRef = useRef(options.onMeetingClosed);
+  onMeetingClosedRef.current = options.onMeetingClosed;
+  const onRemotePinRef = useRef(options.onRemotePin);
+  onRemotePinRef.current = options.onRemotePin;
   const selfPeerIdRef = useRef<string | null>(null);
+  const wasAdmittedRef = useRef(false);
 
   const publishRemotes = useCallback(() => {
     const list: MeetRemotePeer[] = [];
@@ -204,6 +211,18 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
         }
         return;
       }
+      if (sig.type === "pin") {
+        const payload = sig.payload as { tileId?: string | null; isScreen?: boolean };
+        onRemotePinRef.current?.(payload.tileId ?? null, Boolean(payload.isScreen));
+        return;
+      }
+      if (sig.type === "screen-share") {
+        const payload = sig.payload as { active?: boolean; peerId?: string };
+        if (payload.active && payload.peerId) {
+          onRemotePinRef.current?.(payload.peerId, true);
+        }
+        return;
+      }
       if (sig.type === "peer-leave") {
         const payload = sig.payload as {
           peerId?: string;
@@ -267,6 +286,7 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
     }
 
     let cancelled = false;
+    wasAdmittedRef.current = false;
     setStatus("connecting");
 
     const tick = async () => {
@@ -276,7 +296,7 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
           { credentials: "include" },
         );
         if (!res.ok) {
-          if (!cancelled) {
+          if (!cancelled && res.status >= 500) {
             setStatus("error");
             setError("Connection problem");
           }
@@ -320,6 +340,17 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
           setStatus("waiting");
           return;
         }
+        if (data.status === "ENDED") {
+          setStatus("idle");
+          if (wasAdmittedRef.current) onMeetingClosedRef.current?.("ended");
+          return;
+        }
+        if (data.status === "LEFT") {
+          setStatus("idle");
+          if (wasAdmittedRef.current) onMeetingClosedRef.current?.("left");
+          return;
+        }
+        wasAdmittedRef.current = true;
         setStatus("admitted");
         setError(null);
 
@@ -409,6 +440,40 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
     [meetingId],
   );
 
+  const sendPin = useCallback(
+    async (tileId: string | null, isScreen?: boolean) => {
+      if (!meetingId) return;
+      await fetch(`/api/meet/rtc/${meetingId}/signal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          toPeer: "*",
+          type: "pin",
+          payload: { tileId, isScreen: Boolean(isScreen) },
+        }),
+      });
+    },
+    [meetingId],
+  );
+
+  const sendScreenShareState = useCallback(
+    async (active: boolean) => {
+      if (!meetingId || !selfPeerIdRef.current) return;
+      await fetch(`/api/meet/rtc/${meetingId}/signal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          toPeer: "*",
+          type: "screen-share",
+          payload: { active, peerId: selfPeerIdRef.current },
+        }),
+      });
+    },
+    [meetingId],
+  );
+
   const setVideoOverride = useCallback((track: MediaStreamTrack | null) => {
     videoOverrideRef.current = track;
     for (const pc of pcsRef.current.values()) {
@@ -458,6 +523,8 @@ export function useMeetRtc(options: UseMeetRtcOptions) {
     sendSpeech,
     sendReaction,
     sendMediaState,
+    sendPin,
+    sendScreenShareState,
     setVideoOverride,
     admit,
   };

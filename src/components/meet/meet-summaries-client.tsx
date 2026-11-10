@@ -11,6 +11,7 @@ type Summary = {
   keyPoints: unknown;
   decisions: unknown;
   actionItems: unknown;
+  recordingUrl?: string | null;
   durationSec: number | null;
   createdAt: string;
   meeting: { id: string; code: string };
@@ -85,13 +86,25 @@ export function MeetSummariesClient() {
                       <span className="font-mono">{s.meeting.code}</span>
                     </p>
                   </div>
-                  <a
-                    href={`/api/meet/summaries/${s.id}/pdf`}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500/15 px-3 py-2 text-xs font-medium text-orange-100 ring-1 ring-orange-400/25 hover:bg-orange-500/25"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    Download PDF
-                  </a>
+                  <div className="flex flex-wrap gap-2">
+                    {s.recordingUrl ? (
+                      <a
+                        href={s.recordingUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-slate-200 hover:bg-white/[0.08]"
+                      >
+                        Watch recording
+                      </a>
+                    ) : null}
+                    <a
+                      href={`/api/meet/summaries/${s.id}/pdf`}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500/15 px-3 py-2 text-xs font-medium text-orange-100 ring-1 ring-orange-400/25 hover:bg-orange-500/25"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Download PDF
+                    </a>
+                  </div>
                 </div>
                 <div>
                   <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">

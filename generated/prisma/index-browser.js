@@ -3610,6 +3610,7 @@ exports.Prisma.MeetSummaryScalarFieldEnum = {
   decisions: 'decisions',
   actionItems: 'actionItems',
   transcript: 'transcript',
+  recordingUrl: 'recordingUrl',
   durationSec: 'durationSec',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'

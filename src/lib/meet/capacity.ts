@@ -20,6 +20,28 @@ export class MeetFullError extends Error {
   }
 }
 
+const STALE_MS = 90_000;
+
+/** Drop ghost seats that stopped polling so capacity stays accurate. */
+export async function pruneStaleMeetSeats(meetingId: string) {
+  const cutoff = new Date(Date.now() - STALE_MS);
+  await Promise.all([
+    prisma.meetParticipant.updateMany({
+      where: { meetingId, leftAt: null, lastSeenAt: { lt: cutoff } },
+      data: { leftAt: new Date() },
+    }),
+    prisma.meetGuest.updateMany({
+      where: {
+        meetingId,
+        leftAt: null,
+        status: { in: ["ADMITTED", "WAITING"] },
+        lastSeenAt: { lt: cutoff },
+      },
+      data: { leftAt: new Date(), status: "LEFT" },
+    }),
+  ]);
+}
+
 /** Active seats: signed-in participants still in-call + admitted guests. Waiting guests do not count. */
 export async function countActiveMeetSeats(meetingId: string): Promise<number> {
   const [participants, guests] = await Promise.all([
@@ -49,8 +71,11 @@ export async function getMeetCapacityState(meetingId: string) {
  */
 export async function assertMeetHasCapacity(
   meetingId: string,
-  options?: { alreadySeated?: boolean },
+  options?: { alreadySeated?: boolean; prune?: boolean },
 ) {
+  if (options?.prune !== false) {
+    await pruneStaleMeetSeats(meetingId);
+  }
   if (options?.alreadySeated) {
     return getMeetCapacityState(meetingId);
   }

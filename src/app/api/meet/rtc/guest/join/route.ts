@@ -10,6 +10,7 @@ import {
   MeetFullError,
   assertMeetHasCapacity,
   getMeetCapacityState,
+  pruneStaleMeetSeats,
 } from "@/lib/meet/capacity";
 
 export const runtime = "nodejs";
@@ -44,6 +45,8 @@ export async function POST(req: Request) {
   const sessionToken = generateMeetGuestSessionToken();
   const peerId = generateMeetPeerId("g");
   const autoAdmit = !meeting.waitingRoom;
+
+  await pruneStaleMeetSeats(meeting.id);
 
   // Auto-admit takes a seat immediately; waiting-room guests only seat on admit.
   let capacity = await getMeetCapacityState(meeting.id);

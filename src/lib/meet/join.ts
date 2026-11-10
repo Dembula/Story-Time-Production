@@ -4,6 +4,7 @@ import {
   MEET_MAX_PARTICIPANTS,
   MeetFullError,
   getMeetCapacityState,
+  pruneStaleMeetSeats,
 } from "@/lib/meet/capacity";
 
 export async function joinMeetAsUser(options: {
@@ -44,26 +45,25 @@ export async function joinMeetAsUser(options: {
     return { participant: updated, meeting, role: updated.role, capacity };
   }
 
+  await pruneStaleMeetSeats(options.meetingId);
   const peerId = generateMeetPeerId("u");
-  const participant = await prisma.$transaction(async (tx) => {
-    const [participants, guests] = await Promise.all([
-      tx.meetParticipant.count({ where: { meetingId: options.meetingId, leftAt: null } }),
-      tx.meetGuest.count({
-        where: { meetingId: options.meetingId, status: "ADMITTED", leftAt: null },
-      }),
-    ]);
-    const occupied = participants + guests;
-    if (occupied >= MEET_MAX_PARTICIPANTS) {
-      throw new MeetFullError(occupied, MEET_MAX_PARTICIPANTS);
-    }
-    return tx.meetParticipant.create({
-      data: {
-        meetingId: options.meetingId,
-        userId: options.userId,
-        role,
-        peerId,
-      },
-    });
+  const [participants, guests] = await Promise.all([
+    prisma.meetParticipant.count({ where: { meetingId: options.meetingId, leftAt: null } }),
+    prisma.meetGuest.count({
+      where: { meetingId: options.meetingId, status: "ADMITTED", leftAt: null },
+    }),
+  ]);
+  const occupied = participants + guests;
+  if (occupied >= MEET_MAX_PARTICIPANTS) {
+    throw new MeetFullError(occupied, MEET_MAX_PARTICIPANTS);
+  }
+  const participant = await prisma.meetParticipant.create({
+    data: {
+      meetingId: options.meetingId,
+      userId: options.userId,
+      role,
+      peerId,
+    },
   });
 
   if (meeting.status === "SCHEDULED") {

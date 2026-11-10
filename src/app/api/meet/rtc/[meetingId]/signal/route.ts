@@ -9,7 +9,14 @@ export async function POST(
   req: Request,
   ctx: { params: Promise<{ meetingId: string }> },
 ) {
-  const { meetingId } = await ctx.params;
+  const { meetingId: rawId } = await ctx.params;
+  const meeting = await prisma.meetMeeting.findFirst({
+    where: { OR: [{ id: rawId }, { code: rawId }, { code: rawId.toUpperCase() }] },
+    select: { id: true },
+  });
+  if (!meeting) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const meetingId = meeting.id;
+
   const identity = await resolveMeetRtcIdentity(meetingId);
   if (!identity) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (identity.kind === "guest" && identity.status === "WAITING") {
@@ -35,6 +42,8 @@ export async function POST(
     "peer-join",
     "peer-leave",
     "media-state",
+    "pin",
+    "screen-share",
   ]);
   if (!allowed.has(type)) {
     return NextResponse.json({ error: "Invalid signal type" }, { status: 400 });

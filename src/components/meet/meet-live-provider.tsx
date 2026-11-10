@@ -74,10 +74,10 @@ export function MeetLiveProvider({ children }: { children: ReactNode }) {
           className={
             minimized
               ? "pointer-events-none fixed bottom-4 right-4 z-[120] w-[min(100vw-1.5rem,22rem)]"
-              : "fixed inset-0 z-[120] overflow-y-auto bg-[#0a0a0b]"
+              : "fixed inset-0 z-[120] bg-black"
           }
         >
-          <div className={minimized ? "pointer-events-auto" : "min-h-full px-3 py-4 md:px-6 md:py-6"}>
+          <div className={minimized ? "pointer-events-auto" : "h-full w-full"}>
             <MeetRoomClient
               meetingId={call.meetingId}
               title={call.title}

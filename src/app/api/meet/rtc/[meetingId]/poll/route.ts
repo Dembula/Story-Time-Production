@@ -12,9 +12,35 @@ export async function GET(
   req: Request,
   ctx: { params: Promise<{ meetingId: string }> },
 ) {
-  const { meetingId } = await ctx.params;
+  const { meetingId: rawId } = await ctx.params;
+  const meeting = await prisma.meetMeeting.findFirst({
+    where: { OR: [{ id: rawId }, { code: rawId }, { code: rawId.toUpperCase() }] },
+    select: { id: true, status: true },
+  });
+  if (!meeting) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const meetingId = meeting.id;
+
+  if (meeting.status === "ENDED") {
+    return NextResponse.json({
+      status: "ENDED",
+      peers: [],
+      signals: [],
+      waiting: [],
+      iceServers: getMeetIceServers(),
+    });
+  }
+
   const identity = await resolveMeetRtcIdentity(meetingId);
-  if (!identity) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!identity) {
+    // Soft end: left the call or session expired — clients should exit cleanly.
+    return NextResponse.json({
+      status: "LEFT",
+      peers: [],
+      signals: [],
+      waiting: [],
+      iceServers: getMeetIceServers(),
+    });
+  }
 
   // Waiting guests only receive admission status — no media peers yet.
   if (identity.kind === "guest" && identity.status === "WAITING") {

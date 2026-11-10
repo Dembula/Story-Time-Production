@@ -5669,6 +5669,8 @@ model MeetSummary {
   decisions    Json?
   actionItems  Json?
   transcript   String?
+  /// Optional recording URL (webm/mp4) tied to this Meet summary
+  recordingUrl String?
   durationSec  Int?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

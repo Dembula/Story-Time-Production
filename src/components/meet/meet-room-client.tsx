@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Check, MoreHorizontal, X } from "lucide-react";
 import { useMeetRtc } from "@/hooks/use-meet-rtc";
-import { MeetStage } from "@/components/meet/meet-stage";
-import { MeetRemoteTiles } from "@/components/meet/remote-tiles";
+import { useMeetSpeech } from "@/hooks/use-meet-speech";
+import { useMeetRecorder } from "@/hooks/use-meet-recorder";
+import { MeetVideoGrid } from "@/components/meet/meet-video-grid";
 import { MeetControlBar } from "@/components/meet/meet-control-bar";
 import { MeetInviteDialog } from "@/components/meet/invite-dialog";
 import { MEET_MAX_PARTICIPANTS } from "@/lib/meet/limits";
@@ -20,9 +22,10 @@ type Props = {
   onMinimize?: () => void;
   onExpand?: () => void;
   onEnded?: () => void;
-  /** When true, skip router leave navigation (provider clears the call instead). */
   persistAcrossNavigation?: boolean;
 };
+
+type CallPhase = "live" | "ending" | "ended";
 
 async function acquireMedia(): Promise<MediaStream> {
   try {
@@ -43,7 +46,7 @@ export function MeetRoomClient(props: Props) {
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
-  const [showPeople, setShowPeople] = useState(true);
+  const [showPeople, setShowPeople] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [notes, setNotes] = useState<string[]>([]);
@@ -52,10 +55,15 @@ export function MeetRoomClient(props: Props) {
   const [toast, setToast] = useState<string | null>(null);
   const [waitingRoomLocked, setWaitingRoomLocked] = useState(true);
   const [hostMenuPeer, setHostMenuPeer] = useState<string | null>(null);
+  const [pinnedId, setPinnedId] = useState<string | null>(null);
+  const [phase, setPhase] = useState<CallPhase>("live");
+  const [summaryId, setSummaryId] = useState<string | null>(null);
   const screenRef = useRef<MediaStream | null>(null);
   const reactionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   localStreamRef.current = localStream;
+  const leavingRef = useRef(false);
+  const recorder = useMeetRecorder();
 
   const [joined, setJoined] = useState(Boolean(props.guestMode));
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -63,7 +71,7 @@ export function MeetRoomClient(props: Props) {
   const flash = useCallback((msg: string) => {
     setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 2500);
+    toastTimer.current = setTimeout(() => setToast(null), 2800);
   }, []);
 
   const cleanupMedia = useCallback(() => {
@@ -75,8 +83,42 @@ export function MeetRoomClient(props: Props) {
     setIsScreenSharing(false);
   }, []);
 
+  const finishToEnded = useCallback((opts?: { summaryId?: string | null }) => {
+    setPhase("ended");
+    if (opts?.summaryId) setSummaryId(opts.summaryId);
+    // Keep MeetLiveProvider mounted so the exit/summary screen stays visible.
+  }, []);
+
+  const exitMeeting = useCallback(
+    (dest: "summary" | "hub" | "guest") => {
+      props.onEnded?.();
+      if (dest === "summary") router.push("/creator/meet/summaries");
+      else if (dest === "hub") router.push("/creator/meet");
+      else router.push(`/meet/${props.code}?left=1`);
+    },
+    [props, router],
+  );
+
   const leaveCall = useCallback(
-    async (opts?: { endReport?: boolean; navigate?: boolean }) => {
+    async (opts?: { endReport?: boolean; endForAllAlready?: boolean }) => {
+      if (leavingRef.current) return;
+      leavingRef.current = true;
+      setPhase("ending");
+
+      let recordingUrl: string | null = null;
+      try {
+        const blob = await recorder.stop();
+        if (blob && !props.guestMode) {
+          const file = new File([blob], `meet-${props.meetingId}.webm`, {
+            type: blob.type || "video/webm",
+          });
+          const { uploadContentMediaViaApi } = await import("@/lib/upload-content-media-client");
+          recordingUrl = await uploadContentMediaViaApi(file);
+        }
+      } catch {
+        /* recording optional */
+      }
+
       cleanupMedia();
       try {
         await fetch(`/api/meet/rtc/${props.meetingId}/leave`, {
@@ -86,9 +128,11 @@ export function MeetRoomClient(props: Props) {
       } catch {
         /* ignore */
       }
+
+      let nextSummaryId: string | null = null;
       if (opts?.endReport !== false && !props.guestMode) {
         try {
-          await fetch("/api/meet/va", {
+          const res = await fetch("/api/meet/va", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
@@ -96,26 +140,24 @@ export function MeetRoomClient(props: Props) {
               mode: "report",
               meetingId: props.meetingId,
               endMeeting: true,
+              recordingUrl,
             }),
           });
+          const json = await res.json().catch(() => ({}));
+          nextSummaryId = json?.summary?.id ?? null;
         } catch {
           /* ignore */
         }
       }
-      props.onEnded?.();
-      if (opts?.navigate === false) return;
-      if (!props.guestMode) {
-        router.push("/creator/meet/summaries");
-        return;
-      }
-      router.push(`/meet/${props.code}?left=1`);
+
+      finishToEnded({ summaryId: nextSummaryId });
     },
-    [cleanupMedia, props, router],
+    [cleanupMedia, finishToEnded, props.guestMode, props.meetingId, recorder],
   );
 
   const rtc = useMeetRtc({
     meetingId: props.meetingId,
-    enabled: joined,
+    enabled: joined && phase === "live",
     localStream,
     onSpeech: (_from, text) => {
       setNotes((n) => [...n, text]);
@@ -145,10 +187,35 @@ export function MeetRoomClient(props: Props) {
       flash("Host muted your microphone");
     },
     onRemovedByHost: (reason) => {
-      flash(reason === "ended" ? "Host ended the meeting" : "Host removed you from the meeting");
-      void leaveCall({
-        endReport: reason === "ended" && !props.guestMode,
-        navigate: true,
+      flash(reason === "ended" ? "Host ended the meeting" : "Removed from the meeting");
+      void leaveCall({ endReport: reason === "ended" && !props.guestMode });
+    },
+    onMeetingClosed: (reason) => {
+      if (leavingRef.current || phase !== "live") return;
+      void leaveCall({ endReport: reason === "ended" && !props.guestMode });
+    },
+    onRemotePin: (tileId, isScreen) => {
+      if (tileId) setPinnedId(isScreen ? "screen-local" : tileId);
+      else setPinnedId(null);
+    },
+  });
+
+  useMeetSpeech({
+    enabled: joined && phase === "live" && !props.guestMode,
+    muted: isMuted,
+    onFinal: (text) => {
+      setNotes((n) => [...n, text]);
+      void rtc.sendSpeech(text);
+      void fetch("/api/meet/va", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          mode: "note",
+          meetingId: props.meetingId,
+          body: text,
+          source: "SPEECH",
+        }),
       });
     },
   });
@@ -186,7 +253,7 @@ export function MeetRoomClient(props: Props) {
         setIsMuted(!stream.getAudioTracks()[0]?.enabled);
         setIsVideoOff(!stream.getVideoTracks()[0]?.enabled);
       } catch {
-        setToast("Camera/mic permission denied — you can still join with audio-only if available.");
+        setToast("Camera/mic permission denied — enable access to speak and be heard.");
       }
     })();
     return () => {
@@ -223,7 +290,9 @@ export function MeetRoomClient(props: Props) {
     setScreenStream(null);
     setIsScreenSharing(false);
     rtc.setVideoOverride(null);
-  }, [rtc]);
+    void rtc.sendScreenShareState(false);
+    if (pinnedId === "screen-local") setPinnedId(null);
+  }, [pinnedId, rtc]);
 
   const toggleScreen = async () => {
     if (screenRef.current) {
@@ -240,9 +309,12 @@ export function MeetRoomClient(props: Props) {
       screenRef.current = stream;
       setScreenStream(stream);
       setIsScreenSharing(true);
+      setPinnedId("screen-local");
       track?.addEventListener("ended", () => stopScreen());
       if (track) rtc.setVideoOverride(track);
-      flash("Sharing your screen — minimize to keep using Story Time");
+      void rtc.sendScreenShareState(true);
+      void rtc.sendPin("screen-local", true);
+      flash("Screen sharing — pinned for everyone");
     } catch {
       flash("Screen share cancelled");
     }
@@ -294,18 +366,71 @@ export function MeetRoomClient(props: Props) {
       ? `${window.location.origin}/meet/${props.code}`
       : `/meet/${props.code}`;
 
+  if (phase === "ending" || phase === "ended") {
+    return (
+      <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 text-center">
+        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#121214]/95 p-8 shadow-2xl backdrop-blur-xl">
+          <Image
+            src="/st-mark.png"
+            alt="Story Time"
+            width={120}
+            height={56}
+            className="mx-auto h-12 w-auto object-contain"
+          />
+          <h1 className="mt-5 text-xl font-semibold text-white">
+            {phase === "ending" ? "Wrapping up…" : "Meeting ended"}
+          </h1>
+          <p className="mt-2 text-sm text-slate-400">
+            {phase === "ending"
+              ? "Saving VA notes and recording, then you can exit."
+              : props.guestMode
+                ? "Thanks for joining Story Time Meet."
+                : "Your VA summary is ready when you are."}
+          </p>
+          {phase === "ended" ? (
+            <div className="mt-6 flex flex-col gap-2">
+              {!props.guestMode ? (
+                <button
+                  type="button"
+                  className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-orange-400"
+                  onClick={() => exitMeeting("summary")}
+                >
+                  Go to summary
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-slate-200 hover:bg-white/[0.08]"
+                onClick={() => exitMeeting(props.guestMode ? "guest" : "hub")}
+              >
+                Exit meeting
+              </button>
+              {summaryId ? (
+                <p className="text-[11px] text-slate-500">Summary saved for this Meet.</p>
+              ) : null}
+            </div>
+          ) : (
+            <div className="mx-auto mt-6 h-8 w-8 animate-pulse rounded-full border border-orange-400/30 bg-orange-500/10" />
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (rtc.status === "waiting") {
     return (
       <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 text-center">
-        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#121214] p-8 shadow-2xl">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-orange-300/85">
-            Story Time Meet
-          </p>
-          <div className="mx-auto mt-5 h-12 w-12 animate-pulse rounded-full border border-orange-400/30 bg-orange-500/10" />
+        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#121214]/95 p-8 shadow-2xl backdrop-blur-xl">
+          <Image
+            src="/st-mark.png"
+            alt="Story Time"
+            width={100}
+            height={47}
+            className="mx-auto h-10 w-auto object-contain opacity-90"
+          />
           <h1 className="mt-5 text-xl font-semibold text-white">Waiting for host…</h1>
           <p className="mt-2 text-sm leading-relaxed text-slate-400">
-            You’re in the lobby for <span className="text-slate-200">{props.title}</span>. The host
-            will admit you shortly.
+            You’re in the lobby for <span className="text-slate-200">{props.title}</span>.
           </p>
           <p className="mt-3 font-mono text-xs text-slate-500">{props.code}</p>
         </div>
@@ -325,7 +450,7 @@ export function MeetRoomClient(props: Props) {
             <p className="truncate text-sm font-medium text-white">{props.title}</p>
             <p className="text-[10px] uppercase tracking-wide text-orange-300/80">
               {isScreenSharing ? "Sharing · " : ""}
-              Meet minimized — platform free to use
+              Meet minimized
             </p>
           </div>
           <span className="shrink-0 rounded-md bg-orange-500/15 px-2 py-1 text-[10px] text-orange-100">
@@ -333,13 +458,20 @@ export function MeetRoomClient(props: Props) {
           </span>
         </button>
         <div className="aspect-video bg-black">
-          <MeetStage
-            localStream={localStream}
-            isVideoOff={isVideoOff}
-            isScreenSharing={isScreenSharing}
+          <MeetVideoGrid
+            local={{
+              id: "local",
+              name: props.displayName,
+              stream: localStream,
+              mirrored: !isScreenSharing,
+              isLocal: true,
+              videoOff: isVideoOff,
+              reaction: localReaction,
+            }}
+            remotes={rtc.remotes}
             screenStream={screenStream}
-            displayName={props.displayName}
-            reaction={localReaction}
+            pinnedId={pinnedId ?? (isScreenSharing ? "screen-local" : null)}
+            onPin={setPinnedId}
           />
         </div>
         <div className="p-2">
@@ -359,74 +491,289 @@ export function MeetRoomClient(props: Props) {
             onExpand={props.onExpand}
           />
         </div>
-        {toast ? (
-          <p className="border-t border-white/8 px-3 py-1.5 text-[11px] text-slate-300">{toast}</p>
-        ) : null}
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 pb-8">
-      <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/8 bg-[#121214]/80 px-4 py-3 backdrop-blur">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-orange-300/85">
-            Story Time Meet
-          </p>
-          <h1 className="text-lg font-semibold text-white md:text-xl">{props.title}</h1>
-          <p className="text-xs text-slate-400">
-            <span className="font-mono">{props.code}</span>
-            {rtc.status === "admitted"
-              ? ` · ${rtc.capacity?.occupied ?? rtc.remotes.length + 1}/${
-                  rtc.capacity?.capacity ?? MEET_MAX_PARTICIPANTS
-                } in call`
-              : " · Connecting…"}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {!props.guestMode ? (
-            <button
-              type="button"
-              onClick={() => setShowInvite(true)}
-              className="rounded-xl bg-orange-500/15 px-3 py-2 text-sm text-orange-100 ring-1 ring-orange-400/25 hover:bg-orange-500/25"
-            >
-              Invite
-            </button>
-          ) : null}
-          {props.onMinimize ? (
-            <button
-              type="button"
-              onClick={props.onMinimize}
-              className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-200 hover:bg-white/[0.08]"
-            >
-              Minimize
-            </button>
-          ) : null}
-        </div>
-      </header>
+    <div className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-black">
+      <MeetVideoGrid
+        local={{
+          id: "local",
+          name: props.displayName,
+          stream: localStream,
+          mirrored: true,
+          isLocal: true,
+          videoOff: isVideoOff,
+          reaction: localReaction,
+        }}
+        remotes={rtc.remotes}
+        screenStream={screenStream}
+        pinnedId={pinnedId ?? (isScreenSharing ? "screen-local" : null)}
+        onPin={(id) => {
+          setPinnedId(id);
+          void rtc.sendPin(id, id === "screen-local");
+        }}
+      />
 
-      {toast ? (
-        <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-200">
-          {toast}
+      {/* Hovering chrome */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-black/70 via-black/25 to-transparent p-3 md:p-4">
+        <div className="pointer-events-auto flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-white/10 bg-black/35 px-3 py-2.5 backdrop-blur-xl md:px-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Image
+                src="/st-mark.png"
+                alt="Story Time"
+                width={64}
+                height={30}
+                className="h-6 w-auto object-contain"
+              />
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-orange-300/85">
+                Meet
+              </p>
+            </div>
+            <h1 className="mt-1 truncate text-base font-semibold text-white md:text-lg">
+              {props.title}
+            </h1>
+            <p className="text-xs text-slate-300/90">
+              <span className="font-mono">{props.code}</span>
+              {` · ${rtc.capacity?.occupied ?? rtc.remotes.length + 1}/${
+                rtc.capacity?.capacity ?? MEET_MAX_PARTICIPANTS
+              }`}
+              {recorder.recording ? " · Recording" : ""}
+              {rtc.status !== "admitted" ? " · Connecting…" : ""}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {!props.guestMode ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowInvite(true)}
+                  className="rounded-xl bg-orange-500/20 px-3 py-2 text-sm text-orange-50 ring-1 ring-orange-400/30 backdrop-blur hover:bg-orange-500/30"
+                >
+                  Invite
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void (async () => {
+                      try {
+                        if (recorder.recording) {
+                          await recorder.stop();
+                          flash("Recording stopped — it will attach when you leave");
+                        } else {
+                          await recorder.start({ localStream, screenStream });
+                          flash("Recording started");
+                        }
+                      } catch (err) {
+                        flash(err instanceof Error ? err.message : "Could not record");
+                      }
+                    })();
+                  }}
+                  className={[
+                    "rounded-xl px-3 py-2 text-sm backdrop-blur ring-1",
+                    recorder.recording
+                      ? "bg-rose-500/25 text-rose-50 ring-rose-400/40"
+                      : "border border-white/10 bg-white/10 text-white hover:bg-white/15",
+                  ].join(" ")}
+                >
+                  {recorder.recording ? "Stop rec" : "Record"}
+                </button>
+              </>
+            ) : null}
+            {props.onMinimize ? (
+              <button
+                type="button"
+                onClick={props.onMinimize}
+                className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white backdrop-blur hover:bg-white/15"
+              >
+                Minimize
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {toast || rtc.error ? (
+        <div className="absolute left-1/2 top-24 z-30 w-[min(92vw,32rem)] -translate-x-1/2 space-y-2">
+          {toast ? (
+            <div className="rounded-xl border border-white/15 bg-black/55 px-3 py-2 text-center text-sm text-slate-100 backdrop-blur-xl">
+              {toast}
+            </div>
+          ) : null}
+          {rtc.error ? (
+            <div className="rounded-xl border border-amber-400/30 bg-amber-500/20 px-3 py-2 text-center text-sm text-amber-50 backdrop-blur-xl">
+              {rtc.error}
+            </div>
+          ) : null}
         </div>
       ) : null}
-      {rtc.error ? (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-          {rtc.error}
-        </div>
-      ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-        <div className="space-y-3">
-          <MeetStage
-            localStream={localStream}
-            isVideoOff={isVideoOff}
-            isScreenSharing={isScreenSharing}
-            screenStream={screenStream}
-            displayName={props.displayName}
-            reaction={localReaction}
-          />
-          <MeetRemoteTiles peers={rtc.remotes} />
+      {(showPeople || showNotes) && (
+        <aside className="absolute bottom-28 right-3 top-24 z-20 w-[min(92vw,20rem)] space-y-3 overflow-y-auto">
+          {showPeople ? (
+            <div className="rounded-2xl border border-white/10 bg-black/55 p-4 backdrop-blur-xl">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-white">Participants</h2>
+                <span className="text-[10px] uppercase tracking-wide text-slate-400">
+                  {rtc.capacity?.occupied ?? rtc.remotes.length + 1}/
+                  {rtc.capacity?.capacity ?? MEET_MAX_PARTICIPANTS}
+                </span>
+              </div>
+              <ul className="space-y-2 text-sm text-slate-300">
+                <li className="rounded-lg border border-orange-400/15 bg-orange-500/10 px-2.5 py-1.5">
+                  {props.displayName}{" "}
+                  <span className="text-[10px] uppercase text-orange-200/70">
+                    you{rtc.isManager ? " · host" : ""}
+                  </span>
+                </li>
+                {rtc.remotes.map((r) => (
+                  <li
+                    key={r.peerId}
+                    className="relative rounded-lg border border-white/6 bg-white/[0.04] px-2.5 py-1.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate">
+                        {r.name}
+                        {r.isGuest ? (
+                          <span className="ml-1 text-[10px] uppercase text-slate-500">guest</span>
+                        ) : null}
+                      </span>
+                      {rtc.isManager && !props.guestMode ? (
+                        <button
+                          type="button"
+                          className="rounded p-1 text-slate-400 hover:bg-white/10 hover:text-white"
+                          onClick={() =>
+                            setHostMenuPeer((cur) => (cur === r.peerId ? null : r.peerId))
+                          }
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </button>
+                      ) : null}
+                    </div>
+                    {hostMenuPeer === r.peerId ? (
+                      <div className="mt-2 flex flex-wrap gap-1.5 border-t border-white/8 pt-2">
+                        {r.participantId ? (
+                          <>
+                            <HostChip
+                              label="Mute"
+                              onClick={() => {
+                                void hostAction("mute_participant", {
+                                  participantId: r.participantId!,
+                                }).then((ok) => ok && flash(`Muted ${r.name}`));
+                                setHostMenuPeer(null);
+                              }}
+                            />
+                            <HostChip
+                              label="Remove"
+                              danger
+                              onClick={() => {
+                                void hostAction("remove_participant", {
+                                  participantId: r.participantId!,
+                                }).then((ok) => ok && flash(`Removed ${r.name}`));
+                                setHostMenuPeer(null);
+                              }}
+                            />
+                          </>
+                        ) : null}
+                        {r.guestId ? (
+                          <HostChip
+                            label="Remove guest"
+                            danger
+                            onClick={() => {
+                              void hostAction("remove_guest", { guestId: r.guestId! }).then(
+                                (ok) => ok && flash(`Removed ${r.name}`),
+                              );
+                              setHostMenuPeer(null);
+                            }}
+                          />
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+              {rtc.isManager && rtc.waiting.length > 0 ? (
+                <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/15 p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-100">
+                    Waiting room
+                  </p>
+                  {rtc.waiting.map((w) => (
+                    <div key={w.id} className="mb-2 flex items-center justify-between gap-2">
+                      <span className="truncate text-sm text-white">{w.name}</span>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          className="rounded-md bg-emerald-600 p-1 text-white"
+                          onClick={() => {
+                            void rtc.admit(w.id, "admit").then((result) => {
+                              if (!result.ok) flash(result.error);
+                              else flash(`Admitted ${w.name}`);
+                            });
+                          }}
+                        >
+                          <Check className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-md bg-rose-600 p-1 text-white"
+                          onClick={() => void rtc.admit(w.id, "deny")}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {showNotes ? (
+            <div className="rounded-2xl border border-white/10 bg-black/55 p-4 backdrop-blur-xl">
+              <h2 className="mb-1 text-sm font-semibold text-white">VA notes</h2>
+              <p className="mb-3 text-[11px] text-slate-400">
+                Live speech is captured when your mic is on (Chrome/Edge).
+              </p>
+              <div className="mb-3 max-h-40 space-y-1 overflow-y-auto text-xs text-slate-300">
+                {notes.length === 0 ? (
+                  <p className="text-slate-500">Notes appear here as people speak…</p>
+                ) : (
+                  notes.map((n, i) => (
+                    <p key={`${i}-${n.slice(0, 12)}`} className="rounded bg-black/40 px-2 py-1">
+                      {n}
+                    </p>
+                  ))
+                )}
+              </div>
+              {!props.guestMode ? (
+                <div className="flex gap-2">
+                  <input
+                    className="flex-1 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-sm text-white"
+                    value={noteDraft}
+                    onChange={(e) => setNoteDraft(e.target.value)}
+                    placeholder="Add a note…"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void addNote();
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void addNote()}
+                    className="rounded-lg bg-white/10 px-2 text-sm text-white"
+                  >
+                    Add
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </aside>
+      )}
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/80 via-black/30 to-transparent px-3 pb-4 pt-10">
+        <div className="pointer-events-auto mx-auto max-w-4xl">
           <MeetControlBar
             isMuted={isMuted}
             isVideoOff={isVideoOff}
@@ -459,7 +806,7 @@ export function MeetRoomClient(props: Props) {
               if (!confirm("End this Meet for everyone?")) return;
               void (async () => {
                 const ok = await hostAction("end_for_all");
-                if (ok) await leaveCall({ endReport: true });
+                if (ok) await leaveCall({ endReport: true, endForAllAlready: true });
               })();
             }}
             onReact={(emoji) => {
@@ -470,193 +817,6 @@ export function MeetRoomClient(props: Props) {
             }}
           />
         </div>
-
-        {(showPeople || showNotes) && (
-          <aside className="space-y-3">
-            {showPeople ? (
-              <div className="creator-glass-panel rounded-2xl p-4">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <h2 className="text-sm font-semibold text-white">Participants</h2>
-                  <span className="text-[10px] uppercase tracking-wide text-slate-500">
-                    {rtc.capacity?.occupied ?? rtc.remotes.length + 1}/
-                    {rtc.capacity?.capacity ?? MEET_MAX_PARTICIPANTS}
-                  </span>
-                </div>
-                {rtc.capacity?.isFull ? (
-                  <p className="mb-3 rounded-lg border border-amber-400/25 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-100">
-                    Room is full (max {MEET_MAX_PARTICIPANTS}). New joiners can’t enter until someone
-                    leaves.
-                  </p>
-                ) : null}
-                <ul className="space-y-2 text-sm text-slate-300">
-                  <li className="rounded-lg border border-orange-400/15 bg-orange-500/10 px-2.5 py-1.5">
-                    {props.displayName}{" "}
-                    <span className="text-[10px] uppercase text-orange-200/70">
-                      you{rtc.isManager ? " · host" : ""}
-                    </span>
-                  </li>
-                  {rtc.remotes.map((r) => (
-                    <li
-                      key={r.peerId}
-                      className="relative rounded-lg border border-white/6 bg-white/[0.04] px-2.5 py-1.5"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate">
-                          {r.name}
-                          {r.isGuest ? (
-                            <span className="ml-1 text-[10px] uppercase text-slate-500">guest</span>
-                          ) : null}
-                          {r.role === "CO_HOST" ? (
-                            <span className="ml-1 text-[10px] uppercase text-orange-300/70">
-                              co-host
-                            </span>
-                          ) : null}
-                          {r.isMuted ? (
-                            <span className="ml-1 text-[10px] uppercase text-slate-500">muted</span>
-                          ) : null}
-                        </span>
-                        {rtc.isManager && !props.guestMode ? (
-                          <button
-                            type="button"
-                            className="rounded p-1 text-slate-400 hover:bg-white/10 hover:text-white"
-                            onClick={() =>
-                              setHostMenuPeer((cur) => (cur === r.peerId ? null : r.peerId))
-                            }
-                            title="Host controls"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
-                        ) : null}
-                      </div>
-                      {hostMenuPeer === r.peerId ? (
-                        <div className="mt-2 flex flex-wrap gap-1.5 border-t border-white/8 pt-2">
-                          {r.participantId ? (
-                            <>
-                              <HostChip
-                                label="Mute"
-                                onClick={() => {
-                                  void hostAction("mute_participant", {
-                                    participantId: r.participantId!,
-                                  }).then((ok) => ok && flash(`Muted ${r.name}`));
-                                  setHostMenuPeer(null);
-                                }}
-                              />
-                              <HostChip
-                                label={r.role === "CO_HOST" ? "Demote" : "Co-host"}
-                                onClick={() => {
-                                  void hostAction(
-                                    r.role === "CO_HOST" ? "demote_participant" : "promote_cohost",
-                                    { participantId: r.participantId! },
-                                  ).then((ok) => ok && flash("Role updated"));
-                                  setHostMenuPeer(null);
-                                }}
-                              />
-                              <HostChip
-                                label="Remove"
-                                danger
-                                onClick={() => {
-                                  void hostAction("remove_participant", {
-                                    participantId: r.participantId!,
-                                  }).then((ok) => ok && flash(`Removed ${r.name}`));
-                                  setHostMenuPeer(null);
-                                }}
-                              />
-                            </>
-                          ) : null}
-                          {r.guestId ? (
-                            <HostChip
-                              label="Remove guest"
-                              danger
-                              onClick={() => {
-                                void hostAction("remove_guest", { guestId: r.guestId! }).then(
-                                  (ok) => ok && flash(`Removed ${r.name}`),
-                                );
-                                setHostMenuPeer(null);
-                              }}
-                            />
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-                {rtc.isManager && rtc.waiting.length > 0 ? (
-                  <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 p-3">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-100">
-                      Waiting room
-                    </p>
-                    {rtc.waiting.map((w) => (
-                      <div key={w.id} className="mb-2 flex items-center justify-between gap-2">
-                        <span className="truncate text-sm text-white">{w.name}</span>
-                        <div className="flex gap-1">
-                          <button
-                            type="button"
-                            className="rounded-md bg-emerald-600 p-1 text-white"
-                            onClick={() => {
-                              void rtc.admit(w.id, "admit").then((result) => {
-                                if (!result.ok) flash(result.error);
-                              });
-                            }}
-                          >
-                            <Check className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded-md bg-rose-600 p-1 text-white"
-                            onClick={() => void rtc.admit(w.id, "deny")}
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            {showNotes ? (
-              <div className="creator-glass-panel rounded-2xl p-4">
-                <h2 className="mb-1 text-sm font-semibold text-white">VA notes</h2>
-                <p className="mb-3 text-[11px] leading-relaxed text-slate-500">
-                  Capture decisions and next steps live — the VA turns these into a polished
-                  summary when the Meet ends.
-                </p>
-                <div className="mb-3 max-h-48 space-y-1 overflow-y-auto text-xs text-slate-300">
-                  {notes.length === 0 ? (
-                    <p className="text-slate-500">Notes and speech snippets appear here.</p>
-                  ) : (
-                    notes.map((n, i) => (
-                      <p key={`${i}-${n.slice(0, 12)}`} className="rounded bg-black/30 px-2 py-1">
-                        {n}
-                      </p>
-                    ))
-                  )}
-                </div>
-                {!props.guestMode ? (
-                  <div className="flex gap-2">
-                    <input
-                      className="flex-1 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-sm text-white"
-                      value={noteDraft}
-                      onChange={(e) => setNoteDraft(e.target.value)}
-                      placeholder="Decision, blocker, or action…"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") void addNote();
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void addNote()}
-                      className="rounded-lg bg-white/10 px-2 text-sm text-white"
-                    >
-                      Add
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-          </aside>
-        )}
       </div>
 
       {!props.guestMode ? (

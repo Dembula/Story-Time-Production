@@ -303653,6 +303653,7 @@ export namespace Prisma {
     title: string | null
     summary: string | null
     transcript: string | null
+    recordingUrl: string | null
     durationSec: number | null
     createdAt: Date | null
     updatedAt: Date | null
@@ -303665,6 +303666,7 @@ export namespace Prisma {
     title: string | null
     summary: string | null
     transcript: string | null
+    recordingUrl: string | null
     durationSec: number | null
     createdAt: Date | null
     updatedAt: Date | null
@@ -303680,6 +303682,7 @@ export namespace Prisma {
     decisions: number
     actionItems: number
     transcript: number
+    recordingUrl: number
     durationSec: number
     createdAt: number
     updatedAt: number
@@ -303702,6 +303705,7 @@ export namespace Prisma {
     title?: true
     summary?: true
     transcript?: true
+    recordingUrl?: true
     durationSec?: true
     createdAt?: true
     updatedAt?: true
@@ -303714,6 +303718,7 @@ export namespace Prisma {
     title?: true
     summary?: true
     transcript?: true
+    recordingUrl?: true
     durationSec?: true
     createdAt?: true
     updatedAt?: true
@@ -303729,6 +303734,7 @@ export namespace Prisma {
     decisions?: true
     actionItems?: true
     transcript?: true
+    recordingUrl?: true
     durationSec?: true
     createdAt?: true
     updatedAt?: true
@@ -303831,6 +303837,7 @@ export namespace Prisma {
     decisions: JsonValue | null
     actionItems: JsonValue | null
     transcript: string | null
+    recordingUrl: string | null
     durationSec: number | null
     createdAt: Date
     updatedAt: Date
@@ -303865,6 +303872,7 @@ export namespace Prisma {
     decisions?: boolean
     actionItems?: boolean
     transcript?: boolean
+    recordingUrl?: boolean
     durationSec?: boolean
     createdAt?: boolean
     updatedAt?: boolean
@@ -303882,6 +303890,7 @@ export namespace Prisma {
     decisions?: boolean
     actionItems?: boolean
     transcript?: boolean
+    recordingUrl?: boolean
     durationSec?: boolean
     createdAt?: boolean
     updatedAt?: boolean
@@ -303899,6 +303908,7 @@ export namespace Prisma {
     decisions?: boolean
     actionItems?: boolean
     transcript?: boolean
+    recordingUrl?: boolean
     durationSec?: boolean
     createdAt?: boolean
     updatedAt?: boolean
@@ -303929,6 +303939,10 @@ export namespace Prisma {
       decisions: Prisma.JsonValue | null
       actionItems: Prisma.JsonValue | null
       transcript: string | null
+      /**
+       * Optional recording URL (webm/mp4) tied to this Meet summary
+       */
+      recordingUrl: string | null
       durationSec: number | null
       createdAt: Date
       updatedAt: Date
@@ -304336,6 +304350,7 @@ export namespace Prisma {
     readonly decisions: FieldRef<"MeetSummary", 'Json'>
     readonly actionItems: FieldRef<"MeetSummary", 'Json'>
     readonly transcript: FieldRef<"MeetSummary", 'String'>
+    readonly recordingUrl: FieldRef<"MeetSummary", 'String'>
     readonly durationSec: FieldRef<"MeetSummary", 'Int'>
     readonly createdAt: FieldRef<"MeetSummary", 'DateTime'>
     readonly updatedAt: FieldRef<"MeetSummary", 'DateTime'>
@@ -308941,6 +308956,7 @@ export namespace Prisma {
     decisions: 'decisions',
     actionItems: 'actionItems',
     transcript: 'transcript',
+    recordingUrl: 'recordingUrl',
     durationSec: 'durationSec',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt'
@@ -332682,6 +332698,7 @@ export namespace Prisma {
     decisions?: JsonNullableFilter<"MeetSummary">
     actionItems?: JsonNullableFilter<"MeetSummary">
     transcript?: StringNullableFilter<"MeetSummary"> | string | null
+    recordingUrl?: StringNullableFilter<"MeetSummary"> | string | null
     durationSec?: IntNullableFilter<"MeetSummary"> | number | null
     createdAt?: DateTimeFilter<"MeetSummary"> | Date | string
     updatedAt?: DateTimeFilter<"MeetSummary"> | Date | string
@@ -332699,6 +332716,7 @@ export namespace Prisma {
     decisions?: SortOrderInput | SortOrder
     actionItems?: SortOrderInput | SortOrder
     transcript?: SortOrderInput | SortOrder
+    recordingUrl?: SortOrderInput | SortOrder
     durationSec?: SortOrderInput | SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
@@ -332719,6 +332737,7 @@ export namespace Prisma {
     decisions?: JsonNullableFilter<"MeetSummary">
     actionItems?: JsonNullableFilter<"MeetSummary">
     transcript?: StringNullableFilter<"MeetSummary"> | string | null
+    recordingUrl?: StringNullableFilter<"MeetSummary"> | string | null
     durationSec?: IntNullableFilter<"MeetSummary"> | number | null
     createdAt?: DateTimeFilter<"MeetSummary"> | Date | string
     updatedAt?: DateTimeFilter<"MeetSummary"> | Date | string
@@ -332736,6 +332755,7 @@ export namespace Prisma {
     decisions?: SortOrderInput | SortOrder
     actionItems?: SortOrderInput | SortOrder
     transcript?: SortOrderInput | SortOrder
+    recordingUrl?: SortOrderInput | SortOrder
     durationSec?: SortOrderInput | SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
@@ -332759,6 +332779,7 @@ export namespace Prisma {
     decisions?: JsonNullableWithAggregatesFilter<"MeetSummary">
     actionItems?: JsonNullableWithAggregatesFilter<"MeetSummary">
     transcript?: StringNullableWithAggregatesFilter<"MeetSummary"> | string | null
+    recordingUrl?: StringNullableWithAggregatesFilter<"MeetSummary"> | string | null
     durationSec?: IntNullableWithAggregatesFilter<"MeetSummary"> | number | null
     createdAt?: DateTimeWithAggregatesFilter<"MeetSummary"> | Date | string
     updatedAt?: DateTimeWithAggregatesFilter<"MeetSummary"> | Date | string
@@ -358536,6 +358557,7 @@ export namespace Prisma {
     decisions?: NullableJsonNullValueInput | InputJsonValue
     actionItems?: NullableJsonNullValueInput | InputJsonValue
     transcript?: string | null
+    recordingUrl?: string | null
     durationSec?: number | null
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -358553,6 +358575,7 @@ export namespace Prisma {
     decisions?: NullableJsonNullValueInput | InputJsonValue
     actionItems?: NullableJsonNullValueInput | InputJsonValue
     transcript?: string | null
+    recordingUrl?: string | null
     durationSec?: number | null
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -358566,6 +358589,7 @@ export namespace Prisma {
     decisions?: NullableJsonNullValueInput | InputJsonValue
     actionItems?: NullableJsonNullValueInput | InputJsonValue
     transcript?: NullableStringFieldUpdateOperationsInput | string | null
+    recordingUrl?: NullableStringFieldUpdateOperationsInput | string | null
     durationSec?: NullableIntFieldUpdateOperationsInput | number | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -358583,6 +358607,7 @@ export namespace Prisma {
     decisions?: NullableJsonNullValueInput | InputJsonValue
     actionItems?: NullableJsonNullValueInput | InputJsonValue
     transcript?: NullableStringFieldUpdateOperationsInput | string | null
+    recordingUrl?: NullableStringFieldUpdateOperationsInput | string | null
     durationSec?: NullableIntFieldUpdateOperationsInput | number | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -358598,6 +358623,7 @@ export namespace Prisma {
     decisions?: NullableJsonNullValueInput | InputJsonValue
     actionItems?: NullableJsonNullValueInput | InputJsonValue
     transcript?: string | null
+    recordingUrl?: string | null
     durationSec?: number | null
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -358611,6 +358637,7 @@ export namespace Prisma {
     decisions?: NullableJsonNullValueInput | InputJsonValue
     actionItems?: NullableJsonNullValueInput | InputJsonValue
     transcript?: NullableStringFieldUpdateOperationsInput | string | null
+    recordingUrl?: NullableStringFieldUpdateOperationsInput | string | null
     durationSec?: NullableIntFieldUpdateOperationsInput | number | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -358626,6 +358653,7 @@ export namespace Prisma {
     decisions?: NullableJsonNullValueInput | InputJsonValue
     actionItems?: NullableJsonNullValueInput | InputJsonValue
     transcript?: NullableStringFieldUpdateOperationsInput | string | null
+    recordingUrl?: NullableStringFieldUpdateOperationsInput | string | null
     durationSec?: NullableIntFieldUpdateOperationsInput | number | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -373507,6 +373535,7 @@ export namespace Prisma {
     decisions?: SortOrder
     actionItems?: SortOrder
     transcript?: SortOrder
+    recordingUrl?: SortOrder
     durationSec?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
@@ -373523,6 +373552,7 @@ export namespace Prisma {
     title?: SortOrder
     summary?: SortOrder
     transcript?: SortOrder
+    recordingUrl?: SortOrder
     durationSec?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
@@ -373535,6 +373565,7 @@ export namespace Prisma {
     title?: SortOrder
     summary?: SortOrder
     transcript?: SortOrder
+    recordingUrl?: SortOrder
     durationSec?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
@@ -407592,6 +407623,7 @@ export namespace Prisma {
     decisions?: NullableJsonNullValueInput | InputJsonValue
     actionItems?: NullableJsonNullValueInput | InputJsonValue
     transcript?: string | null
+    recordingUrl?: string | null
     durationSec?: number | null
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -407607,6 +407639,7 @@ export namespace Prisma {
     decisions?: NullableJsonNullValueInput | InputJsonValue
     actionItems?: NullableJsonNullValueInput | InputJsonValue
     transcript?: string | null
+    recordingUrl?: string | null
     durationSec?: number | null
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -413699,6 +413732,7 @@ export namespace Prisma {
     decisions?: JsonNullableFilter<"MeetSummary">
     actionItems?: JsonNullableFilter<"MeetSummary">
     transcript?: StringNullableFilter<"MeetSummary"> | string | null
+    recordingUrl?: StringNullableFilter<"MeetSummary"> | string | null
     durationSec?: IntNullableFilter<"MeetSummary"> | number | null
     createdAt?: DateTimeFilter<"MeetSummary"> | Date | string
     updatedAt?: DateTimeFilter<"MeetSummary"> | Date | string
@@ -645980,6 +646014,7 @@ export namespace Prisma {
     decisions?: NullableJsonNullValueInput | InputJsonValue
     actionItems?: NullableJsonNullValueInput | InputJsonValue
     transcript?: string | null
+    recordingUrl?: string | null
     durationSec?: number | null
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -645995,6 +646030,7 @@ export namespace Prisma {
     decisions?: NullableJsonNullValueInput | InputJsonValue
     actionItems?: NullableJsonNullValueInput | InputJsonValue
     transcript?: string | null
+    recordingUrl?: string | null
     durationSec?: number | null
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -646599,6 +646635,7 @@ export namespace Prisma {
     decisions?: NullableJsonNullValueInput | InputJsonValue
     actionItems?: NullableJsonNullValueInput | InputJsonValue
     transcript?: NullableStringFieldUpdateOperationsInput | string | null
+    recordingUrl?: NullableStringFieldUpdateOperationsInput | string | null
     durationSec?: NullableIntFieldUpdateOperationsInput | number | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -646614,6 +646651,7 @@ export namespace Prisma {
     decisions?: NullableJsonNullValueInput | InputJsonValue
     actionItems?: NullableJsonNullValueInput | InputJsonValue
     transcript?: NullableStringFieldUpdateOperationsInput | string | null
+    recordingUrl?: NullableStringFieldUpdateOperationsInput | string | null
     durationSec?: NullableIntFieldUpdateOperationsInput | number | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -653517,6 +653555,7 @@ export namespace Prisma {
     decisions?: NullableJsonNullValueInput | InputJsonValue
     actionItems?: NullableJsonNullValueInput | InputJsonValue
     transcript?: string | null
+    recordingUrl?: string | null
     durationSec?: number | null
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -659425,6 +659464,7 @@ export namespace Prisma {
     decisions?: NullableJsonNullValueInput | InputJsonValue
     actionItems?: NullableJsonNullValueInput | InputJsonValue
     transcript?: NullableStringFieldUpdateOperationsInput | string | null
+    recordingUrl?: NullableStringFieldUpdateOperationsInput | string | null
     durationSec?: NullableIntFieldUpdateOperationsInput | number | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -659440,6 +659480,7 @@ export namespace Prisma {
     decisions?: NullableJsonNullValueInput | InputJsonValue
     actionItems?: NullableJsonNullValueInput | InputJsonValue
     transcript?: NullableStringFieldUpdateOperationsInput | string | null
+    recordingUrl?: NullableStringFieldUpdateOperationsInput | string | null
     durationSec?: NullableIntFieldUpdateOperationsInput | number | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -659454,6 +659495,7 @@ export namespace Prisma {
     decisions?: NullableJsonNullValueInput | InputJsonValue
     actionItems?: NullableJsonNullValueInput | InputJsonValue
     transcript?: NullableStringFieldUpdateOperationsInput | string | null
+    recordingUrl?: NullableStringFieldUpdateOperationsInput | string | null
     durationSec?: NullableIntFieldUpdateOperationsInput | number | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string

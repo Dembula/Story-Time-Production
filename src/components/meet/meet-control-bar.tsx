@@ -99,7 +99,7 @@ export function MeetControlBar(props: Props) {
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[#121214]/95 px-3 py-3 shadow-2xl backdrop-blur-md">
+    <div className="flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-white/15 bg-black/45 px-3 py-3 shadow-2xl backdrop-blur-xl">
       <CtrlBtn onClick={props.onToggleMute} active={props.isMuted} title={props.isMuted ? "Unmute" : "Mute"}>
         {props.isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
       </CtrlBtn>

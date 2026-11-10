@@ -124,8 +124,9 @@ export function MeetGuestClient(props: Props) {
                 <p className="text-xs">Camera preview unavailable — you can still join</p>
               </div>
             )}
-            <div className="pointer-events-none absolute left-3 top-3 select-none text-3xl font-black tracking-tight text-white/20">
-              ST
+            <div className="pointer-events-none absolute left-3 top-3 opacity-80">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/st-mark.png" alt="" className="h-8 w-auto object-contain mix-blend-screen" />
             </div>
           </div>
         </div>

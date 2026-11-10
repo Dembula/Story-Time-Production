@@ -34,6 +34,7 @@ export async function POST(req: Request) {
     body?: string;
     source?: "MANUAL" | "VA" | "SPEECH";
     endMeeting?: boolean;
+    recordingUrl?: string | null;
   } | null;
 
   const meetingId = String(body?.meetingId ?? "").trim();
@@ -92,6 +93,11 @@ export async function POST(req: Request) {
     });
   }
 
+  const recordingUrl =
+    typeof body?.recordingUrl === "string" && body.recordingUrl.trim()
+      ? body.recordingUrl.trim()
+      : undefined;
+
   const summary = await prisma.meetSummary.upsert({
     where: { meetingId: meeting.id },
     create: {
@@ -103,6 +109,7 @@ export async function POST(req: Request) {
       decisions: report.decisions,
       actionItems: report.actionItems,
       transcript: notes.map((n) => n.body).join("\n"),
+      recordingUrl: recordingUrl ?? null,
       durationSec,
     },
     update: {
@@ -112,6 +119,7 @@ export async function POST(req: Request) {
       actionItems: report.actionItems,
       transcript: notes.map((n) => n.body).join("\n"),
       durationSec,
+      ...(recordingUrl ? { recordingUrl } : {}),
     },
   });
 
