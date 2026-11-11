@@ -1,8 +1,8 @@
 import type { MetadataRoute } from "next";
-import { getAppBaseUrl } from "@/lib/app-url";
+import { getCanonicalPublicBaseUrl } from "@/lib/app-url";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = getAppBaseUrl() || "https://story-time.online";
+  const base = getCanonicalPublicBaseUrl().replace(/\/$/, "");
   return [
     { url: base, lastModified: new Date(), changeFrequency: "daily", priority: 1 },
     { url: `${base}/browse`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
