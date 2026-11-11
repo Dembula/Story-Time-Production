@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -8,12 +9,98 @@ import { getViewerPlaybackState, isPpvEligibleContent } from "@/lib/viewer-acces
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import type { SeasonItem } from "@/components/browse/content-episodes-section";
 import { packPlatformImageUrl } from "@/lib/browse-media-pack";
+import {
+  buildContentJsonLd,
+  buildTrailerVideoObjectJsonLd,
+  jsonLdScriptContent,
+} from "@/lib/seo/content-json-ld";
+import { buildContentPageMetadata } from "@/lib/seo/content-metadata";
 
 export const dynamic = "force-dynamic";
 
 async function packCatalogueImage(url: string | null | undefined): Promise<string | null> {
   if (!url?.trim()) return null;
   return packPlatformImageUrl(url);
+}
+
+const contentDetailInclude = {
+  creator: {
+    select: {
+      id: true,
+      name: true,
+      image: true,
+      bio: true,
+      socialLinks: true,
+      education: true,
+      goals: true,
+      previousWork: true,
+      institutionName: true,
+      showCreatorAboutOnTitles: true,
+      isAfdaStudent: true,
+    },
+  },
+  btsVideos: { orderBy: { sortOrder: "asc" as const } },
+  syncDeals: {
+    include: {
+      musicTrack: {
+        select: {
+          id: true,
+          title: true,
+          artistName: true,
+          genre: true,
+          coverUrl: true,
+          creatorId: true,
+        },
+      },
+    },
+  },
+  crewMembers: {
+    orderBy: { createdAt: "asc" as const },
+    include: {
+      creditPerson: {
+        select: { id: true, imageUrl: true, userId: true },
+      },
+    },
+  },
+  seasons: {
+    where: { published: true },
+    orderBy: { seasonNumber: "asc" as const },
+    include: {
+      episodes: { orderBy: { episodeNumber: "asc" as const } },
+    },
+  },
+} as const;
+
+async function loadPublishedContent(id: string) {
+  return prisma.content.findUnique({
+    where: { id, published: true },
+    include: contentDetailInclude,
+  });
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const content = await prisma.content.findUnique({
+    where: { id, published: true },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      type: true,
+      posterUrl: true,
+      category: true,
+      year: true,
+    },
+  });
+  // Taken-down / unpublished titles: noindex fallback (page itself 404s).
+  if (!content) {
+    return { title: "Title unavailable", robots: { index: false, follow: false } };
+  }
+  return buildContentPageMetadata(content);
 }
 
 export default async function ContentDetailPage({
@@ -46,56 +133,7 @@ export default async function ContentDetailPage({
     }
   }
 
-  const content = await prisma.content.findUnique({
-    where: { id, published: true },
-    include: {
-      creator: {
-        select: {
-          id: true,
-          name: true,
-          image: true,
-          bio: true,
-          socialLinks: true,
-          education: true,
-          goals: true,
-          previousWork: true,
-          institutionName: true,
-          showCreatorAboutOnTitles: true,
-          isAfdaStudent: true,
-        },
-      },
-      btsVideos: { orderBy: { sortOrder: "asc" } },
-      syncDeals: {
-        include: {
-          musicTrack: {
-            select: {
-              id: true,
-              title: true,
-              artistName: true,
-              genre: true,
-              coverUrl: true,
-              creatorId: true,
-            },
-          },
-        },
-      },
-      crewMembers: {
-        orderBy: { createdAt: "asc" },
-        include: {
-          creditPerson: {
-            select: { id: true, imageUrl: true, userId: true },
-          },
-        },
-      },
-      seasons: {
-        where: { published: true },
-        orderBy: { seasonNumber: "asc" },
-        include: {
-          episodes: { orderBy: { episodeNumber: "asc" } },
-        },
-      },
-    },
-  });
+  const content = await loadPublishedContent(id);
 
   if (!content) notFound();
 
@@ -152,44 +190,79 @@ export default async function ContentDetailPage({
     })),
   }));
 
+  const seoInput = {
+    id: content.id,
+    title: content.title,
+    description: content.description,
+    type: content.type,
+    posterUrl: content.posterUrl,
+    backdropUrl: content.backdropUrl,
+    trailerUrl: content.trailerUrl,
+    category: content.category,
+    tags: content.tags,
+    language: content.language,
+    country: content.country,
+    ageRating: content.ageRating,
+    minAge: content.minAge,
+    year: content.year,
+    duration: content.duration,
+    createdAt: content.createdAt,
+    updatedAt: content.updatedAt,
+    creator: content.creator,
+    crewMembers: content.crewMembers.map((c) => ({
+      name: c.name,
+      role: c.role,
+      creditPersonId: c.creditPersonId ?? c.creditPerson?.id ?? null,
+    })),
+  };
+  const movieJsonLd = buildContentJsonLd(seoInput);
+  const trailerJsonLd = buildTrailerVideoObjectJsonLd(seoInput);
+  const jsonLdPayload = trailerJsonLd ? [movieJsonLd, trailerJsonLd] : movieJsonLd;
+
   return (
-    <ContentDetailClient
-      content={{
-        ...content,
-        posterUrl: await packCatalogueImage(content.posterUrl),
-        backdropUrl:
-          (await packCatalogueImage(content.backdropUrl)) ?? content.backdropUrl,
-        createdAt: content.createdAt.toISOString(),
-        submittedAt: content.submittedAt?.toISOString() ?? null,
-        ratingStats: {
-          average: avgRating._avg.score ?? 0,
-          count: avgRating._count,
-        },
-        otherCreatorContent: await Promise.all(
-          otherCreatorContent.map(async (c) => ({
-            ...c,
-            posterUrl: await packCatalogueImage(c.posterUrl),
-          })),
-        ),
-        relatedContent: await Promise.all(
-          relatedContent.map(async (c) => ({
-            ...c,
-            posterUrl: await packCatalogueImage(c.posterUrl),
-          })),
-        ),
-        soundtrack: content.syncDeals.map((sd) => sd.musicTrack),
-        crewMembers: content.crewMembers,
-      }}
-      seasons={seasons}
-      autoPlay={autoPlay}
-      subscriptionExpired={subscriptionExpired}
-      ageRestricted={ageRestricted}
-      contentMinAge={minAge}
-      viewerModel={viewerModel}
-      hasActivePpvAccess={hasActivePpvAccess}
-      hasPlaybackAccess={hasPlaybackAccess}
-      ppvEligible={isPpvEligibleContent(content.type)}
-      fromDiscover={fromDiscover}
-    />
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdScriptContent(jsonLdPayload) }}
+      />
+      <ContentDetailClient
+        content={{
+          ...content,
+          posterUrl: await packCatalogueImage(content.posterUrl),
+          backdropUrl:
+            (await packCatalogueImage(content.backdropUrl)) ?? content.backdropUrl,
+          createdAt: content.createdAt.toISOString(),
+          submittedAt: content.submittedAt?.toISOString() ?? null,
+          ratingStats: {
+            average: avgRating._avg.score ?? 0,
+            count: avgRating._count,
+          },
+          otherCreatorContent: await Promise.all(
+            otherCreatorContent.map(async (c) => ({
+              ...c,
+              posterUrl: await packCatalogueImage(c.posterUrl),
+            })),
+          ),
+          relatedContent: await Promise.all(
+            relatedContent.map(async (c) => ({
+              ...c,
+              posterUrl: await packCatalogueImage(c.posterUrl),
+            })),
+          ),
+          soundtrack: content.syncDeals.map((sd) => sd.musicTrack),
+          crewMembers: content.crewMembers,
+        }}
+        seasons={seasons}
+        autoPlay={autoPlay}
+        subscriptionExpired={subscriptionExpired}
+        ageRestricted={ageRestricted}
+        contentMinAge={minAge}
+        viewerModel={viewerModel}
+        hasActivePpvAccess={hasActivePpvAccess}
+        hasPlaybackAccess={hasPlaybackAccess}
+        ppvEligible={isPpvEligibleContent(content.type)}
+        fromDiscover={fromDiscover}
+      />
+    </>
   );
 }

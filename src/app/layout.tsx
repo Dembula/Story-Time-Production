@@ -3,7 +3,8 @@ import localFont from "next/font/local";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
-import { getAppBaseUrl } from "@/lib/app-url";
+import { getCanonicalPublicBaseUrl } from "@/lib/app-url";
+import { buildOrganizationJsonLd, jsonLdScriptContent } from "@/lib/seo/content-json-ld";
 
 const inter = localFont({
   src: "./fonts/inter-latin.woff2",
@@ -17,9 +18,9 @@ const outfit = localFont({
   display: "swap",
 });
 
-const siteBase = getAppBaseUrl() || "https://story-time.online";
+const siteBase = getCanonicalPublicBaseUrl().replace(/\/$/, "") || "https://story-time.online";
 const siteDescription =
-  "Stream movies, series, shows, and podcasts from independent creators";
+  "Stream movies, series, shows, and podcasts from independent African filmmakers on Story Time Universe";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -68,15 +69,7 @@ export const metadata: Metadata = {
   },
 };
 
-const organizationJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  name: "Story Time Universe",
-  alternateName: "Story Time",
-  url: siteBase,
-  logo: `${siteBase}/logo.png`,
-  image: `${siteBase}/logo.png`,
-};
+const organizationJsonLd = buildOrganizationJsonLd();
 
 export default function RootLayout({
   children,
@@ -101,7 +94,7 @@ export default function RootLayout({
       >
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: jsonLdScriptContent(organizationJsonLd) }}
         />
         <Providers>{children}</Providers>
         <Analytics />
