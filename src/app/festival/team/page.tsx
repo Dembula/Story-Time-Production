@@ -39,10 +39,13 @@ export default function FestivalTeamPage() {
     },
     onSuccess: (json) => {
       setJoinUrl(json.joinUrl || "");
+      const accountBit = json.existingAccount
+        ? "They already have a Story Time account — they’ll get an in-app notification plus email to accept."
+        : "They’re new to Story Time — the email walks them through sign-up, then back here to accept.";
       setEmailStatus(
         json.emailed
-          ? "Invite email sent. They can also use the link below."
-          : "Invite saved. Email transport did not confirm delivery — share the link below.",
+          ? `Invite email sent. ${accountBit} They can also use the link below.`
+          : `Invite saved. Email transport did not confirm delivery — share the link below. ${accountBit}`,
       );
       setEmail("");
       setError("");

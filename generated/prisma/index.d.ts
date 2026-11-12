@@ -287741,6 +287741,7 @@ export namespace Prisma {
     facebookUrl: string | null
     twitterUrl: string | null
     instagramUrl: string | null
+    tiktokUrl: string | null
     organizers: string | null
     openingAt: Date | null
     earlybirdAt: Date | null
@@ -287774,6 +287775,7 @@ export namespace Prisma {
     facebookUrl: string | null
     twitterUrl: string | null
     instagramUrl: string | null
+    tiktokUrl: string | null
     organizers: string | null
     openingAt: Date | null
     earlybirdAt: Date | null
@@ -287807,6 +287809,7 @@ export namespace Prisma {
     facebookUrl: number
     twitterUrl: number
     instagramUrl: number
+    tiktokUrl: number
     venues: number
     organizers: number
     openingAt: number
@@ -287851,6 +287854,7 @@ export namespace Prisma {
     facebookUrl?: true
     twitterUrl?: true
     instagramUrl?: true
+    tiktokUrl?: true
     organizers?: true
     openingAt?: true
     earlybirdAt?: true
@@ -287884,6 +287888,7 @@ export namespace Prisma {
     facebookUrl?: true
     twitterUrl?: true
     instagramUrl?: true
+    tiktokUrl?: true
     organizers?: true
     openingAt?: true
     earlybirdAt?: true
@@ -287917,6 +287922,7 @@ export namespace Prisma {
     facebookUrl?: true
     twitterUrl?: true
     instagramUrl?: true
+    tiktokUrl?: true
     venues?: true
     organizers?: true
     openingAt?: true
@@ -288038,6 +288044,7 @@ export namespace Prisma {
     facebookUrl: string | null
     twitterUrl: string | null
     instagramUrl: string | null
+    tiktokUrl: string | null
     venues: JsonValue | null
     organizers: string | null
     openingAt: Date | null
@@ -288091,6 +288098,7 @@ export namespace Prisma {
     facebookUrl?: boolean
     twitterUrl?: boolean
     instagramUrl?: boolean
+    tiktokUrl?: boolean
     venues?: boolean
     organizers?: boolean
     openingAt?: boolean
@@ -288134,6 +288142,7 @@ export namespace Prisma {
     facebookUrl?: boolean
     twitterUrl?: boolean
     instagramUrl?: boolean
+    tiktokUrl?: boolean
     venues?: boolean
     organizers?: boolean
     openingAt?: boolean
@@ -288169,6 +288178,7 @@ export namespace Prisma {
     facebookUrl?: boolean
     twitterUrl?: boolean
     instagramUrl?: boolean
+    tiktokUrl?: boolean
     venues?: boolean
     organizers?: boolean
     openingAt?: boolean
@@ -288233,6 +288243,7 @@ export namespace Prisma {
       facebookUrl: string | null
       twitterUrl: string | null
       instagramUrl: string | null
+      tiktokUrl: string | null
       /**
        * JSON array of { name, city, country?, address? }
        */
@@ -288668,6 +288679,7 @@ export namespace Prisma {
     readonly facebookUrl: FieldRef<"Festival", 'String'>
     readonly twitterUrl: FieldRef<"Festival", 'String'>
     readonly instagramUrl: FieldRef<"Festival", 'String'>
+    readonly tiktokUrl: FieldRef<"Festival", 'String'>
     readonly venues: FieldRef<"Festival", 'Json'>
     readonly organizers: FieldRef<"Festival", 'String'>
     readonly openingAt: FieldRef<"Festival", 'DateTime'>
@@ -308750,6 +308762,7 @@ export namespace Prisma {
     facebookUrl: 'facebookUrl',
     twitterUrl: 'twitterUrl',
     instagramUrl: 'instagramUrl',
+    tiktokUrl: 'tiktokUrl',
     venues: 'venues',
     organizers: 'organizers',
     openingAt: 'openingAt',
@@ -331352,6 +331365,7 @@ export namespace Prisma {
     facebookUrl?: StringNullableFilter<"Festival"> | string | null
     twitterUrl?: StringNullableFilter<"Festival"> | string | null
     instagramUrl?: StringNullableFilter<"Festival"> | string | null
+    tiktokUrl?: StringNullableFilter<"Festival"> | string | null
     venues?: JsonNullableFilter<"Festival">
     organizers?: StringNullableFilter<"Festival"> | string | null
     openingAt?: DateTimeNullableFilter<"Festival"> | Date | string | null
@@ -331394,6 +331408,7 @@ export namespace Prisma {
     facebookUrl?: SortOrderInput | SortOrder
     twitterUrl?: SortOrderInput | SortOrder
     instagramUrl?: SortOrderInput | SortOrder
+    tiktokUrl?: SortOrderInput | SortOrder
     venues?: SortOrderInput | SortOrder
     organizers?: SortOrderInput | SortOrder
     openingAt?: SortOrderInput | SortOrder
@@ -331439,6 +331454,7 @@ export namespace Prisma {
     facebookUrl?: StringNullableFilter<"Festival"> | string | null
     twitterUrl?: StringNullableFilter<"Festival"> | string | null
     instagramUrl?: StringNullableFilter<"Festival"> | string | null
+    tiktokUrl?: StringNullableFilter<"Festival"> | string | null
     venues?: JsonNullableFilter<"Festival">
     organizers?: StringNullableFilter<"Festival"> | string | null
     openingAt?: DateTimeNullableFilter<"Festival"> | Date | string | null
@@ -331481,6 +331497,7 @@ export namespace Prisma {
     facebookUrl?: SortOrderInput | SortOrder
     twitterUrl?: SortOrderInput | SortOrder
     instagramUrl?: SortOrderInput | SortOrder
+    tiktokUrl?: SortOrderInput | SortOrder
     venues?: SortOrderInput | SortOrder
     organizers?: SortOrderInput | SortOrder
     openingAt?: SortOrderInput | SortOrder
@@ -331523,6 +331540,7 @@ export namespace Prisma {
     facebookUrl?: StringNullableWithAggregatesFilter<"Festival"> | string | null
     twitterUrl?: StringNullableWithAggregatesFilter<"Festival"> | string | null
     instagramUrl?: StringNullableWithAggregatesFilter<"Festival"> | string | null
+    tiktokUrl?: StringNullableWithAggregatesFilter<"Festival"> | string | null
     venues?: JsonNullableWithAggregatesFilter<"Festival">
     organizers?: StringNullableWithAggregatesFilter<"Festival"> | string | null
     openingAt?: DateTimeNullableWithAggregatesFilter<"Festival"> | Date | string | null
@@ -357080,6 +357098,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -357122,6 +357141,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -357162,6 +357182,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -357204,6 +357225,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -357245,6 +357267,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -357278,6 +357301,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -357312,6 +357336,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -372879,6 +372904,7 @@ export namespace Prisma {
     facebookUrl?: SortOrder
     twitterUrl?: SortOrder
     instagramUrl?: SortOrder
+    tiktokUrl?: SortOrder
     venues?: SortOrder
     organizers?: SortOrder
     openingAt?: SortOrder
@@ -372917,6 +372943,7 @@ export namespace Prisma {
     facebookUrl?: SortOrder
     twitterUrl?: SortOrder
     instagramUrl?: SortOrder
+    tiktokUrl?: SortOrder
     organizers?: SortOrder
     openingAt?: SortOrder
     earlybirdAt?: SortOrder
@@ -372950,6 +372977,7 @@ export namespace Prisma {
     facebookUrl?: SortOrder
     twitterUrl?: SortOrder
     instagramUrl?: SortOrder
+    tiktokUrl?: SortOrder
     organizers?: SortOrder
     openingAt?: SortOrder
     earlybirdAt?: SortOrder
@@ -409239,6 +409267,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -409279,6 +409308,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -415088,6 +415118,7 @@ export namespace Prisma {
     facebookUrl?: StringNullableFilter<"Festival"> | string | null
     twitterUrl?: StringNullableFilter<"Festival"> | string | null
     instagramUrl?: StringNullableFilter<"Festival"> | string | null
+    tiktokUrl?: StringNullableFilter<"Festival"> | string | null
     venues?: JsonNullableFilter<"Festival">
     organizers?: StringNullableFilter<"Festival"> | string | null
     openingAt?: DateTimeNullableFilter<"Festival"> | Date | string | null
@@ -427159,6 +427190,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -427200,6 +427232,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -428439,6 +428472,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -428480,6 +428514,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -638173,6 +638208,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -638214,6 +638250,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -638339,6 +638376,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -638380,6 +638418,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -638435,6 +638474,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -638476,6 +638516,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -638531,6 +638572,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -638572,6 +638614,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -638611,6 +638654,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -638652,6 +638696,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -639166,6 +639211,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -639207,6 +639253,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -639711,6 +639758,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -639752,6 +639800,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -640725,6 +640774,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -640766,6 +640816,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -641735,6 +641786,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -641776,6 +641828,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -641831,6 +641884,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -641872,6 +641926,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -641911,6 +641966,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -641952,6 +642008,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -642668,6 +642725,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -642709,6 +642767,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -654180,6 +654239,7 @@ export namespace Prisma {
     facebookUrl?: string | null
     twitterUrl?: string | null
     instagramUrl?: string | null
+    tiktokUrl?: string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: string | null
     openingAt?: Date | string | null
@@ -661129,6 +661189,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -661169,6 +661230,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -661209,6 +661271,7 @@ export namespace Prisma {
     facebookUrl?: NullableStringFieldUpdateOperationsInput | string | null
     twitterUrl?: NullableStringFieldUpdateOperationsInput | string | null
     instagramUrl?: NullableStringFieldUpdateOperationsInput | string | null
+    tiktokUrl?: NullableStringFieldUpdateOperationsInput | string | null
     venues?: NullableJsonNullValueInput | InputJsonValue
     organizers?: NullableStringFieldUpdateOperationsInput | string | null
     openingAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null

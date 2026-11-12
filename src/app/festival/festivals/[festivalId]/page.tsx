@@ -23,6 +23,7 @@ export default function FestivalSetupPage() {
   const [mediaUrl, setMediaUrl] = useState("");
   const [message, setMessage] = useState("");
   const [uploading, setUploading] = useState<"logo" | "header" | "gallery" | null>(null);
+  const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["festival", festivalId],
@@ -47,6 +48,7 @@ export default function FestivalSetupPage() {
       facebookUrl: f.facebookUrl ?? "",
       twitterUrl: f.twitterUrl ?? "",
       instagramUrl: f.instagramUrl ?? "",
+      tiktokUrl: f.tiktokUrl ?? "",
       yearsRunning: String(f.yearsRunning ?? 1),
       openingAt: f.openingAt ? f.openingAt.slice(0, 10) : "",
       earlybirdAt: f.earlybirdAt ? f.earlybirdAt.slice(0, 10) : "",
@@ -133,8 +135,30 @@ export default function FestivalSetupPage() {
     },
     onSuccess: () => {
       setCatName("");
+      setMessage("Category added.");
       qc.invalidateQueries({ queryKey: ["festival", festivalId] });
     },
+    onError: (e: Error) => setMessage(e.message),
+  });
+
+  const deleteCategory = useMutation({
+    mutationFn: async (id: string) => {
+      setDeletingCategoryId(id);
+      const res = await fetch(`/api/festival/${festivalId}/categories`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Could not delete category");
+      return json;
+    },
+    onSuccess: () => {
+      setMessage("Category removed.");
+      qc.invalidateQueries({ queryKey: ["festival", festivalId] });
+    },
+    onError: (e: Error) => setMessage(e.message),
+    onSettled: () => setDeletingCategoryId(null),
   });
 
   const addMedia = useMutation({
@@ -391,6 +415,7 @@ export default function FestivalSetupPage() {
             {field("facebookUrl", "Facebook")}
             {field("twitterUrl", "X / Twitter")}
             {field("instagramUrl", "Instagram")}
+            {field("tiktokUrl", "TikTok")}
             {field("openingAt", "Opening date")}
             {field("earlybirdAt", "Earlybird deadline")}
             {field("regularAt", "Regular deadline")}
@@ -419,6 +444,7 @@ export default function FestivalSetupPage() {
                   <th className="px-3 py-2">Early</th>
                   <th className="px-3 py-2">Regular</th>
                   <th className="px-3 py-2">Late</th>
+                  <th className="px-3 py-2 text-right"> </th>
                 </tr>
               </thead>
               <tbody>
@@ -434,11 +460,30 @@ export default function FestivalSetupPage() {
                     <td className="px-3 py-2 text-slate-400">R{c.earlybirdFeeZar}</td>
                     <td className="px-3 py-2 text-slate-400">R{c.regularFeeZar}</td>
                     <td className="px-3 py-2 text-slate-400">R{c.lateFeeZar}</td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        disabled={deletingCategoryId === c.id || deleteCategory.isPending}
+                        onClick={() => {
+                          if (
+                            !window.confirm(
+                              `Remove category “${c.name}”? This cannot be undone if there are no submissions yet.`,
+                            )
+                          ) {
+                            return;
+                          }
+                          deleteCategory.mutate(c.id);
+                        }}
+                        className="rounded-md border border-red-500/35 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-50"
+                      >
+                        {deletingCategoryId === c.id ? "Removing…" : "Delete"}
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {(f.categories ?? []).length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-3 py-6 text-center text-slate-500">
+                    <td colSpan={5} className="px-3 py-6 text-center text-slate-500">
                       Add at least one category before publishing.
                     </td>
                   </tr>

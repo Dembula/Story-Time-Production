@@ -29,6 +29,32 @@ function TimelineRow({ label, date, active }: { label: string; date?: string | n
   );
 }
 
+function toExternalHref(raw: string | null | undefined): string | null {
+  const value = raw?.trim();
+  if (!value) return null;
+  if (/^https?:\/\//i.test(value)) return value;
+  if (value.startsWith("//")) return `https:${value}`;
+  return `https://${value.replace(/^\/+/, "")}`;
+}
+
+function formatZar(amount: number | null | undefined): string {
+  return `R${Number(amount ?? 0).toFixed(0)}`;
+}
+
+function SocialChip({ label, href }: { label: string; href: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2 text-sm text-orange-100 transition hover:border-orange-400/40 hover:bg-orange-500/10 hover:text-orange-50"
+    >
+      {label}
+      <ExternalLink className="h-3 w-3 opacity-70" />
+    </a>
+  );
+}
+
 export default function CreatorFestivalDetailPage() {
   const params = useParams();
   const festivalId = String(params.festivalId);
@@ -148,43 +174,95 @@ export default function CreatorFestivalDetailPage() {
 
           <section className="cinematic-glass rounded-3xl border border-white/8 p-5 shadow-panel">
             <h2 className="font-display text-lg font-semibold text-white">Categories & fees</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              All submission stages shown. Current tier:{" "}
+              <span className="font-semibold uppercase tracking-wide text-orange-200/90">
+                {f.currentTier}
+              </span>
+            </p>
             <ul className="mt-3 divide-y divide-white/8">
               {(f.categories ?? []).map((c: {
                 id: string;
                 name: string;
                 description?: string | null;
+                earlybirdFeeZar?: number;
+                regularFeeZar?: number;
+                lateFeeZar?: number;
                 currentFeeZar: number;
               }) => (
-                <li key={c.id} className="flex items-start justify-between gap-3 py-3">
-                  <div>
-                    <p className="font-medium text-white">{c.name}</p>
-                    {c.description ? <p className="text-xs text-slate-500">{c.description}</p> : null}
+                <li key={c.id} className="py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-white">{c.name}</p>
+                      {c.description ? <p className="text-xs text-slate-500">{c.description}</p> : null}
+                    </div>
+                    <p className="shrink-0 text-sm font-semibold text-orange-200">
+                      Now {formatZar(c.currentFeeZar)}
+                    </p>
                   </div>
-                  <p className="text-sm font-semibold text-orange-200">
-                    R{Number(c.currentFeeZar).toFixed(0)}
-                  </p>
+                  <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                    <div
+                      className={`rounded-lg border px-2 py-1.5 ${
+                        f.currentTier === "earlybird"
+                          ? "border-orange-400/40 bg-orange-500/10 text-orange-100"
+                          : "border-white/8 bg-white/[0.02] text-slate-400"
+                      }`}
+                    >
+                      <p className="uppercase tracking-wide opacity-80">Early</p>
+                      <p className="mt-0.5 text-sm font-semibold text-white">{formatZar(c.earlybirdFeeZar)}</p>
+                    </div>
+                    <div
+                      className={`rounded-lg border px-2 py-1.5 ${
+                        f.currentTier === "regular"
+                          ? "border-orange-400/40 bg-orange-500/10 text-orange-100"
+                          : "border-white/8 bg-white/[0.02] text-slate-400"
+                      }`}
+                    >
+                      <p className="uppercase tracking-wide opacity-80">Regular</p>
+                      <p className="mt-0.5 text-sm font-semibold text-white">{formatZar(c.regularFeeZar)}</p>
+                    </div>
+                    <div
+                      className={`rounded-lg border px-2 py-1.5 ${
+                        f.currentTier === "late"
+                          ? "border-orange-400/40 bg-orange-500/10 text-orange-100"
+                          : "border-white/8 bg-white/[0.02] text-slate-400"
+                      }`}
+                    >
+                      <p className="uppercase tracking-wide opacity-80">Late</p>
+                      <p className="mt-0.5 text-sm font-semibold text-white">{formatZar(c.lateFeeZar)}</p>
+                    </div>
+                  </div>
                 </li>
               ))}
             </ul>
-            <p className="mt-2 text-[11px] uppercase tracking-wide text-slate-500">
-              Current tier: {f.currentTier}
-            </p>
           </section>
 
           <section className="rounded-3xl border border-white/8 bg-white/[0.03] p-5 text-sm text-slate-300">
-            <h2 className="font-display text-lg font-semibold text-white">Contact</h2>
+            <h2 className="font-display text-lg font-semibold text-white">Contact & socials</h2>
             <ul className="mt-3 space-y-1.5">
               {f.contactEmail ? <li>{f.contactEmail}</li> : null}
               {f.contactPhone ? <li>{f.contactPhone}</li> : null}
-              {f.websiteUrl ? (
-                <li>
-                  <a className="inline-flex items-center gap-1 text-orange-200 hover:underline" href={f.websiteUrl} target="_blank" rel="noreferrer">
-                    Website <ExternalLink className="h-3 w-3" />
-                  </a>
-                </li>
-              ) : null}
               {f.organizers ? <li className="text-slate-500">Organizers: {f.organizers}</li> : null}
             </ul>
+            {(() => {
+              const socials = [
+                { label: "Website", href: toExternalHref(f.websiteUrl) },
+                { label: "Instagram", href: toExternalHref(f.instagramUrl) },
+                { label: "TikTok", href: toExternalHref(f.tiktokUrl) },
+                { label: "Facebook", href: toExternalHref(f.facebookUrl) },
+                { label: "X / Twitter", href: toExternalHref(f.twitterUrl) },
+              ].filter((s): s is { label: string; href: string } => Boolean(s.href));
+              if (socials.length === 0) {
+                return <p className="mt-3 text-xs text-slate-500">No social links added yet.</p>;
+              }
+              return (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {socials.map((s) => (
+                    <SocialChip key={s.label} label={s.label} href={s.href} />
+                  ))}
+                </div>
+              );
+            })()}
           </section>
 
           {f.acceptingSubmissions ? (

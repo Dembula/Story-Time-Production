@@ -5344,6 +5344,7 @@ model Festival {
   facebookUrl          String?
   twitterUrl           String?
   instagramUrl         String?
+  tiktokUrl            String?
   /// JSON array of { name, city, country?, address? }
   venues               Json?
   organizers           String?

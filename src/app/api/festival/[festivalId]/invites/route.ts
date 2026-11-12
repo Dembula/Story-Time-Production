@@ -56,5 +56,6 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     invite: result.invite,
     joinUrl: result.joinUrl || buildAppUrl(`/festival/join/${result.invite.token}`),
     emailed: result.emailed,
+    existingAccount: result.existingAccount,
   }, { status: 201 });
 }

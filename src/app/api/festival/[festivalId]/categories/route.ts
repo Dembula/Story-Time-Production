@@ -81,3 +81,37 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   });
   return NextResponse.json({ category });
 }
+
+export async function DELETE(req: NextRequest, ctx: Ctx) {
+  const auth = await requireFestivalSession();
+  if (!auth) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { festivalId } = await ctx.params;
+  const access = await requireFestivalAccess(festivalId, auth.userId, auth.role === "ADMIN");
+  if (!access) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!canManageFestival(access.membershipRole, auth.role === "ADMIN")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const idFromBody = typeof body.id === "string" ? body.id : "";
+  const idFromQuery = req.nextUrl.searchParams.get("id")?.trim() || "";
+  const id = idFromBody || idFromQuery;
+  if (!id) return NextResponse.json({ error: "Category id required." }, { status: 400 });
+
+  const existing = await prisma.festivalCategory.findFirst({
+    where: { id, festivalId },
+    include: { _count: { select: { submissions: true } } },
+  });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (existing._count.submissions > 0) {
+    return NextResponse.json(
+      {
+        error: `Cannot delete “${existing.name}” — it already has ${existing._count.submissions} submission(s). Create a replacement category instead.`,
+      },
+      { status: 409 },
+    );
+  }
+
+  await prisma.festivalCategory.delete({ where: { id } });
+  return NextResponse.json({ ok: true, id });
+}

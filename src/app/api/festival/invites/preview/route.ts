@@ -11,6 +11,11 @@ export async function GET(req: NextRequest) {
   });
   if (!invite) return NextResponse.json({ error: "Invite not found" }, { status: 404 });
 
+  const existingUser = await prisma.user.findFirst({
+    where: { email: { equals: invite.emailNorm, mode: "insensitive" } },
+    select: { id: true },
+  });
+
   return NextResponse.json({
     status: invite.status,
     role: invite.role,
@@ -18,5 +23,6 @@ export async function GET(req: NextRequest) {
     expiresAt: invite.expiresAt,
     festival: invite.festival,
     expired: invite.expiresAt.getTime() <= Date.now(),
+    hasExistingAccount: Boolean(existingUser || invite.invitedUserId),
   });
 }

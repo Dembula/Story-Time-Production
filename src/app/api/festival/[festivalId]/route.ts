@@ -94,6 +94,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       facebookUrl: str("facebookUrl"),
       twitterUrl: str("twitterUrl"),
       instagramUrl: str("instagramUrl"),
+      tiktokUrl: str("tiktokUrl"),
       yearsRunning:
         body.yearsRunning != null && Number.isFinite(Number(body.yearsRunning))
           ? Math.max(1, Number(body.yearsRunning))

@@ -164,6 +164,7 @@ export function notificationActionLabel(n: NotificationItem): string {
   if (n.type === "CONTENT_UPLOAD_FAILED") return "Fix upload";
   if (n.type === "CONTENT_STREAM_READY") return "View title";
   if (n.type.includes("MESSAGE") || n.type.includes("NETWORK")) return "View message";
+  if (n.type === "FESTIVAL_TEAM_INVITE") return "Accept invite";
   if (n.type.includes("INVITE")) return "View invite";
   if (n.type.includes("CONTRACT")) return "View contract";
   if (n.type.startsWith("MARKETPLACE_")) return "View request";

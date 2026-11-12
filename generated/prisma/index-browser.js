@@ -3404,6 +3404,7 @@ exports.Prisma.FestivalScalarFieldEnum = {
   facebookUrl: 'facebookUrl',
   twitterUrl: 'twitterUrl',
   instagramUrl: 'instagramUrl',
+  tiktokUrl: 'tiktokUrl',
   venues: 'venues',
   organizers: 'organizers',
   openingAt: 'openingAt',

@@ -128,8 +128,8 @@ export async function createFestivalTeamInvite(args: {
     personalMessage ? `\nMessage:\n${personalMessage}` : "",
     "",
     existingMember
-      ? "Sign in with this email and open the link to accept:"
-      : "Create a Story Time account with this email (or sign in), then open the link to join the festival team:",
+      ? "You already have a Story Time account. Sign in with this email, then open the link below to accept the invite:"
+      : "You don't have a Story Time account yet. Open the link below to create one with this email, then accept the invite:",
     joinUrl,
     "",
     "This invite expires in 14 days.",
@@ -141,14 +141,23 @@ export async function createFestivalTeamInvite(args: {
   try {
     emailed = await sendTransactionalEmail({
       to: emailNorm,
-      subject: `You're invited to review "${festival.name}"`,
+      subject: existingMember
+        ? `Accept your invite to review "${festival.name}"`
+        : `You're invited to review "${festival.name}" — create your account`,
       text: emailBody,
       html: `
       <p><strong>${escapeHtml(inviterLabel)}</strong> invited you to join the review team for
       <strong>${escapeHtml(festival.name)}</strong> on Story Time Festivals.</p>
       <p>Role: ${escapeHtml(roleText)}</p>
       ${personalMessage ? `<p>${escapeHtml(personalMessage)}</p>` : ""}
-      <p><a href="${joinUrl}">${existingMember ? "Accept festival team invite" : "Create your account & join"}</a></p>
+      <p>${
+        existingMember
+          ? "You already have a Story Time account — sign in with this email and accept the invite."
+          : "Create a Story Time account with this email, then accept the invite to join the festival team."
+      }</p>
+      <p><a href="${joinUrl}" style="display:inline-block;padding:10px 16px;background:#f97316;color:#0f172a;border-radius:8px;text-decoration:none;font-weight:600">
+        ${existingMember ? "Accept festival team invite" : "Create account & join"}
+      </a></p>
       <p style="color:#888;font-size:12px">This invite expires in 14 days.</p>
     `,
     });
@@ -159,16 +168,19 @@ export async function createFestivalTeamInvite(args: {
     console.error("festival team invite email failed", err);
   }
 
+  // Existing Story Time users always get an in-app notification (plus the email above).
   if (existingMember) {
     await notifyUser({
       userId: existingMember.id,
       type: "FESTIVAL_TEAM_INVITE",
-      title: "Festival team invitation",
-      body: `${inviterLabel} invited you to join "${festival.name}" as ${roleText}. Open the invite link in your email or Festival portal.`,
+      title: `Accept invite: ${festival.name}`,
+      body: `${inviterLabel} invited you to join "${festival.name}" as ${roleText}. Tap to review and accept.`,
       metadata: {
         url: joinPath,
         inviteId: invite.id,
         festivalId: args.festivalId,
+        festivalName: festival.name,
+        role: args.role,
       },
     }).catch(() => {});
   }
@@ -178,6 +190,7 @@ export async function createFestivalTeamInvite(args: {
     invite,
     joinUrl,
     emailed: Boolean(emailed),
+    existingAccount: Boolean(existingMember),
   };
 }
 
