@@ -43,10 +43,9 @@ export default function FestivalJoinPage() {
   const invitedEmail = preview?.emailNorm as string | undefined;
   const hasAccount = Boolean(preview?.hasExistingAccount);
   const signedInEmail = session?.user?.email?.toLowerCase() ?? "";
-  const emailMismatch =
-    Boolean(signedInEmail) &&
-    Boolean(invitedEmail) &&
-    signedInEmail !== invitedEmail.toLowerCase();
+  const emailMismatch = Boolean(
+    signedInEmail && invitedEmail && signedInEmail !== invitedEmail.toLowerCase(),
+  );
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-black px-4">
