@@ -234,24 +234,25 @@ export async function chargePayFastAdhoc(args: {
     });
 
     const rawText = await res.text().catch(() => "");
-    let data: {
+    type PayFastAdhocResponse = {
       status?: string;
       code?: number;
       data?: { pf_payment_id?: string; message?: string };
       pf_payment_id?: string;
       message?: string;
       errors?: string[];
-    } | null = null;
+    };
+    let parsed: PayFastAdhocResponse | null = null;
     try {
-      data = rawText ? (JSON.parse(rawText) as typeof data) : null;
+      parsed = rawText ? (JSON.parse(rawText) as PayFastAdhocResponse) : null;
     } catch {
-      data = null;
+      parsed = null;
     }
 
     if (!res.ok) {
       const detail =
-        data?.message ||
-        data?.errors?.join("; ") ||
+        parsed?.message ||
+        parsed?.errors?.join("; ") ||
         rawText.slice(0, 400) ||
         `HTTP ${res.status}`;
       console.warn("PayFast adhoc charge failed", {
@@ -268,17 +269,17 @@ export async function chargePayFastAdhoc(args: {
     }
 
     const pfPaymentId =
-      data?.data?.pf_payment_id?.trim() ||
-      data?.pf_payment_id?.trim() ||
+      parsed?.data?.pf_payment_id?.trim() ||
+      parsed?.pf_payment_id?.trim() ||
       null;
-    const rawStatus = String(data?.status ?? "").toLowerCase();
-    const completed = rawStatus === "success" || Number(data?.code) === 200;
+    const rawStatus = String(parsed?.status ?? "").toLowerCase();
+    const completed = rawStatus === "success" || Number(parsed?.code) === 200;
 
     return {
       ok: true,
       status: completed ? "COMPLETED" : "PENDING",
       pfPaymentId,
-      rawStatus: data?.status ?? null,
+      rawStatus: parsed?.status ?? null,
     };
   } catch (error) {
     console.error("PayFast adhoc charge error", error);
