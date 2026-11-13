@@ -12,12 +12,11 @@ import {
   getPayFastPassphraseOrNull,
   payfastCheckoutPageUrl,
   payfastNotifyUrl,
-  PAYFAST_API_BASE,
   PAYFAST_CARD_CONSENT_AMOUNT_ZAR,
 } from "@/lib/payments/providers/payfast-config";
+import { chargePayFastAdhoc } from "@/lib/payments/providers/payfast-api-client";
 import {
   generatePayFastCheckoutSignature,
-  generatePayFastSignature,
   omitEmptyPayFastFields,
   parsePayFastFormBody,
   verifyPayFastItnSignature,
@@ -86,48 +85,22 @@ class PayFastGatewayAdapter implements PaymentGatewayAdapter {
       throw new Error("No saved PayFast token available for this account.");
     }
 
-    const amountCents = String(Math.round(payload.amount * 100));
-    const timestamp = new Date().toISOString();
-    const signature = generatePayFastSignature(
-      {
-        "merchant-id": getPayFastMerchantId(),
-        version: "v1",
-        timestamp,
-        amount: amountCents,
-      },
-      getPayFastPassphraseOrNull(),
-    );
-
-    const res = await fetch(`${PAYFAST_API_BASE}/subscriptions/${encodeURIComponent(token)}/adhoc`, {
-      method: "POST",
-      headers: {
-        "merchant-id": getPayFastMerchantId(),
-        version: "v1",
-        timestamp,
-        signature,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        amount: amountCents,
-        item_name: `Story Time renewal ${payload.reference}`,
-        ...(payload.paymentRecordId
-          ? {
-              m_payment_id: payload.paymentRecordId,
-              custom_str1: payload.paymentRecordId,
-            }
-          : {}),
-      }).toString(),
+    const result = await chargePayFastAdhoc({
+      token,
+      amountZar: payload.amount,
+      itemName: `Story Time renewal ${payload.reference}`,
+      paymentRecordId: payload.paymentRecordId,
     });
 
-    const data = (await res.json().catch(() => null)) as { status?: string; pf_payment_id?: string } | null;
-    if (!res.ok) {
-      return { provider: PAYMENT_PROVIDER, externalRef: payload.reference, status: "FAILED" };
+    if (!result.ok) {
+      // Surface PayFast's error so renewal dunning / admin UI can show why the charge failed.
+      throw new Error(result.error);
     }
 
     return {
       provider: PAYMENT_PROVIDER,
-      externalRef: data?.pf_payment_id ?? payload.reference,
-      status: data?.status === "success" ? "COMPLETED" : "PENDING",
+      externalRef: result.pfPaymentId ?? payload.reference,
+      status: result.status,
     };
   }
 
