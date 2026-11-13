@@ -202,6 +202,27 @@ export function generatePayFastSignature(
   return md5PayFastPayload(payload);
 }
 
+/**
+ * PayFast Subscriptions/Refunds API signature.
+ * Passphrase is included as a sorted field (not appended), matching the official PHP SDK
+ * `Auth::generateApiSignature`.
+ */
+export function generatePayFastApiSignature(
+  data: Record<string, string>,
+  passphrase?: string | null,
+): string {
+  const cleaned = omitEmptyPayFastFields(data);
+  const pass = (passphrase ?? process.env.PAYFAST_PASSPHRASE?.trim()) || null;
+  if (pass) cleaned.passphrase = pass;
+
+  const keys = Object.keys(cleaned).sort();
+  const pairs: string[] = [];
+  for (const key of keys) {
+    pairs.push(`${key}=${encodePayFastPhpUrlencode(String(cleaned[key]), true)}`);
+  }
+  return md5PayFastPayload(pairs.join("&"));
+}
+
 export function verifyPayFastItnSignatureFromRawBody(
   rawBody: string,
   signature: string | null | undefined,

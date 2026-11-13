@@ -1,12 +1,24 @@
 # Payments Launch Checklist
 
+## How monthly renewals actually work
+PayFast checkout uses `subscription_type=2` (tokenization). **PayFast does not auto-debit month-to-month for type 2.**
+Story Time must charge saved tokens via `POST /subscriptions/{token}/adhoc`, triggered by:
+- Vercel Cron → `GET /api/cron/subscription-billing` daily at 06:00 UTC (`vercel.json`)
+- Manual/user resume → `POST /api/viewer/subscription/renew`
+
+Required for renewals to take money:
+1. `CRON_SECRET` set in Vercel (cron sends `Authorization: Bearer <CRON_SECRET>`)
+2. Cron job actually running (check Vercel → Project → Crons / deployment logs)
+3. Saved PayFast token on `ViewerPaymentMethod.authorizationCode` (or subscription `externalPaymentId`)
+4. Adhoc API signatures using the **API** signature rules (alphabetical + passphrase as a sorted field + JSON body) — not the checkout form signature
+
 ## Credentials and webhooks
 - Configure PayFast: `PAYFAST_MERCHANT_ID`, `PAYFAST_MERCHANT_KEY`, `PAYFAST_PASSPHRASE`
 - Set `PAYMENTS_DEMO_MODE=false` on production
 - Set `NEXTAUTH_URL=https://story-time.online`
 - ITN notify URL (sent per checkout + can register in PayFast): `https://story-time.online/api/payments/webhooks/payfast`
 - Return/cancel URLs are sent per checkout to `https://story-time.online/payments/return`
-- Optional cron: `CRON_SECRET` (Vercel Cron Bearer token), `SUBSCRIPTION_BILLING_CRON_TOKEN`
+- Required for auto-renew: `CRON_SECRET` (Vercel Cron Authorization: Bearer token)
 
 ## Production smoke (automated)
 ```bash

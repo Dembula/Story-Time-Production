@@ -2,11 +2,9 @@ import "server-only";
 
 import {
   getPayFastMerchantId,
-  getPayFastPassphraseOrNull,
   PAYFAST_API_BASE,
 } from "@/lib/payments/providers/payfast-config";
-import { encodePayFastPhpUrlencode, omitEmptyPayFastFields } from "@/lib/payments/providers/payfast-signature";
-import { createHash } from "crypto";
+import { generatePayFastApiSignature } from "@/lib/payments/providers/payfast-signature";
 
 export type PayFastHistoryTransaction = {
   mPaymentId: string | null;
@@ -19,23 +17,12 @@ export type PayFastHistoryTransaction = {
   date: string | null;
 };
 
-function payFastApiTimestamp(): string {
-  return new Date().toISOString().split(".")[0];
+/** PayFast API timestamps omit milliseconds (ISO-8601 without fractional seconds). */
+export function payFastApiTimestamp(date = new Date()): string {
+  return date.toISOString().split(".")[0];
 }
 
-/** REST API signatures include passphrase as a sorted field (not appended). */
-export function generatePayFastApiSignature(data: Record<string, string>): string {
-  const cleaned = omitEmptyPayFastFields(data);
-  const passphrase = getPayFastPassphraseOrNull();
-  if (passphrase) cleaned.passphrase = passphrase;
-
-  const keys = Object.keys(cleaned).sort();
-  const pairs: string[] = [];
-  for (const key of keys) {
-    pairs.push(`${key}=${encodePayFastPhpUrlencode(String(cleaned[key]), true)}`);
-  }
-  return createHash("md5").update(pairs.join("&")).digest("hex");
-}
+export { generatePayFastApiSignature };
 
 function buildPayFastApiHeaders(queryParams: Record<string, string>) {
   const merchantId = getPayFastMerchantId();
@@ -46,7 +33,7 @@ function buildPayFastApiHeaders(queryParams: Record<string, string>) {
     version: "v1",
     timestamp,
   };
-  const signature = generatePayFastApiSignature(signaturePayload);
+  const signature = generatePayFastApiSignature(signaturePayload); // passphrase from env
   return {
     "merchant-id": merchantId,
     version: "v1",
@@ -182,6 +169,124 @@ export async function findPayFastTransactionByMPaymentId(
   }
 
   return null;
+}
+
+export type PayFastAdhocChargeResult =
+  | { ok: true; status: "COMPLETED" | "PENDING"; pfPaymentId: string | null; rawStatus: string | null }
+  | { ok: false; error: string; httpStatus?: number; rawBody?: string };
+
+/**
+ * Charge a saved tokenization token via PayFast Subscriptions API adhoc endpoint.
+ * Signature must use API rules (alphabetical + passphrase as a sorted field + body attrs),
+ * not the checkout form signature helper.
+ */
+export async function chargePayFastAdhoc(args: {
+  token: string;
+  amountZar: number;
+  itemName: string;
+  paymentRecordId?: string | null;
+  itemDescription?: string | null;
+}): Promise<PayFastAdhocChargeResult> {
+  const token = args.token.trim();
+  if (!token) return { ok: false, error: "missing_token" };
+
+  const amountCents = Math.max(1, Math.round(Math.abs(args.amountZar) * 100));
+  const itemName = args.itemName.trim().slice(0, 100) || "Story Time renewal";
+  const body: Record<string, string | number> = {
+    amount: amountCents,
+    item_name: itemName,
+  };
+  if (args.itemDescription?.trim()) {
+    body.item_description = args.itemDescription.trim().slice(0, 255);
+  }
+  if (args.paymentRecordId?.trim()) {
+    body.m_payment_id = args.paymentRecordId.trim();
+    body.custom_str1 = args.paymentRecordId.trim();
+  }
+
+  // Signature payload values must be strings; JSON body keeps amount as an integer (cents).
+  const signatureBody: Record<string, string> = {};
+  for (const [key, value] of Object.entries(body)) {
+    signatureBody[key] = String(value);
+  }
+
+  const merchantId = getPayFastMerchantId();
+  const timestamp = payFastApiTimestamp();
+  const signature = generatePayFastApiSignature({
+    ...signatureBody,
+    "merchant-id": merchantId,
+    version: "v1",
+    timestamp,
+  });
+
+  try {
+    const res = await fetch(`${PAYFAST_API_BASE}/subscriptions/${encodeURIComponent(token)}/adhoc`, {
+      method: "POST",
+      headers: {
+        "merchant-id": merchantId,
+        version: "v1",
+        timestamp,
+        signature,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+
+    const rawText = await res.text().catch(() => "");
+    let data: {
+      status?: string;
+      code?: number;
+      data?: { pf_payment_id?: string; message?: string };
+      pf_payment_id?: string;
+      message?: string;
+      errors?: string[];
+    } | null = null;
+    try {
+      data = rawText ? (JSON.parse(rawText) as typeof data) : null;
+    } catch {
+      data = null;
+    }
+
+    if (!res.ok) {
+      const detail =
+        data?.message ||
+        data?.errors?.join("; ") ||
+        rawText.slice(0, 400) ||
+        `HTTP ${res.status}`;
+      console.warn("PayFast adhoc charge failed", {
+        status: res.status,
+        detail: String(detail).slice(0, 400),
+        paymentRecordId: args.paymentRecordId ?? null,
+      });
+      return {
+        ok: false,
+        error: `adhoc_failed_${res.status}:${String(detail).slice(0, 200)}`,
+        httpStatus: res.status,
+        rawBody: rawText.slice(0, 500),
+      };
+    }
+
+    const pfPaymentId =
+      data?.data?.pf_payment_id?.trim() ||
+      data?.pf_payment_id?.trim() ||
+      null;
+    const rawStatus = String(data?.status ?? "").toLowerCase();
+    const completed = rawStatus === "success" || Number(data?.code) === 200;
+
+    return {
+      ok: true,
+      status: completed ? "COMPLETED" : "PENDING",
+      pfPaymentId,
+      rawStatus: data?.status ?? null,
+    };
+  } catch (error) {
+    console.error("PayFast adhoc charge error", error);
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "adhoc_network_error",
+    };
+  }
 }
 
 export type PayFastRefundResult =

@@ -83,9 +83,21 @@ export async function chargeUserSavedCard(args: {
     if (charge.status !== "COMPLETED") {
       await db.paymentRecord.update({
         where: { id: paymentRecord.id },
-        data: { status: "FAILED" },
+        data: {
+          status: "FAILED",
+          metadata: {
+            ...(args.metadata ?? {}),
+            chargeError: "PayFast adhoc charge did not complete",
+            gatewayStatus: charge.status,
+          },
+        },
       });
-      return { ok: false, status: "FAILED", reason: "charge_not_completed" };
+      return {
+        ok: false,
+        status: "FAILED",
+        reason: "charge_not_completed",
+        message: "PayFast did not confirm the saved-card charge.",
+      };
     }
 
     const methodCode = normalizePayFastMethodCode(tokenLookup?.cardType);
