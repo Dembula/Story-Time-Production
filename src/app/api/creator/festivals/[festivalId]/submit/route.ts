@@ -6,6 +6,7 @@ import {
   feeForTier,
   festivalAcceptsSubmissions,
   FESTIVAL_SUBMISSION_FEE_PURPOSE,
+  isFestivalFeePayable,
   resolveDeadlineTier,
 } from "@/lib/festival/constants";
 import { initializeCheckout } from "@/lib/payments/billing";
@@ -46,6 +47,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   const tier = resolveDeadlineTier(festival);
   const feeAmountZar = feeForTier(category, tier);
+  const requiresPayment = isFestivalFeePayable(feeAmountZar);
   const universeOptIn = Boolean(body.universeOptIn);
   const stillUrls = Array.isArray(body.stillUrls)
     ? body.stillUrls
@@ -94,9 +96,10 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       trailerUrl,
       stillUrls,
       feeAmountZar,
-      paymentStatus: feeAmountZar > 0 ? "AWAITING_PAYMENT" : "PAID",
+      // PayFast cannot register R0 — free tiers are marked paid immediately (no gateway).
+      paymentStatus: requiresPayment ? "AWAITING_PAYMENT" : "PAID",
       universeOptIn,
-      submittedAt: feeAmountZar > 0 ? null : new Date(),
+      submittedAt: requiresPayment ? null : new Date(),
     },
   });
 
@@ -113,11 +116,13 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     });
   }
 
-  if (feeAmountZar <= 0) {
+  // Free / R0 fee: never call PayFast (gateway rejects zero amounts).
+  if (!requiresPayment || !isFestivalFeePayable(feeAmountZar)) {
     return NextResponse.json({
       submission,
       requiresPayment: false,
       checkoutUrl: null,
+      feeAmountZar: 0,
     });
   }
 
@@ -126,10 +131,19 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       where: { id: submission.id },
       data: { paymentStatus: "PAID", submittedAt: new Date() },
     });
-    return NextResponse.json({ submission, requiresPayment: false, checkoutUrl: null });
+    return NextResponse.json({ submission, requiresPayment: false, checkoutUrl: null, feeAmountZar });
   }
 
   try {
+    // Belt-and-suspenders: refuse gateway init if amount is not payable.
+    if (!isFestivalFeePayable(feeAmountZar)) {
+      return NextResponse.json({
+        submission,
+        requiresPayment: false,
+        checkoutUrl: null,
+        feeAmountZar: 0,
+      });
+    }
     const checkout = await initializeCheckout({
       userId,
       email,

@@ -53,13 +53,33 @@ export function resolveDeadlineTier(festival: {
   return "regular";
 }
 
+/** Normalize ZAR fee amounts — treats null/NaN as 0 and rounds to cents. */
+export function normalizeFestivalFeeZar(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.round(n * 100) / 100;
+}
+
+/** True when PayFast / gateway checkout is required (amount must be > 0). */
+export function isFestivalFeePayable(value: unknown): boolean {
+  return normalizeFestivalFeeZar(value) > 0;
+}
+
 export function feeForTier(
-  category: { earlybirdFeeZar: number; regularFeeZar: number; lateFeeZar: number },
+  category: {
+    earlybirdFeeZar?: number | null;
+    regularFeeZar?: number | null;
+    lateFeeZar?: number | null;
+  },
   tier: DeadlineTier,
 ): number {
-  if (tier === "earlybird") return category.earlybirdFeeZar;
-  if (tier === "late") return category.lateFeeZar || category.regularFeeZar;
-  return category.regularFeeZar;
+  if (tier === "earlybird") return normalizeFestivalFeeZar(category.earlybirdFeeZar);
+  if (tier === "late") {
+    // Explicit 0 is valid (free late entry). Only fall back when late fee is unset.
+    if (category.lateFeeZar == null) return normalizeFestivalFeeZar(category.regularFeeZar);
+    return normalizeFestivalFeeZar(category.lateFeeZar);
+  }
+  return normalizeFestivalFeeZar(category.regularFeeZar);
 }
 
 export function festivalAcceptsSubmissions(festival: {

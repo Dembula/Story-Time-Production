@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { FESTIVAL_SUBMISSION_FEE_PURPOSE } from "@/lib/festival/constants";
+import {
+  FESTIVAL_SUBMISSION_FEE_PURPOSE,
+  isFestivalFeePayable,
+  normalizeFestivalFeeZar,
+} from "@/lib/festival/constants";
 import { festivalSubmissionHasSuccessfulPayment } from "@/lib/festival/payment";
 import { initializeCheckout } from "@/lib/payments/billing";
 import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
@@ -62,6 +66,25 @@ export async function POST(_req: NextRequest, ctx: Ctx) {
     });
   }
 
+  const feeAmountZar = normalizeFestivalFeeZar(submission.feeAmountZar);
+  // PayFast rejects R0 — heal free entries to PAID without touching the gateway.
+  if (!isFestivalFeePayable(feeAmountZar)) {
+    const free = await prisma.festivalSubmission.update({
+      where: { id: submission.id },
+      data: {
+        feeAmountZar: 0,
+        paymentStatus: "PAID",
+        submittedAt: submission.submittedAt ?? new Date(),
+      },
+    });
+    return NextResponse.json({
+      submission: free,
+      requiresPayment: false,
+      checkoutUrl: null,
+      feeAmountZar: 0,
+    });
+  }
+
   if (submission.paymentStatus !== "AWAITING_PAYMENT") {
     return NextResponse.json(
       {
@@ -71,16 +94,13 @@ export async function POST(_req: NextRequest, ctx: Ctx) {
     );
   }
 
-  const feeAmountZar = Number(submission.feeAmountZar);
-  if (!(feeAmountZar > 0)) {
-    const free = await prisma.festivalSubmission.update({
-      where: { id: submission.id },
-      data: { paymentStatus: "PAID", submittedAt: submission.submittedAt ?? new Date() },
-    });
+  // Final guard: never hand a non-positive amount to PayFast.
+  if (!isFestivalFeePayable(feeAmountZar)) {
     return NextResponse.json({
-      submission: free,
+      submission,
       requiresPayment: false,
       checkoutUrl: null,
+      feeAmountZar: 0,
     });
   }
 

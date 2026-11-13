@@ -304,7 +304,11 @@ export default function EditFestivalSubmissionPage() {
         });
         const payJson = await payRes.json();
         if (!payRes.ok) throw new Error(payJson.error || "Could not start payment");
-        if (payJson.requiresPayment && payJson.checkoutUrl) {
+        if (
+          payJson.requiresPayment === true &&
+          typeof payJson.checkoutUrl === "string" &&
+          payJson.checkoutUrl
+        ) {
           window.location.href = payJson.checkoutUrl;
           return;
         }
@@ -603,7 +607,11 @@ export default function EditFestivalSubmissionPage() {
               onClick={() => void save(true)}
               className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-slate-950 hover:bg-orange-400 disabled:opacity-60"
             >
-              {saving ? "Working…" : "Save & pay"}
+              {saving
+                ? "Working…"
+                : Number(data?.submission?.feeAmountZar) > 0
+                  ? "Save & pay"
+                  : "Save & confirm free entry"}
             </button>
           </div>
         </div>

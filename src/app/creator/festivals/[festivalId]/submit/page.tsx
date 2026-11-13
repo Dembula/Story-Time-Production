@@ -181,6 +181,8 @@ export default function CreatorFestivalSubmitPage() {
     () => (festival?.categories ?? []).find((c: { id: string }) => c.id === categoryId) ?? null,
     [festival?.categories, categoryId],
   );
+  const feeAmountZar = Number(selectedCategory?.currentFeeZar ?? 0);
+  const feePayable = Number.isFinite(feeAmountZar) && feeAmountZar > 0;
 
   async function uploadMedia(
     file: File,
@@ -324,7 +326,8 @@ export default function CreatorFestivalSubmitPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Submit failed");
-      if (json.requiresPayment && json.checkoutUrl) {
+      // Only redirect to PayFast when a real checkout URL is returned (never for R0).
+      if (json.requiresPayment === true && typeof json.checkoutUrl === "string" && json.checkoutUrl) {
         window.location.href = json.checkoutUrl;
         return;
       }
@@ -472,9 +475,10 @@ export default function CreatorFestivalSubmitPage() {
               Submit to {festival.name}
             </h1>
             <p className="mt-1 text-sm text-slate-300">
-              Secure checkout with PayFast ·{" "}
               {selectedCategory
-                ? `R${Number(selectedCategory.currentFeeZar).toFixed(2)} for ${selectedCategory.name}`
+                ? feePayable
+                  ? `Secure checkout with PayFast · R${feeAmountZar.toFixed(2)} for ${selectedCategory.name}`
+                  : `Free entry · ${selectedCategory.name} (no payment required)`
                 : "Pick a category to see the fee"}
             </p>
           </div>
@@ -529,11 +533,15 @@ export default function CreatorFestivalSubmitPage() {
                 required
               >
                 <option value="">Select category</option>
-                {(festival.categories ?? []).map((c: { id: string; name: string; currentFeeZar: number }) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} — R{Number(c.currentFeeZar).toFixed(2)}
-                  </option>
-                ))}
+                {(festival.categories ?? []).map((c: { id: string; name: string; currentFeeZar: number }) => {
+                  const fee = Number(c.currentFeeZar);
+                  const free = !Number.isFinite(fee) || fee <= 0;
+                  return (
+                    <option key={c.id} value={c.id}>
+                      {c.name} — {free ? "Free" : `R${fee.toFixed(2)}`}
+                    </option>
+                  );
+                })}
               </select>
             </label>
             <label className="block text-sm text-slate-300">
@@ -925,9 +933,13 @@ export default function CreatorFestivalSubmitPage() {
         {step === 5 ? (
           <div className="space-y-5">
             <div>
-              <h2 className="font-display text-xl font-semibold text-white">Media & checkout</h2>
+              <h2 className="font-display text-xl font-semibold text-white">
+                {feePayable ? "Media & checkout" : "Media & submit"}
+              </h2>
               <p className="mt-1 text-sm text-slate-400">
-                Upload your screener (or paste a private link), then pay the festival fee via Story Time.
+                {feePayable
+                  ? "Upload your screener (or paste a private link), then pay the festival fee via Story Time."
+                  : "Upload your screener (or paste a private link). This category is free — no PayFast checkout."}
               </p>
             </div>
 
@@ -1082,11 +1094,14 @@ export default function CreatorFestivalSubmitPage() {
             </label>
             {selectedCategory ? (
               <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm">
-                <p className="text-slate-400">Amount due</p>
+                <p className="text-slate-400">{feePayable ? "Amount due" : "Entry fee"}</p>
                 <p className="font-display text-2xl font-semibold text-orange-200">
-                  R{Number(selectedCategory.currentFeeZar).toFixed(2)}
+                  {feePayable ? `R${feeAmountZar.toFixed(2)}` : "Free"}
                 </p>
-                <p className="text-xs text-slate-500">{selectedCategory.name}</p>
+                <p className="text-xs text-slate-500">
+                  {selectedCategory.name}
+                  {feePayable ? "" : " · No payment required"}
+                </p>
               </div>
             ) : null}
           </div>
@@ -1134,7 +1149,7 @@ export default function CreatorFestivalSubmitPage() {
               onClick={() => void submit()}
               className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-slate-950 shadow-[0_0_36px_-10px_rgba(249,115,22,0.85)] hover:bg-orange-400 disabled:opacity-60"
             >
-              {loading ? "Submitting…" : "Pay & submit"}
+              {loading ? "Submitting…" : feePayable ? "Pay & submit" : "Submit entry"}
             </button>
           )}
         </div>
